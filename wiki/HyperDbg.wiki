@@ -2,7 +2,7 @@
 HyperDbg is a kernel debugger that leverages hardware-assisted
 virtualization. More precisely, HyperDbg is based on a minimalistic hypervisor
 that is installed while the system runs. Compared to traditional kernel
-debuggers (e.g., !WinDbg, !SoftIce, Rasta !R0 Debugger) HyperDbg is completely
+debuggers (e.g., `WinDbg`, `SoftIce`, `Rasta R0 Debugger`) HyperDbg is completely
 transparent to the kernel and can be used to debug kernel code without the need
 of serial (or USB) cables. For example, HyperDbg allows to single step the
 execution of the kernel, even when the kernel is executing exception and

@@ -33,9 +33,11 @@ following line in hyperdbg/video.c:
 }}}
 
 and manually set the address of the video card memory by defining the
-DEFAULT_VIDEO_ADDRESS macro, like below:
+`DEFAULT_VIDEO_ADDRESS` macro, like below:
 
+{{{
 #define DEFAULT_VIDEO_ADDRESS 0xdeadbeef // where 0xdeadbeef is the address on your machine
+}}}
 
 To find the appropriate value for this macro, you just need to go to 'Control
 Panel' and double-click on 'System'. Then, switch to the 'Hardware' tab and
