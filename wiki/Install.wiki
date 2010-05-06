@@ -1,0 +1,93 @@
+= Compilation =
+To compile HyperDbg and the analysis infrastructure you need the Microsoft
+Windows Driver Kit (WDK). You can download the WDK from:
+
+  http://www.microsoft.com/whdc/driver/wdk/
+
+Unfortunately, this version of HyperDbg is unable to automatically detect the
+user defined resolution. Thus, you need to choose the desired resolution at
+compile-time.
+
+To compile HyperDbg simply run:
+
+  build_code.cmd hyperdbg <xresolution> <yresolution>
+
+As an example, to compile for a target machine with a resolution of 800x600 use
+the syntax:
+
+  build_code.cmd hyperdbg 800 600
+
+= Video issues =
+
+If automatic video card detection does not work on you system (e.g., detection
+will not work if you are going to test HyperDbg on Bochs), please disable
+automatic video card detection *before compiling*, by uncommenting the
+following line in hyperdbg/video.c:
+
+`
+#define VIDEO_ADDRESS_MANUAL
+`
+
+and manually set the address of the video card memory by defining the
+DEFAULT_VIDEO_ADDRESS macro, like below:
+
+#define DEFAULT_VIDEO_ADDRESS 0xdeadbeef // where 0xdeadbeef is the address on your machine
+
+To find the appropriate value for this macro, you just need to go to 'Control
+Panel' and double-click on 'System'. Then, switch to the 'Hardware' tab and
+click on Hardware Devices'. From there, locate the entry of your video card,
+right-click on it and select 'Properties'. Go to the 'Resources' tab and find
+'Memory Interval', the reported value is the one that you need to insert in the
+code. It is possible to find multiple entries labeled as 'Memory Interval'; if
+this is the case, select the bigger interval, it will look like something like
+this:
+
+`
+Memory Interval   0xE0000000 - 0xE0FFFFFF
+`
+
+If you have a linux installation on the same machine and feel more confident
+with linux tools, just run from a terminal the command:
+
+`
+$ lspci -vvv
+`
+
+once located the entry relative to your video card, you will find a line
+similar to this:
+
+Region 1: Memory at d0000000 (32-bit, prefetchable) [size=128M]
+
+`d0000000` is the address you need to set in the code.
+
+= HyperGui =
+  
+In hyperdbg/tools/hypergui/ you can find an user-friendly HyperDbg loader that
+won't be compiled by default when building HyperDbg. To compile it, just move
+to the aforementioned directory and run:
+
+`
+build /czgw
+`
+
+after building HyperGui, you can just ship HyperGui.exe and hyperdbg.sys on the
+target machine and double click on HyperGui.exe. HyperGui.exe also offers a
+command line interface.
+
+= symbol2c.py =
+
+In hyperdbg/tools/ you can find a Python script to automatically parse symbols
+for HyperDbg. You have to dowload from microsoft.com the appropriate
+symbol file (.pdb). Once you get hold of the file you can launch:
+
+`
+$ python symbol2c.py file.pdb syms.c
+`
+
+This command will generate the file syms.c. Replace the file hyperdbg/syms.c
+with the newly created one and recompile.
+
+Note that, to use symbol2c.py, you need to install the pdbparse library,
+available at:
+
+http://code.google.com/p/pdbparse/
