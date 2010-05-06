@@ -11,13 +11,15 @@ compile-time.
 To compile HyperDbg simply run:
 
 {{{
-  build_code.cmd hyperdbg <xresolution> <yresolution>
+build_code.cmd hyperdbg <xresolution> <yresolution>
 }}}
 
 As an example, to compile for a target machine with a resolution of 800x600 use
 the syntax:
 
-  build_code.cmd hyperdbg 800 600
+{{{
+build_code.cmd hyperdbg 800 600
+}}}
 
 = Video issues =
 
@@ -26,9 +28,9 @@ will not work if you are going to test HyperDbg on Bochs), please disable
 automatic video card detection *before compiling*, by uncommenting the
 following line in hyperdbg/video.c:
 
-`
+{{{
 #define VIDEO_ADDRESS_MANUAL
-`
+}}}
 
 and manually set the address of the video card memory by defining the
 DEFAULT_VIDEO_ADDRESS macro, like below:
@@ -44,36 +46,38 @@ code. It is possible to find multiple entries labeled as 'Memory Interval'; if
 this is the case, select the bigger interval, it will look like something like
 this:
 
-`
+{{{
 Memory Interval   0xE0000000 - 0xE0FFFFFF
-`
+}}}
 
 If you have a linux installation on the same machine and feel more confident
 with linux tools, just run from a terminal the command:
 
-`
+{{{
 $ lspci -vvv
-`
+}}}
 
 once located the entry relative to your video card, you will find a line
 similar to this:
 
+{{{
 Region 1: Memory at d0000000 (32-bit, prefetchable) [size=128M]
+}}}
 
-`d0000000` is the address you need to set in the code.
+{{{d0000000}}} is the address you need to set in the code.
 
-= HyperGui =
+= !HyperGui =
   
 In hyperdbg/tools/hypergui/ you can find an user-friendly HyperDbg loader that
 won't be compiled by default when building HyperDbg. To compile it, just move
 to the aforementioned directory and run:
 
-`
+{{{
 build /czgw
-`
+}}}
 
-after building HyperGui, you can just ship HyperGui.exe and hyperdbg.sys on the
-target machine and double click on HyperGui.exe. HyperGui.exe also offers a
+after building !HyperGui, you can just ship HyperGui.exe and hyperdbg.sys on the
+target machine and double click on HyperGui.exe. !HyperGui.exe also offers a
 command line interface.
 
 = symbol2c.py =
@@ -82,9 +86,9 @@ In hyperdbg/tools/ you can find a Python script to automatically parse symbols
 for HyperDbg. You have to dowload from microsoft.com the appropriate
 symbol file (.pdb). Once you get hold of the file you can launch:
 
-`
+{{{
 $ python symbol2c.py file.pdb syms.c
-`
+}}}
 
 This command will generate the file syms.c. Replace the file hyperdbg/syms.c
 with the newly created one and recompile.

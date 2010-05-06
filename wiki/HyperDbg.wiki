@@ -44,4 +44,4 @@ driver) or if the interface is not correctly rendered on the screen, you have
 to disable the driver in order to be able to use HyperDbg. The driver used by
 default by Windows XP does not give any problem.
 
-See the [INSTALL] page for compilation instructions. 
+See the [Install] page for compilation instructions. 
