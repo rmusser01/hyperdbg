@@ -1,3 +1,5 @@
+<wiki:toc max_depth="1" />
+
 = Compilation =
 To compile HyperDbg and the analysis infrastructure you need the Microsoft
 Windows Driver Kit (WDK). You can download the WDK from:
