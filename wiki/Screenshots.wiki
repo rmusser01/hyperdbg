@@ -14,7 +14,7 @@
     </td>
   </tr>
 </table>
-
+----
 Note that the first and second screenshots have been taken using our developing
 environment based on Bochs, while the third is actually a photo of a physical
 machine on which HyperDbg was running.
