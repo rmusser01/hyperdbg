@@ -1,15 +1,16 @@
+
 = Some screenshots of HyperDbg =
 
 <table width="100%" border="0"> 
   <tr> 
     <td align="center">
-      <a href="images/snap0.png"><img src="images/thumb0.png" width="160" height="120" alt="snap" /></a>
+      <a href="http://hyperdbg.googlecode.com/svn/wiki/images/snap0.png"><img src="http://hyperdbg.googlecode.com/svn/wiki/images/thumb0.png" width="160" height="120" alt="snap" /></a>
     </td>
     <td align="center">
-      <a href="images/snap1.png"><img src="images/thumb1.png" width="160" height="120" alt="snap" /></a>
+      <a href="http://hyperdbg.googlecode.com/svn/wiki/images/snap1.png"><img src="http://hyperdbg.googlecode.com/svn/wiki/images/thumb1.png" width="160" height="120" alt="snap" /></a>
     </td>
     <td align="center">
-      <a href="images/snap3.png" ><img src="images/thumb3.png" width="160" height="120" alt="snap" /></a> 
+<a href="http://hyperdbg.googlecode.com/svn/wiki/images/snap3.png"><img src="http://hyperdbg.googlecode.com/svn/wiki/images/thumb3.png" width="160" height="120" alt="snap" /></a> 
     </td>
   </tr>
 </table>
@@ -17,3 +18,4 @@
 Note that the first and second screenshots have been taken using our developing
 environment based on Bochs, while the third is actually a photo of a physical
 machine on which HyperDbg was running.
+
