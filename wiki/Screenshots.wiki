@@ -1,9 +1,13 @@
-#summary One-sentence summary of this page.
+# screenshots
 #labels Featured
 
-= Introduction =
+= Some screenshots of HyperDbg =
 
-Add your content here.
+<img href="http://hyperdbg.googlecode.com/svn/wiki/images/snap0.png" alt="snap0"></img>
+
+Note that the first and second screenshots have been taken using our developing
+environment based on Bochs, while the third is actually a photo of a physical
+machine on which HyperDbg was running.
 
 
 = Details =
