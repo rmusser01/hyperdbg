@@ -10,7 +10,9 @@ compile-time.
 
 To compile HyperDbg simply run:
 
+{{{
   build_code.cmd hyperdbg <xresolution> <yresolution>
+}}}
 
 As an example, to compile for a target machine with a resolution of 800x600 use
 the syntax:
