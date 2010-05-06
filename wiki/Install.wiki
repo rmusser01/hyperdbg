@@ -25,7 +25,7 @@ build_code.cmd hyperdbg 800 600
 
 = Video issues =
 
-If automatic video card detection does not work on you system (e.g., detection
+If automatic video card detection does not work on your system (e.g., detection
 will not work if you are going to test HyperDbg on Bochs), please disable
 automatic video card detection *before compiling*, by uncommenting the
 following line in hyperdbg/video.c:
