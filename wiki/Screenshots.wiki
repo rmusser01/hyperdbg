@@ -3,7 +3,8 @@
 
 = Some screenshots of HyperDbg =
 
-<img href="http://hyperdbg.googlecode.com/svn/wiki/images/snap0.png"></img>
+<a href="http://hyperdbg.googlecode.com/svn/wiki/images/snap0.png"><img src="http://hyperdbg.googlecode.com/svn/wiki/images/thumb0.png" width="160" height="120" alt="snap" /></a> 
+
 
 Note that the first and second screenshots have been taken using our developing
 environment based on Bochs, while the third is actually a photo of a physical
