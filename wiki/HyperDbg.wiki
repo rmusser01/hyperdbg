@@ -1,3 +1,4 @@
+#labels Featured
 = What is HyperDbg? =
 HyperDbg is a kernel debugger that leverages hardware-assisted
 virtualization. More precisely, HyperDbg is based on a minimalistic hypervisor
