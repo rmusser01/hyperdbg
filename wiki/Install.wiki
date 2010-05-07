@@ -1,3 +1,4 @@
+#labels Featured
 <wiki:toc max_depth="1" />
 
 = Compilation =
