@@ -1,0 +1,13 @@
+TARGETNAME=libudis86
+TARGETPATH=..\lib
+TARGETTYPE=DRIVER_LIBRARY
+INCLUDES=.;..\core
+
+SOURCES=	\
+    decode.c 	\
+    input.c 	\
+    itab.c 	\
+    syn-att.c 	\
+    syn.c 	\
+    syn-intel.c \
+    udis86.c

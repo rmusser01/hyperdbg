@@ -1,0 +1,10 @@
+TARGETNAME=hypergui
+TARGETPATH=bin
+TARGETTYPE=PROGRAM
+UMTYPE=windows
+USE_LIBCMT=1
+USE_MSVCRT=1
+TARGETLIBS=				\
+	$(SDK_LIB_PATH)\shell32.lib
+
+SOURCES=common.c loader.c hypergui.c hypergui.rc
