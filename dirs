@@ -1,0 +1,3 @@
+DIRS=core libudis86
+OPTIONAL_DIRS=hyperdbg hyperdump
+		

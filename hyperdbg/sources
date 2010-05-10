@@ -1,0 +1,20 @@
+USER_C_FLAGS=$(CUSTOM_PLUGIN_CFLAGS)
+
+TARGETNAME=hyperdbg
+TARGETPATH=..\lib
+TARGETTYPE=DRIVER_LIBRARY
+INCLUDES= .;..\core;..\libudis86
+
+SOURCES=		\
+    hyperdbg_guest.c 	\
+    hyperdbg_host.c 	\
+    hyperdbg_cmd.c 	\
+    keyboard.c 		\
+    scancode.c 		\
+    pci.c 		\
+    video.c 		\
+    font_256.c 		\
+    gui.c 		\
+    sw_bp.c 		\
+    syms.c 		\
+    symsearch.c
