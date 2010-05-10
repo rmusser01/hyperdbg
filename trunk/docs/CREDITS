@@ -1,0 +1,27 @@
+HyperDbg and the hardware-assisted virtual machine monitor are developed by:
+
+    Aristide Fattori    <joystick@security.dico.unimi.it>
+    Lorenzo  Martignoni <martignlo@gmail.com>
+    Roberto  Paleari    <roberto.paleari@gmail.com>
+
+The minimalistic hypervisor is inspired by Joanna Rutkowska's bluepill[1] and
+Shawn Embleton's virtual machine monitor[2]. 
+
+The x86 disassembler embedded into HyperDbg is based on the udis86 library,
+authored and maintained by Vivek Thampi[3].
+
+The version of the snprintf() and vsnprintf() we use has been developed by
+Patrick Powell <papowell@astart.com>.
+
+The font used in the GUI has been created by Droids Corporation[4].
+
+The icon was designed by filischi[5].
+
+References:
+ 
+[1]  http://invisiblethingslab.com/
+[2]  https://www.rootkit.com/newsread.php?newsid=758
+[3]  http://udis86.sourceforge.net/
+[4]  http://www.droids-corp.org/
+[5]  http://filischi.blogspot.com
+
