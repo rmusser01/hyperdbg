@@ -141,26 +141,26 @@ typedef struct _CR4_REG
 
 typedef struct _GDTR
 {
-  unsigned	Limit		:16;
-  unsigned	BaseLo		:16;
-  unsigned	BaseHi		:16;
+  unsigned Limit  :16;
+  unsigned BaseLo :16;
+  unsigned BaseHi :16;
 } GDTR;
 
 typedef struct
 {
-  unsigned	LimitLo	:16;
-  unsigned	BaseLo	:16;
-  unsigned	BaseMid	:8;
-  unsigned	Type	:4;
-  unsigned	System	:1;
-  unsigned	DPL	:2;
-  unsigned	Present	:1;
-  unsigned	LimitHi	:4;
-  unsigned	AVL	:1;
-  unsigned	L	:1;
-  unsigned	DB	:1;
-  unsigned	Gran	:1;	// Granularity
-  unsigned	BaseHi	:8;
+  unsigned LimitLo :16;
+  unsigned BaseLo  :16;
+  unsigned BaseMid :8;
+  unsigned Type	   :4;
+  unsigned System  :1;
+  unsigned DPL	   :2;
+  unsigned Present :1;
+  unsigned LimitHi :4;
+  unsigned AVL	   :1;
+  unsigned L	   :1;
+  unsigned DB	   :1;
+  unsigned Gran	   :1;	// Granularity
+  unsigned BaseHi  :8;
 } SEGMENT_DESCRIPTOR, *PSEGMENT_DESCRIPTOR;
 
 typedef struct
@@ -182,35 +182,35 @@ typedef union
   USHORT UCHARs;
   struct
   {
-    USHORT type:4;              /* 0;  Bit 40-43 */
-    USHORT s:1;                 /* 4;  Bit 44 */
-    USHORT dpl:2;               /* 5;  Bit 45-46 */
-    USHORT p:1;                 /* 7;  Bit 47 */
+    USHORT type :4;              /* 0;  Bit 40-43 */
+    USHORT s    :1;              /* 4;  Bit 44 */
+    USHORT dpl  :2;              /* 5;  Bit 45-46 */
+    USHORT p    :1;              /* 7;  Bit 47 */
     // gap!       
-    USHORT avl:1;               /* 8;  Bit 52 */
-    USHORT l:1;                 /* 9;  Bit 53 */
-    USHORT db:1;                /* 10; Bit 54 */
-    USHORT g:1;                 /* 11; Bit 55 */
-    USHORT Gap:4;
+    USHORT avl  :1;              /* 8;  Bit 52 */
+    USHORT l    :1;              /* 9;  Bit 53 */
+    USHORT db   :1;              /* 10; Bit 54 */
+    USHORT g    :1;              /* 11; Bit 55 */
+    USHORT Gap  :4;
   } fields;
 } SEGMENT_ATTRIBUTES;
 
 /* Page table entry */
 typedef struct _PTE
 {
-  ULONG Present           :1;
-  ULONG Writable          :1;
-  ULONG Owner             :1;
-  ULONG WriteThrough      :1;
-  ULONG CacheDisable      :1;
-  ULONG Accessed          :1;
-  ULONG Dirty             :1;
-  ULONG LargePage         :1;
-  ULONG Global            :1;
-  ULONG ForUse1           :1;
-  ULONG ForUse2           :1;
-  ULONG ForUse3           :1;
-  ULONG PageBaseAddr      :20;
+  ULONG Present      :1;
+  ULONG Writable     :1;
+  ULONG Owner        :1;
+  ULONG WriteThrough :1;
+  ULONG CacheDisable :1;
+  ULONG Accessed     :1;
+  ULONG Dirty        :1;
+  ULONG LargePage    :1;
+  ULONG Global       :1;
+  ULONG ForUse1      :1;
+  ULONG ForUse2      :1;
+  ULONG ForUse3      :1;
+  ULONG PageBaseAddr :20;
 } PTE, *PPTE;
 
 typedef struct
@@ -232,28 +232,25 @@ ULONG32 RegGetCr4();
 ULONG32 RegGetIdtBase();
 
 /* Access to 16-bit registers */
-USHORT  RegGetCs();
-USHORT  RegGetDs();
-USHORT  RegGetEs();
-USHORT  RegGetFs();
-USHORT  RegGetGs();
-USHORT  RegGetSs();
-USHORT  RegGetTr();
-USHORT  RegGetLdtr();
-USHORT  RegGetIdtLimit();
+USHORT RegGetCs();
+USHORT RegGetDs();
+USHORT RegGetEs();
+USHORT RegGetFs();
+USHORT RegGetGs();
+USHORT RegGetSs();
+USHORT RegGetTr();
+USHORT RegGetLdtr();
+USHORT RegGetIdtLimit();
 
 VOID RegSetFlags(ULONG32 v);
 VOID RegSetCr0(ULONG32 v);
 VOID RegSetCr4(ULONG32 v);
 VOID RegSetIdtr(PVOID base, ULONG limit);
 
-/* Read MSR register to LARGE_INTEGER variable */
-ULONG64 ReadMSRToLarge(ULONG32 reg);
-
 /* Segments-related stuff */
-ULONG    GetSegmentDescriptorBase(ULONG gdt_base , USHORT seg_selector);
-ULONG    GetSegmentDescriptorDPL(ULONG gdt_base, USHORT seg_selector);
-ULONG    GetSegmentDescriptorLimit(ULONG gdt_base, USHORT selector);
-ULONG    GetSegmentDescriptorAR(ULONG gdt_base, USHORT selector);
+ULONG GetSegmentDescriptorBase(ULONG gdt_base , USHORT seg_selector);
+ULONG GetSegmentDescriptorDPL(ULONG gdt_base, USHORT seg_selector);
+ULONG GetSegmentDescriptorLimit(ULONG gdt_base, USHORT selector);
+ULONG GetSegmentDescriptorAR(ULONG gdt_base, USHORT selector);
 
 #endif /* _PILL_X86_H */
