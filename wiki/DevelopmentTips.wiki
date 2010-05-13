@@ -2,20 +2,19 @@
 We currently use the following setup for the development and testing of HyperDbg
 
 = Compiling =
-To compile HyperDbg code, we usually upload the code from the machine where we code to a Virtual Box Windows XP virtual machine. To compile the code, you need to install the *Windows Driver Kit* that you can freely download from:
+To compile HyperDbg code, we usually upload it from the machine where we write it to a Virtual Box Windows XP virtual machine. To compile the code, you need to install the *Windows Driver Kit* that you can freely download from:
 
 http://www.microsoft.com/whdc/devtools/wdk/wdkpkg.mspx
 
-We find that the quickest way to share the code between your machine and the compile machine is to create a *shared directory* through Virtual Box. Once you have uploaded the code, just switch to the Windows VM, direclty through the GUI or through Remote Desktop according to your preference. Once there, open a *Windows XP x86 Free Build Environment* shell (you should have a link to it in the start menu, under *Windows Driver Kits* directory). From there, move to the shared directory where HyperDbg code resides ($HDBG) and type:
+on the machine on which you plan to build HyperDbg.
+We find that the quickest way to share the code between your machine and the compile machine is to create a *shared directory* through Virtual Box. Once you have uploaded the code, just switch to the Windows VM, directly through the GUI or through Remote Desktop according to your preferences. Once there, open a *Windows XP x86 Free Build Environment* shell (you should have a link to it in the start menu, under the *Windows Driver Kits* directory). From there, move to the shared directory where HyperDbg code resides ($HDBG) and type:
 {{{
 build_code.cmd hyperdbg xres yres
 }}}
-
 if everything compiles correctly, you should find the following file:
 {{{
 $HDBG\bin\i386\pill.sys
 }}}
-
 This is the minimal driver that will load HyperDbg and that we need to deploy on the testing system.
 
 = Testing =
@@ -24,7 +23,7 @@ The testing environment is a little bit more complex than the compiling one. [ht
 {{{
 $ mkisofs -o cd.iso pill.sys
 }}}
-Once you have the cd.iso file, you can load it into the Windows guest through Bochs GUI. Once copied the .sys file from the cd to the local disk on Windows into Bochs, to launch HyperDbg you have two choices:
+Once you have the cd.iso file, you can load it into the Windows guest through Bochs GUI. Once copied the .sys file from the cd to the local disk on Windows into Bochs, to start HyperDbg you have two choices:
 
  * HyperGui: in $HDBG\hyperdbg\hypergui\ you can find the sources for HyperGui, a small program that will load HyperDbg.
 
@@ -32,7 +31,7 @@ Once you have the cd.iso file, you can load it into the Windows guest through Bo
 
 Another useful tool to debug loading problems is [http://technet.microsoft.com/en-us/sysinternals/bb896647.aspx DbgView]. Here, you will see the initial output generated from the loading phase of HyperDbg.
 
-To start the debug session just press F12.
+To show HyperDbg just press F12.
 
 == Bochs Serial Port Setup ==
 To gather HyperDbg debugging output, which you can enable by uncommenting the line:
