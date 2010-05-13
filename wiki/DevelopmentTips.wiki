@@ -51,7 +51,7 @@ So, since Windows is super-slow to boot into Bochs and given that BSODs and cons
  * launch Bochs within the testing Windows image *inside* the Virtual Box image;
  * _before_ starting the debug session, take a snapshot of the Virtual Box image;
 
-from now on, instead of booting Bochs everytime Windows crashes, you can just shut down the Virtual Box image and restore its status from the snapshot. By doing so, you will have  Bochs up and running in a matter of seconds instead of minutes. An example of how to restore a previously saved Virtual Box snapshot and start it in headless mode is:
+from now on, instead of booting Bochs everytime Windows crashes, you can just shut down the Virtual Box image containing Bochs and restore its status from the snapshot. By doing so, you will have  Bochs up and running in a matter of seconds instead of minutes. An example of how to restore a previously saved Virtual Box snapshot and start it in headless mode is:
 {{{
 VBoxManage snapshot vm_name restore "name_of_the_snapshot"
 VBoxHeadless -s vm_name 
