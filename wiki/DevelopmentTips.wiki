@@ -19,7 +19,7 @@ This is the minimal driver that will load HyperDbg and that we need to deploy on
 
 = Testing =
 
-The testing environment is a little bit more complex than the compiling one. [http://bochs.sourceforge.net/ Bochs] is needed to test HyperDbg since it is the only emulator that currently emulates Intel VT-x. First of all, then, you need a Windows XP image for Bochs. Once you have Windows up and running into Bochs, the fastest way to share a file between the host and the guest Windows image is to create a ISO cd image containing the file you need to upload on the guest. For example, you could copy the .sys file from the compiling machine to your machine and put it into an ISO cd image with a tool like mkisofs:
+The testing environment is a little bit more complex than the compiling one. [http://bochs.sourceforge.net/ Bochs] is needed to test HyperDbg since it is the only emulator that currently emulates Intel VT-x, AFAIK. First of all, then, you need a Windows XP image for Bochs. Once you have Windows up and running into Bochs, the fastest way to share a file between the host and the guest Windows image is to create a ISO cd image containing the file you need to upload on the guest. For example, you could copy the .sys file from the compiling machine to your machine and put it into an ISO cd image with a tool like mkisofs:
 {{{
 $ mkisofs -o cd.iso pill.sys
 }}}
