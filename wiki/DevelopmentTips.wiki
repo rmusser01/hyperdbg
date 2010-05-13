@@ -1,0 +1,54 @@
+We currently use the following setup for the development and testing of HyperDbg
+
+= Compiling =
+To compile HyperDbg code, we usually upload the code from the machine where we code to a Virtual Box Windows XP virtual machine. To compile the code, you need to install the *Windows Driver Kit* that you can freely download from:
+
+http://www.microsoft.com/whdc/devtools/wdk/wdkpkg.mspx
+
+We find that the quickest way to share the code between your machine and the compile machine is to create a *shared directory* through Virtual Box. Once you have uploaded the code, just switch to the Windows VM, direclty through the GUI or through Remote Desktop according to your preference. Once there, open a *Windows XP x86 Free Build Environment* shell (you should have a link to it in the start menu, under *Windows Driver Kits* directory). From there, move to the shared directory where HyperDbg code resides ($HDBG) and type:
+{{{
+build_code.cmd hyperdbg xres yres
+}}}
+
+if everything compiles correctly, you should find the following file:
+{{{
+$HDBG\bin\i386\pill.sys
+}}}
+
+This is the minimal driver that will load HyperDbg and that we need to deploy on the testing system.
+
+= Testing =
+
+The testing environment is a little bit more complex than the compiling one. [http://bochs.sourceforge.net/ Bochs] is needed to test HyperDbg since it is the only emulator that currently emulates Intel VT-x. First of all, then, you need a Windows XP image for Bochs. Once you have Windows up and running into Bochs, the fastest way to share a file between the host and the guest Windows image is to create a ISO cd image containing the file you need to upload on the guest. For example, you could copy the .sys file from the compiling machine to your machine and put it into an ISO cd image with a tool like mkisofs:
+{{{
+$ mkisofs -o cd.iso pill.sys
+}}}
+Once you have the cd.iso file, you can load it into the Windows guest through Bochs GUI. Once copied the .sys file from the cd to the local disk on Windows into Bochs, to launch HyperDbg you have two choices:
+
+ * HyperGui: in $HDBG\hyperdbg\hypergui\ you can find the sources for HyperGui, a small program that will load HyperDbg.
+
+ * OSRLOADER: [http://www.osronline.com/article.cfm?article=157 here] you can download OSRLOADER, a tool that you can use to load the HyperDbg.
+
+Another useful tool to debug loading problems is [http://technet.microsoft.com/en-us/sysinternals/bb896647.aspx DbgView]. Here, you will see the initial output generated from the loading phase of HyperDbg.
+
+To start the debug session just press F12.
+
+== Bochs Serial Port Setup ==
+To gather HyperDbg debugging output, which you can enable by uncommenting the line:
+{{{
+#define DEBUG 1
+}}}
+in the file $HDBG\core\debug.h, you have to properly setup Bochs to dump Serial output on a file. To do so add the following line to the configuration file that you use with Bochs:
+{{{
+com1: enabled=1, mode=file,dev=serial.txt
+}}}
+By doing so, the debugging output that HyperDbg dumps on the Serial port, will be written in the file serial.txt.
+
+
+== Time Saving Trick ==
+So, since Windows is super-slow to boot into Bochs and given that BSODs and consequent reboots are more than common during the development phase, we suggest the following time saving scenario:
+ * a Virtual Box image, Windows or Linux;
+ * launch Bochs within the testing Windows image *inside* the Virtual Box image;
+ * _before_ starting the debug session, take a snapshot of the Virtual Box image;
+
+from now on, instead of booting Bochs everytime Windows crashes, you can just restore the snapshot and restart the debugging session.
