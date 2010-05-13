@@ -61,15 +61,15 @@ EVENT_PUBLISH_STATUS HypercallSwitchOff(VOID)
 
   __asm {
     /* Restore guest CR0 */
-    mov eax, vmcs.GuestState.CR0;
-    mov cr0, eax;
+    MOV EAX, vmcs.GuestState.CR0;
+    MOV CR0, EAX;
 
     /* Restore guest CR3 */
-    mov eax, vmcs.GuestState.CR3;
-    mov cr3, eax;
+    MOV EAX, vmcs.GuestState.CR3;
+    MOV CR3, EAX;
 
     /* Restore guest CR4 */
-    mov eax, vmcs.GuestState.CR4;
+    MOV EAX, vmcs.GuestState.CR4;
     /* mov cr4, eax; */
     _emit 0x0f;
     _emit 0x22;
@@ -95,11 +95,11 @@ EVENT_PUBLISH_STATUS HypercallSwitchOff(VOID)
     MOV	ESP, vmcs.GuestState.ESP;
 
     /* Restore guest RFLAGS */
-    push eax;
-    mov eax, vmcs.GuestState.EFLAGS;
-    push eax;
-    popfd;
-    pop eax;
+    PUSH EAX;
+    MOV EAX, vmcs.GuestState.EFLAGS;
+    PUSH EAX;
+    POPFD;
+    POP EAX;
 
     /* Resume guest execution */
     JMP	vmcs.GuestState.ResumeEIP;

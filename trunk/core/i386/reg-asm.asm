@@ -70,12 +70,12 @@ RegSetCr4 PROC StdCall _CR4
 	ret
 RegSetCr4 ENDP
 
-;	Writes the contents of registers EDX:EAX into the 64-bit model specific
-;	register (MSR) specified in the ECX register. The contents of the EDX
-;	register are copied to high-order 32 bits of the selected MSR and the
-;	contents of the EAX register are copied to low-order 32 bits of the MSR.
-;		msr.Hi <-- EDX
-;		msr.Lo <-- EAX
+; Writes the contents of registers EDX:EAX into the 64-bit model specific
+; register (MSR) specified in the ECX register. The contents of the EDX
+; register are copied to high-order 32 bits of the selected MSR and the
+; contents of the EAX register are copied to low-order 32 bits of the MSR.
+;	msr.Hi <-- EDX
+;	msr.Lo <-- EAX
 ;
 WriteMSR PROC StdCall encoding, _highpart, _lowpart
 	pushad
@@ -131,11 +131,25 @@ RegGetLdtr PROC
 	ret
 RegGetLdtr ENDP
 
-ReadMSRToLarge PROC StdCall _reg
+; Loads the contents of a 64-bit model specific register (MSR) specified
+; in the ECX register into registers EDX:EAX. The EDX register is loaded
+; with the high-order 32 bits of the MSR and the EAX register is loaded
+; with the low-order 32 bits.
+;	msr.Hi --> EDX
+;	msr.Lo --> EAX
+ReadMSR PROC StdCall _reg, _msr
+	pushad
+	
 	mov ecx, _reg
 	rdmsr ; MSR[ecx] --> edx:eax
+	mov ecx, _msr
+	mov [ecx],   eax
+	mov [ecx+4], edx
+
+	popad
+	
 	ret
-ReadMSRToLarge ENDP
+ReadMSR ENDP
 
 RegSetIdtr PROC StdCall _base, _limit
 	push	_base

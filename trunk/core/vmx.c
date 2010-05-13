@@ -22,15 +22,16 @@
 */
 
 #include "x86.h"
+#include "msr.h"
 #include "vmx.h"
 
-ULONG32 VmxAdjustControls(ULONG32 Ctl, ULONG32 Msr)
+ULONG32 VmxAdjustControls(ULONG32 c, ULONG32 n)
 {
-  LARGE_INTEGER MsrValue;
+  MSR msr;
 
-  MsrValue.QuadPart = ReadMSRToLarge(Msr);
-  Ctl &= MsrValue.HighPart;     /* bit == 0 in high word ==> must be zero */
-  Ctl |= MsrValue.LowPart;      /* bit == 1 in low word  ==> must be one  */
-  return Ctl;
+  ReadMSR(n, &msr);
+  c &= msr.Hi;     /* bit == 0 in high word ==> must be zero */
+  c |= msr.Lo;      /* bit == 1 in low word  ==> must be one  */
+  return c;
 }
 

@@ -24,6 +24,8 @@
 #ifndef _PILL_MSR_H
 #define _PILL_MSR_H
 
+#pragma pack (push, 1)
+
 /* MSRs */
 #define IA32_FEATURE_CONTROL_CODE		0x03A
 #define IA32_SYSENTER_CS                        0x174
@@ -44,20 +46,16 @@
 #define	IA32_GS_BASE	                   0xc0000101
 
 ///////////
-//       //
 //  MSR  //
-//       //
 ///////////
 typedef struct _MSR
 {
-  ULONG		Hi;
   ULONG		Lo;
-} MSR;
+  ULONG		Hi;
+} MSR, *PMSR;
 
 /////////////////////////////
-//                         //
 //  SPECIAL MSR REGISTERS  //
-//                         //
 /////////////////////////////
 typedef struct _IA32_VMX_BASIC_MSR
 {
@@ -88,6 +86,10 @@ typedef struct _IA32_FEATURE_CONTROL_MSR
 
 } IA32_FEATURE_CONTROL_MSR;
 
-VOID WriteMSR(ULONG32 msrEncoding, ULONG32 highpart, ULONG32 lowpart);
+#pragma pack (pop)
+
+/* Read MSR register to LARGE_INTEGER variable */
+VOID ReadMSR (ULONG32 reg, PMSR msr);
+VOID WriteMSR(ULONG32 reg, ULONG32 highpart, ULONG32 lowpart);
 
 #endif /* _PILL_MSR_H */

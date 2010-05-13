@@ -34,6 +34,7 @@
 #include "vmm.h"
 #include "events.h"
 #include "x86.h"
+#include "msr.h"
 #include "idt.h"
 #include "comio.h"
 #include "common.h"
@@ -65,7 +66,6 @@ NTSTATUS	DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 VOID		DriverUnload(IN PDRIVER_OBJECT DriverObject);
 
 static VOID     StartVMX();
-static VOID     ReadMSR(ULONG msrEncoding);
 static int      EnableVMX(VOID);
 static VOID     InitVMMIDT(PIDT_ENTRY pidt);
 static NTSTATUS RegisterEvents(VOID);
@@ -140,30 +140,6 @@ static NTSTATUS RegisterEvents(VOID)
   return STATUS_SUCCESS;
 }
 
-/*
-  Loads the contents of a 64-bit model specific register (MSR) specified
-  in the ECX register into registers EDX:EAX. The EDX register is loaded
-  with the high-order 32 bits of the MSR and the EAX register is loaded
-  with the low-order 32 bits.
-	msr.Hi --> EDX
-	msr.Lo --> EAX
-*/
-static VOID ReadMSR(ULONG msrEncoding)
-{
-  __asm {
-    PUSHAD;
-			
-    MOV		ECX, msrEncoding;
-
-    RDMSR;
-
-    MOV		msr.Hi, EDX;
-    MOV		msr.Lo, EAX;
-
-    POPAD;
-  };
-}
-
 /* Initialize the IDT of the VMM */
 static VOID InitVMMIDT(PIDT_ENTRY pidt)
 {
@@ -206,30 +182,15 @@ static int EnableVMX(VOID)
 	
   WindowsLog("VMX Support Present.", vmxFeatures);
 	
-  // (2)	Determine the VMX capabilities supported by the processor through
-  //    	the VMX capability MSRs.
-  __asm {
-    PUSHAD;
+  // (2) Determine the VMX capabilities supported by the processor through
+  //     the VMX capability MSRs.
+  ReadMSR(IA32_VMX_BASIC_MSR_CODE, (PMSR) &vmxBasicMsr);
+  ReadMSR(IA32_FEATURE_CONTROL_CODE, (PMSR) &vmxFeatureControl);
 
-    MOV		ECX, IA32_VMX_BASIC_MSR_CODE;
-    RDMSR;
-    LEA		EBX, vmxBasicMsr;
-    MOV		[EBX+4], EDX;
-    MOV		[EBX], EAX;
-
-    MOV		ECX, IA32_FEATURE_CONTROL_CODE;
-    RDMSR;
-    LEA		EBX, vmxFeatureControl;
-    MOV		[EBX+4], EDX;
-    MOV		[EBX], EAX;
-
-    POPAD;
-  };
-
-  // (3)	Create a VMXON region in non-pageable memory of a size specified by
-  //		IA32_VMX_BASIC_MSR and aligned to a 4-byte boundary. The VMXON region
-  //		must be hosted in cache-coherent memory.
-  WindowsLog("VMXON Region Size", vmxBasicMsr.szVmxOnRegion ) ;
+  // (3) Create a VMXON region in non-pageable memory of a size specified by
+  //	 IA32_VMX_BASIC_MSR and aligned to a 4-byte boundary. The VMXON region
+  //	 must be hosted in cache-coherent memory.
+  WindowsLog("VMXON Region Size", vmxBasicMsr.szVmxOnRegion);
   WindowsLog("VMXON Access Width Bit", vmxBasicMsr.PhyAddrWidth);
   WindowsLog("      [   1] --> 32-bit", 0);
   WindowsLog("      [   0] --> 64-bit", 0);
@@ -252,16 +213,16 @@ static int EnableVMX(VOID)
     break;
   }
 
-  // (4)	Initialize the version identifier in the VMXON region (first 32 bits)
-  //		with the VMCS revision identifier reported by capability MSRs.
+  // (4) Initialize the version identifier in the VMXON region (first 32 bits)
+  //	 with the VMCS revision identifier reported by capability MSRs.
   *(VMMInitState.pVMXONRegion) = vmxBasicMsr.RevId;
 	
   WindowsLog("vmxBasicMsr.RevId", vmxBasicMsr.RevId);
 
-  // (5)	Ensure the current processor operating mode meets the required CR0
-  //		fixed bits (CR0.PE=1, CR0.PG=1). Other required CR0 fixed bits can
-  //		be detected through the IA32_VMX_CR0_FIXED0 and IA32_VMX_CR0_FIXED1
-  //		MSRs.
+  // (5) Ensure the current processor operating mode meets the required CR0
+  //	 fixed bits (CR0.PE=1, CR0.PG=1). Other required CR0 fixed bits can
+  //	 be detected through the IA32_VMX_CR0_FIXED0 and IA32_VMX_CR0_FIXED1
+  //	 MSRs.
   CR0_TO_ULONG(cr0_reg) = RegGetCr0();
 
   if(cr0_reg.PE != 1) {
@@ -285,9 +246,9 @@ static int EnableVMX(VOID)
 
   RegSetCr0(CR0_TO_ULONG(cr0_reg));
 
-  // (6)	Enable VMX operation by setting CR4.VMXE=1 [bit 13]. Ensure the
-  //		resultant CR4 value supports all the CR4 fixed bits reported in
-  //		the IA32_VMX_CR4_FIXED0 and IA32_VMX_CR4_FIXED1 MSRs.
+  // (6) Enable VMX operation by setting CR4.VMXE=1 [bit 13]. Ensure the
+  //	 resultant CR4 value supports all the CR4 fixed bits reported in
+  //	 the IA32_VMX_CR4_FIXED0 and IA32_VMX_CR4_FIXED1 MSRs.
   CR4_TO_ULONG(cr4_reg) = RegGetCr4();
 
   WindowsLog("CR4", CR4_TO_ULONG(cr4_reg));
@@ -296,9 +257,9 @@ static int EnableVMX(VOID)
 
   RegSetCr4(CR4_TO_ULONG(cr4_reg));
 	
-  // (7)	Ensure that the IA32_FEATURE_CONTROL_MSR (MSR index 0x3A) has been
-  //		properly programmed and that its lock bit is set (bit 0=1). This MSR
-  //		is generally configured by the BIOS using WRMSR.
+  // (7) Ensure that the IA32_FEATURE_CONTROL_MSR (MSR index 0x3A) has been
+  //	 properly programmed and that its lock bit is set (bit 0=1). This MSR
+  //	 is generally configured by the BIOS using WRMSR.
 
 #if 1
   /* HACK: we do this because BOCHS does not support the IA32_FEATURE_CONTROL_CODE MSR */
@@ -311,9 +272,9 @@ static int EnableVMX(VOID)
     return FALSE;
   }
 
-  // (8)	Execute VMXON with the physical address of the VMXON region as the
-  //		operand. Check successful execution of VMXON by checking if
-  //		RFLAGS.CF=0.
+  // (8) Execute VMXON with the physical address of the VMXON region as the
+  //	 operand. Check successful execution of VMXON by checking if
+  //	 RFLAGS.CF=0.
   FLAGS_TO_ULONG(eFlags) = VmxTurnOn(0, VMMInitState.PhysicalVMXONRegionPtr.LowPart);
 
   if(eFlags.CF == 1) {
@@ -377,13 +338,13 @@ __declspec(naked) VOID StartVMX()
   /* ***************************************************** */
 
   //  27.6 PREPARATION AND LAUNCHING A VIRTUAL MACHINE
-  // (1)	Create a VMCS region in non-pageable memory of size specified by
-  //		the VMX capability MSR IA32_VMX_BASIC and aligned to 4-KBytes.
-  //		Software should read the capability MSRs to determine width of the 
-  //		physical addresses that may be used for a VMCS region and ensure
-  //		the entire VMCS region can be addressed by addresses with that width.
-  //		The term "guest-VMCS address" refers to the physical address of the
-  //		new VMCS region for the following steps.
+  // (1) Create a VMCS region in non-pageable memory of size specified by
+  //	 the VMX capability MSR IA32_VMX_BASIC and aligned to 4-KBytes.
+  //	 Software should read the capability MSRs to determine width of the 
+  //	 physical addresses that may be used for a VMCS region and ensure
+  //	 the entire VMCS region can be addressed by addresses with that width.
+  //	 The term "guest-VMCS address" refers to the physical address of the
+  //	 new VMCS region for the following steps.
   switch(vmxBasicMsr.MemType) {
   case VMX_MEMTYPE_UNCACHEABLE:
     Log("Unsupported memory type.", vmxBasicMsr.MemType);
@@ -397,17 +358,17 @@ __declspec(naked) VOID StartVMX()
     break;
   }
 	
-  // (2)	Initialize the version identifier in the VMCS (first 32 bits)
-  //		with the VMCS revision identifier reported by the VMX
-  //		capability MSR IA32_VMX_BASIC.
+  // (2) Initialize the version identifier in the VMCS (first 32 bits)
+  //	 with the VMCS revision identifier reported by the VMX
+  //	 capability MSR IA32_VMX_BASIC.
   *(VMMInitState.pVMCSRegion) = vmxBasicMsr.RevId;
 
-  // (3)	Execute the VMCLEAR instruction by supplying the guest-VMCS address.
-  //		This will initialize the new VMCS region in memory and set the launch
-  //		state of the VMCS to "clear". This action also invalidates the
-  //		working-VMCS pointer register to FFFFFFFF_FFFFFFFFH. Software should
-  //		verify successful execution of VMCLEAR by checking if RFLAGS.CF = 0
-  //		and RFLAGS.ZF = 0.
+  // (3) Execute the VMCLEAR instruction by supplying the guest-VMCS address.
+  //	 This will initialize the new VMCS region in memory and set the launch
+  //	 state of the VMCS to "clear". This action also invalidates the
+  //	 working-VMCS pointer register to FFFFFFFF_FFFFFFFFH. Software should
+  //	 verify successful execution of VMCLEAR by checking if RFLAGS.CF = 0
+  //	 and RFLAGS.ZF = 0.
   FLAGS_TO_ULONG(eFlags) = VmxClear(0, VMMInitState.PhysicalVMCSRegionPtr.LowPart);
 
   if(eFlags.CF != 0 || eFlags.ZF != 0) {
@@ -417,9 +378,9 @@ __declspec(naked) VOID StartVMX()
 	
   Log("SUCCESS : VMCLEAR operation completed.", 0);
 	
-  // (4)	Execute the VMPTRLD instruction by supplying the guest-VMCS address.
-  //		This initializes the working-VMCS pointer with the new VMCS region's
-  //		physical address.
+  // (4) Execute the VMPTRLD instruction by supplying the guest-VMCS address.
+  //	 This initializes the working-VMCS pointer with the new VMCS region's
+  //	 physical address.
   VmxPtrld(0, VMMInitState.PhysicalVMCSRegionPtr.LowPart);
 
   //
@@ -461,7 +422,7 @@ __declspec(naked) VOID StartVMX()
   VmxWrite(VMCS_LINK_POINTER_HIGH, 0xFFFFFFFF);
 
   /* Reserved Bits of IA32_DEBUGCTL MSR must be 0 */
-  ReadMSR(IA32_DEBUGCTL);
+  ReadMSR(IA32_DEBUGCTL, &msr);
   VmxWrite(GUEST_IA32_DEBUGCTL, msr.Lo);
   VmxWrite(GUEST_IA32_DEBUGCTL_HIGH, msr.Hi);
 
@@ -522,14 +483,14 @@ __declspec(naked) VOID StartVMX()
   //  *	H.3.3 32-Bit Guest-State Fields *
   //  ***********************************
 
-  VmxWrite(GUEST_CS_LIMIT, GetSegmentDescriptorLimit(gdt_base, RegGetCs()));
-  VmxWrite(GUEST_SS_LIMIT, GetSegmentDescriptorLimit(gdt_base, RegGetSs()));
-  VmxWrite(GUEST_DS_LIMIT, GetSegmentDescriptorLimit(gdt_base, RegGetDs()));
-  VmxWrite(GUEST_ES_LIMIT, GetSegmentDescriptorLimit(gdt_base, RegGetEs()));
-  VmxWrite(GUEST_FS_LIMIT, GetSegmentDescriptorLimit(gdt_base, RegGetFs()));
-  VmxWrite(GUEST_GS_LIMIT, GetSegmentDescriptorLimit(gdt_base, RegGetGs()));
+  VmxWrite(GUEST_CS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetCs()));
+  VmxWrite(GUEST_SS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetSs()));
+  VmxWrite(GUEST_DS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetDs()));
+  VmxWrite(GUEST_ES_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetEs()));
+  VmxWrite(GUEST_FS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetFs()));
+  VmxWrite(GUEST_GS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetGs()));
   VmxWrite(GUEST_LDTR_LIMIT, GetSegmentDescriptorLimit(gdt_base, RegGetLdtr()));
-  VmxWrite(GUEST_TR_LIMIT, GetSegmentDescriptorLimit(gdt_base, RegGetTr()));
+  VmxWrite(GUEST_TR_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetTr()));
 
   /* Guest GDTR/IDTR limit */
   VmxWrite(GUEST_GDTR_LIMIT, gdt_reg.Limit);
@@ -553,7 +514,7 @@ __declspec(naked) VOID StartVMX()
   VmxWrite(GUEST_TR_AR_BYTES,   GetSegmentDescriptorAR(gdt_base, RegGetTr()));
 
   /* Guest IA32_SYSENTER_CS */
-  ReadMSR(IA32_SYSENTER_CS);
+  ReadMSR(IA32_SYSENTER_CS, &msr);
   VmxWrite(GUEST_SYSENTER_CS, msr.Lo);
 
   //  ******************************************
@@ -593,11 +554,11 @@ __declspec(naked) VOID StartVMX()
   VmxWrite(GUEST_RFLAGS, FLAGS_TO_ULONG(eFlags));
 
   /* Guest IA32_SYSENTER_ESP */
-  ReadMSR(IA32_SYSENTER_ESP);
+  ReadMSR(IA32_SYSENTER_ESP, &msr);
   VmxWrite(GUEST_SYSENTER_ESP, msr.Lo);
 
   /* Guest IA32_SYSENTER_EIP */
-  ReadMSR(IA32_SYSENTER_EIP);
+  ReadMSR(IA32_SYSENTER_EIP, &msr);
   VmxWrite(GUEST_SYSENTER_EIP, msr.Lo);
 	
   //	*****************************************
@@ -619,37 +580,37 @@ __declspec(naked) VOID StartVMX()
   VmxWrite(HOST_IDTR_BASE, GetSegmentDescriptorBase(gdt_base, RegGetDs()) + (ULONG) VMMInitState.VMMIDT);
 
   /* Host IA32_SYSENTER_ESP/EIP/CS */
-  ReadMSR(IA32_SYSENTER_ESP);
+  ReadMSR(IA32_SYSENTER_ESP, &msr);
   VmxWrite(HOST_IA32_SYSENTER_ESP, msr.Lo);
 
-  ReadMSR(IA32_SYSENTER_EIP);
+  ReadMSR(IA32_SYSENTER_EIP, &msr);
   VmxWrite(HOST_IA32_SYSENTER_EIP, msr.Lo);
 
-  ReadMSR(IA32_SYSENTER_CS);
+  ReadMSR(IA32_SYSENTER_CS, &msr);
   VmxWrite(HOST_IA32_SYSENTER_CS, msr.Lo);
 
-  // (5)	Issue a sequence of VMWRITEs to initialize various host-state area
-  //		fields in the working VMCS. The initialization sets up the context
-  //		and entry-points to the VMM VIRTUAL-MACHINE MONITOR PROGRAMMING
-  //		CONSIDERATIONS upon subsequent VM exits from the guest. Host-state
-  //		fields include control registers (CR0, CR3 and CR4), selector fields
-  //		for the segment registers (CS, SS, DS, ES, FS, GS and TR), and base-
-  //		address fields (for FS, GS, TR, GDTR and IDTR; RSP, RIP and the MSRs
-  //		that control fast system calls).
+  // (5) Issue a sequence of VMWRITEs to initialize various host-state area
+  //	 fields in the working VMCS. The initialization sets up the context
+  //	 and entry-points to the VMM VIRTUAL-MACHINE MONITOR PROGRAMMING
+  //	 CONSIDERATIONS upon subsequent VM exits from the guest. Host-state
+  //	 fields include control registers (CR0, CR3 and CR4), selector fields
+  //	 for the segment registers (CS, SS, DS, ES, FS, GS and TR), and base-
+  //	 address fields (for FS, GS, TR, GDTR and IDTR; RSP, RIP and the MSRs
+  //	 that control fast system calls).
 
-  // (6)	Use VMWRITEs to set up the various VM-exit control fields, VM-entry
-  //		control fields, and VM-execution control fields in the VMCS. Care
-  //		should be taken to make sure the settings of individual fields match
-  //		the allowed 0 and 1 settings for the respective controls as reported
-  //		by the VMX capability MSRs (see Appendix G). Any settings inconsistent
-  //		with the settings reported by the capability MSRs will cause VM
-  //		entries to fail.
+  // (6) Use VMWRITEs to set up the various VM-exit control fields, VM-entry
+  //	 control fields, and VM-execution control fields in the VMCS. Care
+  //	 should be taken to make sure the settings of individual fields match
+  //	 the allowed 0 and 1 settings for the respective controls as reported
+  //	 by the VMX capability MSRs (see Appendix G). Any settings inconsistent
+  //	 with the settings reported by the capability MSRs will cause VM
+  //	 entries to fail.
 	
-  // (7)	Use VMWRITE to initialize various guest-state area fields in the
-  //		working VMCS. This sets up the context and entry-point for guest
-  //		execution upon VM entry. Chapter 22 describes the guest-state loading
-  //		and checking done by the processor for VM entries to protected and
-  //		virtual-8086 guest execution.
+  // (7) Use VMWRITE to initialize various guest-state area fields in the
+  //	 working VMCS. This sets up the context and entry-point for guest
+  //	 execution upon VM entry. Chapter 22 describes the guest-state loading
+  //	 and checking done by the processor for VM entries to protected and
+  //	 virtual-8086 guest execution.
 
   /* Clear the VMX Abort Error Code prior to VMLAUNCH */
   RtlZeroMemory((VMMInitState.pVMCSRegion + 4), 4);
@@ -703,16 +664,7 @@ VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
   FiniGuest();
 
   if(VMXIsActive) {
-    __asm {
-      PUSHAD;
-      MOV		EAX, HYPERCALL_SWITCHOFF;
-			
-      _emit 0x0F;	// VMCALL
-      _emit 0x01;
-      _emit 0xC1;
-			
-      POPAD;
-    };
+    VmxVmCall(HYPERCALL_SWITCHOFF);
   }
 
   WindowsLog("[vmm-unload] Freeing memory regions.", 0);
