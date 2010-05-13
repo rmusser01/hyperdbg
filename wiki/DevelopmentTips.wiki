@@ -45,8 +45,8 @@ com1: enabled=1, mode=file,dev=serial.txt
 By doing so, the debugging output that HyperDbg dumps on the Serial port, will be written in the file serial.txt.
 
 
-== Time Saving Trick ==
-So, since Windows is super-slow to boot into Bochs and given that BSODs and consequent reboots are more than common during the development phase, we suggest the following time saving scenario:
+== Time-Saving Trick ==
+So, since Windows is super-slow to boot into Bochs and given that BSODs and consequent reboots are more than common during the development phase, we suggest the following time-saving scenario:
  * a Virtual Box image, Windows or Linux;
  * launch Bochs within the testing Windows image *inside* the Virtual Box image;
  * _before_ starting the debug session, take a snapshot of the Virtual Box image;
