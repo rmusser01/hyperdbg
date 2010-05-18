@@ -133,7 +133,7 @@ static NTSTATUS RegisterEvents(VOID)
   hypercall.hypernum = HYPERCALL_SWITCHOFF;
 
   if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HypercallSwitchOff)) {
-    WindowsLog("ERROR : Unable to register switch-off hypercall handler.", 0);
+    WindowsLog("ERROR: Unable to register switch-off hypercall handler");
     return STATUS_UNSUCCESSFUL;
   }
 
@@ -176,11 +176,11 @@ static int EnableVMX(VOID)
   };
 
   if(vmxFeatures.VMX == 0) {
-    WindowsLog("VMX Support Not Present.", vmxFeatures);
+    WindowsLog("VMX support not present");
     return FALSE;
   }
 	
-  WindowsLog("VMX Support Present.", vmxFeatures);
+  WindowsLog("VMX support present");
 	
   // (2) Determine the VMX capabilities supported by the processor through
   //     the VMX capability MSRs.
@@ -190,25 +190,25 @@ static int EnableVMX(VOID)
   // (3) Create a VMXON region in non-pageable memory of a size specified by
   //	 IA32_VMX_BASIC_MSR and aligned to a 4-byte boundary. The VMXON region
   //	 must be hosted in cache-coherent memory.
-  WindowsLog("VMXON Region Size", vmxBasicMsr.szVmxOnRegion);
-  WindowsLog("VMXON Access Width Bit", vmxBasicMsr.PhyAddrWidth);
-  WindowsLog("      [   1] --> 32-bit", 0);
-  WindowsLog("      [   0] --> 64-bit", 0);
-  WindowsLog("VMXON Memory Type", vmxBasicMsr.MemType);
-  WindowsLog("      [   0]  --> Strong Uncacheable", 0);
-  WindowsLog("      [ 1-5]  --> Unused", 0);
-  WindowsLog("      [   6]  --> Write Back", 0);
-  WindowsLog("      [7-15]  --> Unused", 0);
+  WindowsLog("VMXON region size:      %.8x", vmxBasicMsr.szVmxOnRegion);
+  WindowsLog("VMXON access width bit: %.8x", vmxBasicMsr.PhyAddrWidth);
+  WindowsLog("      [   1] --> 32-bit");
+  WindowsLog("      [   0] --> 64-bit");
+  WindowsLog("VMXON memory type:      %.8x", vmxBasicMsr.MemType);
+  WindowsLog("      [   0]  --> Strong uncacheable");
+  WindowsLog("      [ 1-5]  --> Unused");
+  WindowsLog("      [   6]  --> Write back");
+  WindowsLog("      [7-15]  --> Unused");
 
   switch(vmxBasicMsr.MemType) {
   case VMX_MEMTYPE_UNCACHEABLE:
-    WindowsLog("Unsupported memory type.", vmxBasicMsr.MemType);
+    WindowsLog("Unsupported memory type %.8x", vmxBasicMsr.MemType);
     return FALSE;
     break;
   case VMX_MEMTYPE_WRITEBACK:
     break;
   default:
-    WindowsLog("ERROR: Unknown VMXON Region memory type.", 0);
+    WindowsLog("ERROR: Unknown VMXON region memory type");
     return FALSE;
     break;
   }
@@ -217,7 +217,7 @@ static int EnableVMX(VOID)
   //	 with the VMCS revision identifier reported by capability MSRs.
   *(VMMInitState.pVMXONRegion) = vmxBasicMsr.RevId;
 	
-  WindowsLog("vmxBasicMsr.RevId", vmxBasicMsr.RevId);
+  WindowsLog("vmxBasicMsr.RevId: %.8x", vmxBasicMsr.RevId);
 
   // (5) Ensure the current processor operating mode meets the required CR0
   //	 fixed bits (CR0.PE=1, CR0.PG=1). Other required CR0 fixed bits can
@@ -226,20 +226,20 @@ static int EnableVMX(VOID)
   CR0_TO_ULONG(cr0_reg) = RegGetCr0();
 
   if(cr0_reg.PE != 1) {
-    WindowsLog("ERROR: Protected Mode not enabled.", 0);
-    WindowsLog("Value of CR0", CR0_TO_ULONG(cr0_reg));
+    WindowsLog("ERROR: Protected mode not enabled");
+    WindowsLog("Value of CR0: %.8x", CR0_TO_ULONG(cr0_reg));
     return FALSE;
   }
 
-  WindowsLog("Protected Mode enabled.", 0);
+  WindowsLog("Protected mode enabled");
 
   if(cr0_reg.PG != 1) {
-    WindowsLog("ERROR: Paging not enabled.", 0);
-    WindowsLog("Value of CR0", CR0_TO_ULONG(cr0_reg));
+    WindowsLog("ERROR: Paging not enabled");
+    WindowsLog("Value of CR0: %.8x", CR0_TO_ULONG(cr0_reg));
     return FALSE;
   }
 	
-  WindowsLog("Paging enabled.", 0);
+  WindowsLog("Paging enabled");
 
   // This was required by first processors that supported VMX	
   cr0_reg.NE = 1;
@@ -251,9 +251,9 @@ static int EnableVMX(VOID)
   //	 the IA32_VMX_CR4_FIXED0 and IA32_VMX_CR4_FIXED1 MSRs.
   CR4_TO_ULONG(cr4_reg) = RegGetCr4();
 
-  WindowsLog("CR4", CR4_TO_ULONG(cr4_reg));
+  WindowsLog("Old CR4: %.8x", CR4_TO_ULONG(cr4_reg));
   cr4_reg.VMXE = 1;
-  WindowsLog("CR4", CR4_TO_ULONG(cr4_reg));
+  WindowsLog("New CR4: %.8x", CR4_TO_ULONG(cr4_reg));
 
   RegSetCr4(CR4_TO_ULONG(cr4_reg));
 	
@@ -266,9 +266,9 @@ static int EnableVMX(VOID)
   vmxFeatureControl.Lock = 1;
 #endif
 
-  WindowsLog("IA32_FEATURE_CONTROL Lock Bit", vmxFeatureControl.Lock);
+  WindowsLog("IA32_FEATURE_CONTROL Lock Bit: %.8x", vmxFeatureControl.Lock);
   if(vmxFeatureControl.Lock != 1) {
-    WindowsLog("ERROR: Feature Control Lock Bit != 1.", 0);
+    WindowsLog("ERROR: Feature Control Lock Bit != 1");
     return FALSE;
   }
 
@@ -278,15 +278,15 @@ static int EnableVMX(VOID)
   FLAGS_TO_ULONG(eFlags) = VmxTurnOn(0, VMMInitState.PhysicalVMXONRegionPtr.LowPart);
 
   if(eFlags.CF == 1) {
-    WindowsLog("ERROR: VMXON operation failed.", 0);
+    WindowsLog("ERROR: VMXON operation failed");
     return FALSE;
   }
 
   /* VMXON was successful, so we cannot use WindowsLog() anymore */
   VMXIsActive = 1;
 
-  Log("SUCCESS: VMXON operation completed.", 0);
-  Log("VMM is now running.", 0);
+  Log("SUCCESS: VMXON operation completed");
+  Log("VMM is now running");
 	
   return TRUE;
 }
@@ -303,30 +303,30 @@ __declspec(naked) VOID StartVMX()
 
   __asm	{ POP GuestReturn };
 
-  WindowsLog("Guest Return EIP", GuestReturn);
+  WindowsLog("Guest Return EIP: %.8x", GuestReturn);
 
   ///////////////////////////
   //  Set thread affinity  //
   ///////////////////////////
-  WindowsLog("Enabling VMX mode on CPU 0", 0);
+  WindowsLog("Enabling VMX mode");
   KeSetSystemAffinityThread((KAFFINITY) 0x00000001);
-  WindowsLog("Running on Processor", KeGetCurrentProcessorNumber());
+  WindowsLog("Running on Processor #%d", KeGetCurrentProcessorNumber());
 
   ////////////////
   //  GDT Info  //
   ////////////////
   __asm { SGDT gdt_reg };
   gdt_base = (gdt_reg.BaseHi << 16) | gdt_reg.BaseLo;
-  WindowsLog("GDT Base", gdt_base);
-  WindowsLog("GDT Limit", gdt_reg.Limit);
+  WindowsLog("GDT Base:  %.8x", gdt_base);
+  WindowsLog("GDT Limit: %.8x", gdt_reg.Limit);
 	
   ////////////////////////////
   //  IDT Segment Selector  //
   ////////////////////////////
   __asm	{ SIDT idt_reg };
   idt_base = (idt_reg.BaseHi << 16) | idt_reg.BaseLo;	
-  WindowsLog("IDT Base", idt_base);
-  WindowsLog("IDT Limit", idt_reg.Limit);
+  WindowsLog("IDT Base:  %.8x", idt_base);
+  WindowsLog("IDT Limit: %.8x", idt_reg.Limit);
 
   if (!EnableVMX()) {
     goto Abort;
@@ -347,13 +347,13 @@ __declspec(naked) VOID StartVMX()
   //	 new VMCS region for the following steps.
   switch(vmxBasicMsr.MemType) {
   case VMX_MEMTYPE_UNCACHEABLE:
-    Log("Unsupported memory type.", vmxBasicMsr.MemType);
+    Log("Unsupported memory type %.8x", vmxBasicMsr.MemType);
     goto Abort;
     break;
   case VMX_MEMTYPE_WRITEBACK:
     break;
   default:
-    Log("ERROR: Unknown VMCS Region memory type.", 0);
+    Log("ERROR: Unknown VMCS region memory type");
     goto Abort;
     break;
   }
@@ -372,11 +372,11 @@ __declspec(naked) VOID StartVMX()
   FLAGS_TO_ULONG(eFlags) = VmxClear(0, VMMInitState.PhysicalVMCSRegionPtr.LowPart);
 
   if(eFlags.CF != 0 || eFlags.ZF != 0) {
-    Log("ERROR: VMCLEAR operation failed.", 0);
+    Log("ERROR: VMCLEAR operation failed");
     goto Abort;
   }
 	
-  Log("SUCCESS : VMCLEAR operation completed.", 0);
+  Log("SUCCESS: VMCLEAR operation completed");
 	
   // (4) Execute the VMPTRLD instruction by supplying the guest-VMCS address.
   //	 This initializes the working-VMCS pointer with the new VMCS region's
@@ -614,20 +614,20 @@ __declspec(naked) VOID StartVMX()
 
   /* Clear the VMX Abort Error Code prior to VMLAUNCH */
   RtlZeroMemory((VMMInitState.pVMCSRegion + 4), 4);
-  Log("Clearing VMX Abort Error Code", *(VMMInitState.pVMCSRegion + 4));
+  Log("Clearing VMX abort error code: %.8x", *(VMMInitState.pVMCSRegion + 4));
 
   /* Set EIP, ESP for the Guest right before calling VMLAUNCH */
-  Log("Setting Guest ESP", GuestStack);
+  Log("Setting Guest ESP to %.8x", GuestStack);
   VmxWrite(GUEST_RSP, (ULONG) GuestStack);
 	
-  Log("Setting Guest EIP", GuestReturn);
+  Log("Setting Guest EIP to %.8x", GuestReturn);
   VmxWrite(GUEST_RIP, (ULONG) GuestReturn);
 
   /* Set EIP, ESP for the Host right before calling VMLAUNCH */
-  Log("Setting Host ESP", ((ULONG) VMMInitState.VMMStack + VMM_STACK_SIZE - 1));
+  Log("Setting Host ESP to %.8x", ((ULONG) VMMInitState.VMMStack + VMM_STACK_SIZE - 1));
   VmxWrite(HOST_RSP, ((ULONG) VMMInitState.VMMStack + VMM_STACK_SIZE - 1));
 
-  Log("Setting Host EIP", VMMEntryPoint);
+  Log("Setting Host EIP to %.8x", VMMEntryPoint);
   VmxWrite(HOST_RIP, (ULONG) VMMEntryPoint);
 
   ///////////////
@@ -637,11 +637,11 @@ __declspec(naked) VOID StartVMX()
 
   FLAGS_TO_ULONG(eFlags) = RegGetFlags();
 
-  Log("VMLAUNCH Failure", 0xDEADF00D);
+  Log("VMLAUNCH Failure");
 	
   /* Get the error number from VMCS */
   ErrorCode = VmxRead(VM_INSTRUCTION_ERROR);
-  Log("VM Instruction Error", ErrorCode);
+  Log("VM instruction error: %.8x", ErrorCode);
 
  Abort:
 
@@ -655,8 +655,8 @@ __declspec(naked) VOID StartVMX()
 /* Driver unload procedure */
 VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
 {
-  WindowsLog("[vmm-unload] Active Processor Bitmap  [%08X]", (ULONG) KeQueryActiveProcessors());
-  WindowsLog("[vmm-unload] Disabling VMX mode on CPU 0.", 0);
+  WindowsLog("[vmm-unload] Active processor bitmap: %.8x", (ULONG) KeQueryActiveProcessors());
+  WindowsLog("[vmm-unload] Disabling VMX mode");
 
   KeSetSystemAffinityThread((KAFFINITY) 0x00000001);
 
@@ -667,7 +667,7 @@ VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
     VmxVmCall(HYPERCALL_SWITCHOFF);
   }
 
-  WindowsLog("[vmm-unload] Freeing memory regions.", 0);
+  WindowsLog("[vmm-unload] Freeing memory regions");
 
   MmFreeNonCachedMemory(VMMInitState.pVMXONRegion, 4096);
   MmFreeNonCachedMemory(VMMInitState.pVMCSRegion, 4096);
@@ -676,7 +676,7 @@ VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
   MmFreeNonCachedMemory(VMMInitState.pIOBitmapB , 4096);
   MmFreeNonCachedMemory(VMMInitState.VMMIDT, sizeof(IDT_ENTRY)*256);
 
-  WindowsLog("[vmm-unload] Driver unloaded.", 0);
+  WindowsLog("[vmm-unload] Driver unloaded");
 }
 
 /* Driver entry point */
@@ -700,22 +700,22 @@ NTSTATUS DriverEntry( IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registr
   PortInit();
   ComInit();
 
-  WindowsLog("Driver Routines", 0);
-  WindowsLog("---------------", 0);
-  WindowsLog("   Driver Entry", DriverEntry);
-  WindowsLog("   Driver Unload", DriverUnload);
-  WindowsLog("   StartVMX", StartVMX);
-  WindowsLog("   VMMEntryPoint", VMMEntryPoint);
+  WindowsLog("Driver Routines");
+  WindowsLog("---------------");
+  WindowsLog("   Driver Entry:  %.8x", DriverEntry);
+  WindowsLog("   Driver Unload: %.8x", DriverUnload);
+  WindowsLog("   StartVMX:      %.8x", StartVMX);
+  WindowsLog("   VMMEntryPoint: %.8x", VMMEntryPoint);
 	
   /* Check if PAE is enabled. */
   CR4_TO_ULONG(cr4) = RegGetCr4();
 
   if(cr4 & 0x00000020) {
-    WindowsLog("******************************", 0);
-    WindowsLog("Error : PAE must be disabled.",  0);
-    WindowsLog("Add the following to boot.ini:", 0);
-    WindowsLog("  /noexecute=alwaysoff /nopae",  0);
-    WindowsLog("******************************", 0);
+    WindowsLog("******************************");
+    WindowsLog("Error : PAE must be disabled.");
+    WindowsLog("Add the following to boot.ini:");
+    WindowsLog("  /noexecute=alwaysoff /nopae");
+    WindowsLog("******************************");
     goto error;
   }
 
@@ -726,64 +726,64 @@ NTSTATUS DriverEntry( IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registr
   /* Allocate the VMXON region memory. */
   VMMInitState.pVMXONRegion = MmAllocateNonCachedMemory(4096);
   if(VMMInitState.pVMXONRegion == NULL) {
-    WindowsLog("ERROR : Allocating VMXON Region memory.", 0);
+    WindowsLog("ERROR: Allocating VMXON region memory");
     goto error;
   }
-  WindowsLog("VMXONRegion virtual address", VMMInitState.pVMXONRegion);
+  WindowsLog("VMXONRegion virtual address:  %.8x", VMMInitState.pVMXONRegion);
   RtlZeroMemory(VMMInitState.pVMXONRegion, 4096);
   VMMInitState.PhysicalVMXONRegionPtr = MmGetPhysicalAddress(VMMInitState.pVMXONRegion);
-  WindowsLog("VMXONRegion physical address", VMMInitState.PhysicalVMXONRegionPtr.LowPart);
+  WindowsLog("VMXONRegion physical address: %.8x", VMMInitState.PhysicalVMXONRegionPtr.LowPart);
 
   /* Allocate the VMCS region memory. */
   VMMInitState.pVMCSRegion = MmAllocateNonCachedMemory(4096);
   if(VMMInitState.pVMCSRegion == NULL) {
-    WindowsLog("ERROR : Allocating VMCS Region memory.", 0);
+    WindowsLog("ERROR: Allocating VMCS region memory");
     goto error;
   }
-  WindowsLog("VMCSRegion virtual address", VMMInitState.pVMCSRegion);
+  WindowsLog("VMCSRegion virtual address:  %.8x", VMMInitState.pVMCSRegion);
   RtlZeroMemory(VMMInitState.pVMCSRegion, 4096);
   VMMInitState.PhysicalVMCSRegionPtr = MmGetPhysicalAddress(VMMInitState.pVMCSRegion);
-  WindowsLog("VMCSRegion physical address", VMMInitState.PhysicalVMCSRegionPtr.LowPart);
+  WindowsLog("VMCSRegion physical address: %.8x", VMMInitState.PhysicalVMCSRegionPtr.LowPart);
 	
   /* Allocate stack for the VM Exit Handler. */
-  VMMInitState.VMMStack = ExAllocatePoolWithTag(NonPagedPool , VMM_STACK_SIZE, 'kSkF');
+  VMMInitState.VMMStack = ExAllocatePoolWithTag(NonPagedPool, VMM_STACK_SIZE, 'kSkF');
   if(VMMInitState.VMMStack == NULL) {
-    WindowsLog("ERROR : Allocating VM Exit Handler stack memory.", 0);
+    WindowsLog("ERROR: Allocating VM exit handler stack memory");
     goto error;
   }
   RtlZeroMemory(VMMInitState.VMMStack, VMM_STACK_SIZE);
-  WindowsLog("VMMStack", VMMInitState.VMMStack);
+  WindowsLog("VMMStack: %.8x", VMMInitState.VMMStack);
 
   /* Allocate a memory page for the I/O bitmap A */
   VMMInitState.pIOBitmapA = MmAllocateNonCachedMemory(4096);
   if(VMMInitState.pIOBitmapA == NULL) {
-    WindowsLog("ERROR : Allocating I/O bitmap A memory.", 0);
+    WindowsLog("ERROR: Allocating I/O bitmap A memory");
     goto error;
   }
-  WindowsLog("I/O bitmap A virtual address", VMMInitState.pIOBitmapA);
+  WindowsLog("I/O bitmap A virtual address:  %.8x", VMMInitState.pIOBitmapA);
   RtlZeroMemory(VMMInitState.pIOBitmapA, 4096);
   VMMInitState.PhysicalIOBitmapA = MmGetPhysicalAddress(VMMInitState.pIOBitmapA);
-  WindowsLog("I/O bitmap A physical address", VMMInitState.PhysicalIOBitmapA.LowPart);
+  WindowsLog("I/O bitmap A physical address: %.8x", VMMInitState.PhysicalIOBitmapA.LowPart);
 
   /* Allocate a memory page for the I/O bitmap A */
   VMMInitState.pIOBitmapB = MmAllocateNonCachedMemory(4096);
   if(VMMInitState.pIOBitmapB == NULL) {
-    WindowsLog("ERROR : Allocating I/O bitmap A memory.", 0);
+    WindowsLog("ERROR: Allocating I/O bitmap A memory");
     goto error;
   }
-  WindowsLog("I/O bitmap A virtual address", VMMInitState.pIOBitmapB);
+  WindowsLog("I/O bitmap A virtual address:  %.8x", VMMInitState.pIOBitmapB);
   RtlZeroMemory(VMMInitState.pIOBitmapB, 4096);
   VMMInitState.PhysicalIOBitmapB = MmGetPhysicalAddress(VMMInitState.pIOBitmapB);
-  WindowsLog("I/O bitmap A physical address", VMMInitState.PhysicalIOBitmapB.LowPart);
+  WindowsLog("I/O bitmap A physical address: %.8x", VMMInitState.PhysicalIOBitmapB.LowPart);
 
   /* Allocate & initialize the IDT for the VMM */
   VMMInitState.VMMIDT = MmAllocateNonCachedMemory(sizeof(IDT_ENTRY)*256);
   if (VMMInitState.VMMIDT == NULL) {
-    WindowsLog("ERROR : Allocating VMM interrupt descriptor table.", 0);
+    WindowsLog("ERROR: Allocating VMM interrupt descriptor table");
     goto error;
   }
   InitVMMIDT(VMMInitState.VMMIDT);
-  WindowsLog("VMMIDT", VMMInitState.VMMIDT);
+  WindowsLog("VMMIDT is at %.8x", VMMInitState.VMMIDT);
 
   if (InitGuest(DriverObject) != STATUS_SUCCESS)
     goto error;
@@ -832,14 +832,14 @@ NTSTATUS DriverEntry( IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registr
     MOV		ESP, GuestStack;
   };
 	
-  WindowsLog("Running on Processor", KeGetCurrentProcessorNumber());
+  WindowsLog("Running on processor #%d", KeGetCurrentProcessorNumber());
 	
   if( ScrubTheLaunch == 1 ){
-    WindowsLog("ERROR : Launch aborted.", 0);
+    WindowsLog("ERROR: Launch aborted");
     goto error;
   }
 	
-  WindowsLog("VM is now executing.", 0);
+  WindowsLog("VM is now executing");
 	
   return STATUS_SUCCESS;
 
@@ -867,7 +867,7 @@ static NTSTATUS InitGuest(PDRIVER_OBJECT DriverObject)
 {
 #ifdef GUEST_WINDOWS
   if (WindowsInit(DriverObject) != STATUS_SUCCESS) {
-    WindowsLog("ERROR: Windows-specific initialization routine has failed.", 0);
+    WindowsLog("ERROR: Windows-specific initialization routine has failed");
     return STATUS_UNSUCCESSFUL;
   }
 #elif defined GUEST_LINUX
@@ -889,12 +889,12 @@ static NTSTATUS InitPlugin(VOID)
 #ifdef ENABLE_HYPERDBG
   /* Initialize the guest module of HyperDbg */
   if(HyperDbgGuestInit() != STATUS_SUCCESS) {
-    WindowsLog("ERROR : HyperDbg GUEST initialization error.", 0);
+    WindowsLog("ERROR: HyperDbg GUEST initialization error");
     return STATUS_UNSUCCESSFUL;
   }
   /* Initialize the host module of HyperDbg */
   if(HyperDbgHostInit(&VMMInitState) != STATUS_SUCCESS) {
-    WindowsLog("ERROR : HyperDbg HOST initialization error.", 0);
+    WindowsLog("ERROR: HyperDbg HOST initialization error");
     return STATUS_UNSUCCESSFUL;
   }
 #endif

@@ -320,7 +320,7 @@ static VOID CmdSwBreakpoint(PHYPERDBG_CMD pcmd)
     if(symbol)
       addr = symbol->addr + hyperdbg_state.win_state.kernel_base;
     else {
-      Log("[HyperDbg] Invalid symbol!", 0);
+      Log("[HyperDbg] Invalid symbol!");
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Undefined symbol %s!",  &pcmd->args[0][1]);
       VideoRefreshOutArea(RED);
       return;
@@ -336,7 +336,7 @@ static VOID CmdSwBreakpoint(PHYPERDBG_CMD pcmd)
 
     /* Check if the address is ok */
     if(!MmuIsAddressValid(vmcs.GuestState.CR3, addr)) {
-      Log("[HyperDbg] Invalid memory address!", 0);
+      Log("[HyperDbg] Invalid memory address!");
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid memory address!");
       VideoRefreshOutArea(RED);
       return;
@@ -387,7 +387,7 @@ static VOID CmdDeleteSwBreakpoint(PHYPERDBG_CMD pcmd)
     }
     /* Check if the address is ok */
     if(!MmuIsAddressValid(vmcs.GuestState.CR3, addr)) {
-      Log("[HyperDbg] Invalid memory address: ", addr);
+      Log("[HyperDbg] Invalid memory address: %.8x", addr);
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid memory address!");
       VideoRefreshOutArea(RED);
       return;
@@ -438,7 +438,7 @@ static VOID CmdDisassemble(PHYPERDBG_CMD pcmd)
     if(MmuIsAddressValid(vmcs.GuestState.CR3, vmcs.GuestState.EIP)) {
       addr = vmcs.GuestState.EIP;
     } else {
-      Log("[HyperDbg] EIP is not valid: ", vmcs.GuestState.EIP);
+      Log("[HyperDbg] EIP is not valid: %.8x", vmcs.GuestState.EIP);
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid EIP!");
       VideoRefreshOutArea(RED);
       return;
@@ -453,7 +453,7 @@ static VOID CmdDisassemble(PHYPERDBG_CMD pcmd)
 
     /* Check if the address is ok */
     if(!MmuIsAddressValid(vmcs.GuestState.CR3, addr)) {
-      Log("[HyperDbg] Invalid memory address: ", addr);
+      Log("[HyperDbg] Invalid memory address: %.8x", addr);
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid memory address!");
       VideoRefreshOutArea(RED);
       return;

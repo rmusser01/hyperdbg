@@ -109,7 +109,7 @@ NTSTATUS WindowsFindProcess(ULONG cr3, PULONG ppep)
     /* Go on with the next process */
     r = MmuReadVirtualRegion(cr3, (ULONG) cur + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le));
     if (r != STATUS_SUCCESS) {
-      Log("[WinXP] Can't read LIST_ENTRY at offset", (ULONG) cur + OFFSET_EPROCESS_ACTIVELINKS);
+      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", (ULONG) cur + OFFSET_EPROCESS_ACTIVELINKS);
       break;
     }
 

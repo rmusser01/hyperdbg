@@ -69,14 +69,14 @@ NTSTATUS VideoInit(VOID)
   PCIInit();
   r = PCIDetectDisplay(&ulVideoAddress);
   if (!NT_SUCCESS(r)) {
-    DbgPrint("[E] PCI display detection failed!");
+    WindowsLog("[E] PCI display detection failed!");
     return STATUS_UNSUCCESSFUL;
   }
 #else
   ulVideoAddress = (ULONG) DEFAULT_VIDEO_ADDRESS;
 #endif
   
-  DbgPrint("[*] Found PCI display region at physical address %.8x\n", ulVideoAddress);
+  WindowsLog("[*] Found PCI display region at physical address %.8x\n", ulVideoAddress);
 
   /* Set default screen resolution */
   video_sizex = VIDEO_DEFAULT_RESOLUTION_X;
@@ -157,7 +157,7 @@ VOID VideoWriteString(char *str, unsigned int len, unsigned int color, unsigned 
   cur_y = start_y;
   i = 0;
 
-/*   DbgPrint("[V] Writing string %s\n", str); */
+/*   WindowsLog("[V] Writing string %s\n", str); */
   while(i < len) {
     /* '-2' is to avoid overwriting frame */
     if(cur_x == SHELL_SIZE_X - 2) { 

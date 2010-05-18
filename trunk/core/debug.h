@@ -25,28 +25,26 @@
 #define _PILL_DEBUG_H
 
 #include "comio.h"
+#include "config.h"
 
 ///////////
 //  Log  //
 ///////////
 
-/* Comment the following line to disable debugging */
-// #define DEBUG 1
-
-#define WindowsLog(message, value) { DbgPrint("[vmm] %-40s [%08X]\n", message, value); }
-#define NullLog(message, value) { }
-#define SerialLog(message, value)						\
+#define WindowsLog(fmt, ...) do { DbgPrint("[vmm] " fmt "\n", __VA_ARGS__); } while(0)
+#define NullLog(fmt, ...)    do { } while(0)
+#define SerialLog(fmt, ...)						\
   do {									\
     if (ComIsInitialized()) {						\
-      ComPrint("[vmm] %-40s [%08hX]\n", message, value);			\
+      ComPrint("[vmm] " fmt "\n", __VA_ARGS__);				\
     }									\
   } while(0)
 
 /* Modify this macro to use a different logging method */
 #ifdef DEBUG
-#define Log(message, value) SerialLog(message, value)
+#define Log(fmt, ...) SerialLog(fmt, __VA_ARGS__)
 #else
-#define Log(message, value)
+#define Log(fmt, ...)
 #endif
 
 #endif /* _PILL_DEBUG_H */
