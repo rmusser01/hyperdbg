@@ -26,8 +26,6 @@
 #include "hyperdbg_cmd.h"
 #include "keyboard.h"
 #include "video.h"
-#include "pci.h"
-#include "idt.h"
 #include "x86.h"
 #include "debug.h"
 #include "vmm.h"
@@ -78,14 +76,14 @@ static VOID HyperDbgEnter(VOID)
   if(!VideoEnabled()) {
     r = VideoAlloc();
     if(!NT_SUCCESS(r))
-      Log("[HyperDbg] Cannot init video!", 0);
+      Log("[HyperDbg] Cannot allocate video memory!");
   }
 
-  Log("[HyperDbg] Entering HyperDbg command loop", 0);
+  Log("[HyperDbg] Entering HyperDbg command loop");
 
   HyperDbgCommandLoop();
 
-  Log("[HyperDbg] Leaving HyperDbg command loop", 0);
+  Log("[HyperDbg] Leaving HyperDbg command loop");
 
   hyperdbg_state.enabled = FALSE;
 }
@@ -132,7 +130,7 @@ static VOID HyperDbgCommandLoop(VOID)
     }
 
     if (c == HYPERDBG_MAGIC_SCANCODE) {
-      Log("[HyperDbg] Magic key detected! Disabling HyperDbg!", 0);
+      Log("[HyperDbg] Magic key detected! Disabling HyperDbg...");
       break;
     }
 
@@ -232,17 +230,17 @@ static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(VOID)
   BOOLEAN ours;
 
   /* DeleteSwBp will check if this bp has been setup by us and eventually reset it */
-  Log("[HyperDbg] checking bp @ ", vmcs.GuestState.EIP);
+  Log("[HyperDbg] checking bp @%.8x", vmcs.GuestState.EIP);
   ours = SwBreakpointDelete(vmcs.GuestState.CR3, (PULONG) vmcs.GuestState.EIP);
   if(!ours) { /* Pass it to the guest */
     return EventPublishPass;
   }
 
-  Log("[HyperDbg] bp is ours, resetting GUEST_RIP", vmcs.GuestState.EIP);
+  Log("[HyperDbg] bp is ours, resetting GUEST_RIP to %.8x", vmcs.GuestState.EIP);
   /* Update guest RIP to re-execute the faulty instruction */
   VmxWrite(GUEST_RIP, (ULONG) vmcs.GuestState.EIP);
 
-  Log("[HyperDbg] Done!", 0);
+  Log("[HyperDbg] Done!");
 
   HyperDbgEnter();
 
@@ -312,7 +310,7 @@ NTSTATUS HyperDbgHostInit(PVMM_INIT_STATE state)
   hypercall.hypernum = HYPERDBG_HYPERCALL_SETRES;
 
   if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HyperDbgHypercallSetResolution)) {
-    WindowsLog("ERROR : Unable to register screen resolution hypercall handler.", 0);
+    WindowsLog("ERROR: Unable to register screen resolution hypercall handler");
     return STATUS_UNSUCCESSFUL;
   }
 

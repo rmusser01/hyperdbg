@@ -49,14 +49,14 @@ NTSTATUS HyperDbgGuestInit(VOID)
 
   /* Initialize the video subsystem */
   if(VideoInit() != STATUS_SUCCESS) {
-    WindowsLog("[HyperDbg] Video initialization error.", 0);
+    WindowsLog("[HyperDbg] Video initialization error");
     return STATUS_UNSUCCESSFUL;
   }
 
   /* Allocate video buffer */
   r = VideoAlloc();
   if(!NT_SUCCESS(r)) {
-    WindowsLog("[HyperDbg] Cannot init video!\n", 0);
+    WindowsLog("[HyperDbg] Cannot initialize video!");
     return STATUS_UNSUCCESSFUL;
   }
 
@@ -70,7 +70,7 @@ NTSTATUS HyperDbgGuestInit(VOID)
 #ifdef GUEST_WINDOWS
   r = WindowsGetKernelBase(&hyperdbg_state.win_state.kernel_base);
   if (!NT_SUCCESS(r)) {
-    WindowsLog("[HyperDbg] Cannot initialize guest-specific variables!\n", 0);
+    WindowsLog("[HyperDbg] Cannot initialize guest-specific variables!");
     return STATUS_UNSUCCESSFUL;
   }
 #elif defined GUEST_LINUX
@@ -91,7 +91,7 @@ NTSTATUS HyperDbgGuestFini(VOID)
 {
   if(!hyperdbg_state.initialized) return STATUS_SUCCESS;
 
-  WindowsLog("[HyperDbg] Unloading...", 0);
+  WindowsLog("[HyperDbg] Unloading...");
 
   /* Deallocate video buffer */
   VideoDealloc();

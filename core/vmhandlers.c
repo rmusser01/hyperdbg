@@ -159,14 +159,14 @@ VOID HandleVMCALL(VOID)
   EVENT_CALLBACK f;
   EVENT_PUBLISH_STATUS s;
 
-  Log("VMCALL detected - CPU0", vmcs.GuestState.EAX);
+  Log("VMCALL #%.8x detected", vmcs.GuestState.EAX);
 
   event.hypernum = vmcs.GuestState.EAX;
   s = EventPublish(EventHypercall, &event, sizeof(event));
 
   if (s == EventPublishNone) {
     /* Unexisting hypercall */
-    Log("- Unimplemented hypercall", vmcs.GuestState.EAX);
+    Log("Unimplemented hypercall #%.8x", vmcs.GuestState.EAX);
   }
 }
 
@@ -212,7 +212,7 @@ VOID HandleNMI(VOID)
     break;
   default:
     /* Unhandled exception/nmi */
-    Log("Unexpected exception/NMI", trap);
+    Log("Unexpected exception/NMI #%.8x", trap);
     return;
   }
 

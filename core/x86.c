@@ -41,7 +41,7 @@ static NTSTATUS InitializeSegmentSelector(PSEGMENT_SELECTOR SegmentSelector,
     return STATUS_INVALID_PARAMETER;
 
   if (Selector & 0x4) {
-    Log("InitializeSegmentSelector(): Given selector points to LDT\n", Selector);
+    Log("InitializeSegmentSelector(): Given selector points to LDT #%.4x\n", Selector);
     return STATUS_INVALID_PARAMETER;
   }
 

@@ -52,8 +52,8 @@ static VOID VMMReadGuestState(VOID);
 EVENT_PUBLISH_STATUS HypercallSwitchOff(VOID)
 {
   /* Switch off VMX mode */
-  Log("- Terminating VMX Mode.", 0xDEADDEAD);
-  Log("- Flow Control Return to Address", vmcs.GuestState.ResumeEIP);
+  Log("Terminating VMX Mode");
+  Log("Flow returning to address %.8x", vmcs.GuestState.ResumeEIP);
 
   /* TODO: We should restore the whole original guest state here -- se Joanna's
      source code */
@@ -190,29 +190,29 @@ __declspec( naked ) VOID VMMEntryPoint()
   }
 
   if(HandlerLogging) {
-    Log("----- VMM Handler CPU0 -----", 0);
-    Log("Guest EAX", vmcs.GuestState.EAX);
-    Log("Guest EBX", vmcs.GuestState.EBX);
-    Log("Guest ECX", vmcs.GuestState.ECX);
-    Log("Guest EDX", vmcs.GuestState.EDX);
-    Log("Guest EDI", vmcs.GuestState.EDI);
-    Log("Guest ESI", vmcs.GuestState.ESI);
-    Log("Guest EBP", vmcs.GuestState.EBP);
-    Log("Exit Reason", vmcs.ExitState.ExitReason);
-    Log("Exit Qualification", vmcs.ExitState.ExitQualification);
-    Log("Exit Interruption Information", vmcs.ExitState.ExitInterruptionInformation);
-    Log("Exit Interruption Error Code", vmcs.ExitState.ExitInterruptionErrorCode);
-    Log("IDT-Vectoring Information Field", vmcs.ExitState.IDTVectoringInformationField);
-    Log("IDT-Vectoring Error Code", vmcs.ExitState.IDTVectoringErrorCode);
-    Log("VM-Exit Instruction Length", vmcs.ExitState.ExitInstructionLength);
-    Log("VM-Exit Instruction Information", vmcs.ExitState.ExitInstructionInformation);
-    Log("VM Exit EIP", vmcs.GuestState.EIP);
-    Log("VM Exit ESP", vmcs.GuestState.ESP);
-    Log("VM Exit CS", vmcs.GuestState.CS);
-    Log("VM Exit CR0", vmcs.GuestState.CR0);
-    Log("VM Exit CR3", vmcs.GuestState.CR3);
-    Log("VM Exit CR4", vmcs.GuestState.CR4);
-    Log("VM Exit EFLAGS", vmcs.GuestState.EFLAGS);
+    Log("----- VMM Handler CPU0 -----");
+    Log("Guest EAX: %.8x", vmcs.GuestState.EAX);
+    Log("Guest EBX: %.8x", vmcs.GuestState.EBX);
+    Log("Guest ECX: %.8x", vmcs.GuestState.ECX);
+    Log("Guest EDX: %.8x", vmcs.GuestState.EDX);
+    Log("Guest EDI: %.8x", vmcs.GuestState.EDI);
+    Log("Guest ESI: %.8x", vmcs.GuestState.ESI);
+    Log("Guest EBP: %.8x", vmcs.GuestState.EBP);
+    Log("Exit Reason:        %.8x", vmcs.ExitState.ExitReason);
+    Log("Exit Qualification: %.8x", vmcs.ExitState.ExitQualification);
+    Log("Exit Interruption Information:   %.8x", vmcs.ExitState.ExitInterruptionInformation);
+    Log("Exit Interruption Error Code:    %.8x", vmcs.ExitState.ExitInterruptionErrorCode);
+    Log("IDT-Vectoring Information Field: %.8x", vmcs.ExitState.IDTVectoringInformationField);
+    Log("IDT-Vectoring Error Code:        %.8x", vmcs.ExitState.IDTVectoringErrorCode);
+    Log("VM-Exit Instruction Length:      %.8x", vmcs.ExitState.ExitInstructionLength);
+    Log("VM-Exit Instruction Information: %.8x", vmcs.ExitState.ExitInstructionInformation);
+    Log("VM Exit EIP: %.8x", vmcs.GuestState.EIP);
+    Log("VM Exit ESP: %.8x", vmcs.GuestState.ESP);
+    Log("VM Exit CS:  %.4x", vmcs.GuestState.CS);
+    Log("VM Exit CR0: %.8x", vmcs.GuestState.CR0);
+    Log("VM Exit CR3: %.8x", vmcs.GuestState.CR3);
+    Log("VM Exit CR4: %.8x", vmcs.GuestState.CR4);
+    Log("VM Exit EFLAGS: %.8x", vmcs.GuestState.EFLAGS);
   }
 
   /* Set the next instructin to be executed */
@@ -235,7 +235,7 @@ __declspec( naked ) VOID VMMEntryPoint()
   case EXIT_REASON_VMWRITE:
   case EXIT_REASON_VMXOFF:
   case EXIT_REASON_VMXON:
-    Log("Request has been denied - CPU0", vmcs.ExitState.ExitReason);
+    Log("Request has been denied (reason: %.8x)", vmcs.ExitState.ExitReason);
 
     VMMUpdateGuestState();
     goto Resume;
@@ -268,7 +268,7 @@ __declspec( naked ) VOID VMMEntryPoint()
     //  INVD  //
     ////////////
   case EXIT_REASON_INVD:
-    Log("INVD detected - CPU0", 0);
+    Log("INVD detected");
 
     __asm { INVD };
 
@@ -282,7 +282,7 @@ __declspec( naked ) VOID VMMEntryPoint()
     //  RDMSR  //
     /////////////
   case EXIT_REASON_MSR_READ:
-    Log("Read MSR - CPU0", vmcs.GuestState.ECX);
+    Log("Read MSR #%.8x", vmcs.GuestState.ECX);
 
     VMMUpdateGuestState();
 
@@ -301,7 +301,7 @@ __declspec( naked ) VOID VMMEntryPoint()
     //  WRMSR  //
     /////////////
   case EXIT_REASON_MSR_WRITE:
-    Log("Write MSR - CPU0", vmcs.GuestState.ECX);
+    Log("Write MSR #%.8x", vmcs.GuestState.ECX);
 
     WriteMSR(vmcs.GuestState.ECX, vmcs.GuestState.EDX, vmcs.GuestState.EAX);
     VMMUpdateGuestState();
@@ -315,8 +315,7 @@ __declspec( naked ) VOID VMMEntryPoint()
     /////////////
   case EXIT_REASON_CPUID:
     if(HandlerLogging) {
-      Log("CPUID detected - CPU0", 0);
-      Log("- EAX", vmcs.GuestState.EAX);
+      Log("CPUID detected (EAX: %.8x)", vmcs.GuestState.EAX);
     }
 
     /* XXX Do we really need this check? */
