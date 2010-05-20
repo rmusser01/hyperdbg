@@ -112,8 +112,8 @@ static void InitVMMIDT(PIDT_ENTRY pidt)
   /* Present, DPL 0, Type 0xe (INT gate) */
   idte_null.Access     = (1 << 15) | (0xe << 8);
 
-  idte_null.LowOffset  = (ULONG) NullIDTHandler & 0xffff;
-  idte_null.HighOffset = (ULONG) NullIDTHandler >> 16;
+  idte_null.LowOffset  = (Bit32u) NullIDTHandler & 0xffff;
+  idte_null.HighOffset = (Bit32u) NullIDTHandler >> 16;
 
   for (i=0; i<256; i++) {
     pidt[i] = idte_null;
