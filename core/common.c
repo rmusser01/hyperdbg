@@ -23,6 +23,7 @@
 
 #include "common.h"
 #include "x86.h"
+#include "debug.h"
 
 /* Set a single bit of a DWORD argument */
 void CmSetBit32(Bit32u* dword, Bit32u bit)
@@ -67,8 +68,20 @@ int wide2ansi(Bit8u* dst, Bit8u* src, Bit32u n)
 
 void CmSleep(Bit32u microseconds)
 {
-  Bit32u v;
+  //  Bit32u v;
+  
+  Bit64u t0, t1, cycles;
+  Bit32u freq;
+  /* FIXME: read freq from CPUID */
+  freq = 1000; //*1000*1000; /* 1GHz */
+  cycles = microseconds * (freq);
+  RegRdtsc(&t0);
+  do {
+    RegRdtsc(&t1);
 
+  } while (t1 < t0 + cycles);
+
+  
   /*
     Int 15h AH=86h
     BIOS - WAIT (AT,PS)
@@ -88,31 +101,32 @@ void CmSleep(Bit32u microseconds)
     the precise behavior of the BIOS is known (or found through testing)
   */
 
-  while (microseconds) {
-    v = microseconds;
+/*   while (microseconds) { */
+/*     v = microseconds; */
 
-    if (v > 4000000) {
-      v = 4000000;
-    }
+/*     if (v > 4000000) { */
+/*       v = 4000000; */
+/*     } */
 
-    __asm {
-      push eax;
-      push ecx;
-      push edx;
+/*     __asm { */
+/*       push eax; */
+/*       push ecx; */
+/*       push edx; */
 
-      mov  ah, 0x86;
-      mov  edx, microseconds;
+/*       mov  ah, 0x86; */
+/*       mov  edx, microseconds; */
 
-      mov  ecx, edx;
-      shr  ecx, 16;
+/*       mov  ecx, edx; */
+/*       shr  ecx, 16; */
 
-      int 0x15;
+/*       int 0x15; */
 	
-      pop edx;
-      pop ecx;
-      pop eax;
-    };
+/*       pop edx; */
+/*       pop ecx; */
+/*       pop eax; */
+/*     }; */
 
-    microseconds -= v;
-  }
+/*     microseconds -= v; */
+/*   } */
+
 }

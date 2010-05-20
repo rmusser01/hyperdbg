@@ -49,7 +49,7 @@
 #define DEFAULT_VIDEO_ADDRESS VIDEO_ADDRESS_BOCHS 
 
 /* Uncomment this line to disable video autodetect */
-// #define VIDEO_ADDRESS_MANUAL
+#define VIDEO_ADDRESS_MANUAL
 
 /* ################# */
 /* #### GLOBALS #### */

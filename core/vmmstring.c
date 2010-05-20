@@ -136,6 +136,16 @@ Bit32s vmm_strncmp(unsigned char *str1, unsigned char *str2, Bit32u n)
 
 }
 
+unsigned char *vmm_strncpy(unsigned char *dst, unsigned char *src, Bit32u n)
+{
+  Bit32u i;
+
+  i = 0;
+  while (i < n && src[i] != 0)
+    dst[i] = src[i];
+  return src;
+}
+
 Bit32u vmm_strlen(unsigned char *str)
 {
   Bit32u i;
