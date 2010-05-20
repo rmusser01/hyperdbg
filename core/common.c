@@ -72,7 +72,7 @@ void CmSleep(Bit32u microseconds)
   
   Bit64u t0, t1, cycles;
   Bit32u freq;
-  /* FIXME: read freq from CPUID */
+  /* FIXME: get freq dinamically */
   freq = 1000; //*1000*1000; /* 1GHz */
   cycles = microseconds * (freq);
   RegRdtsc(&t0);
