@@ -23,8 +23,7 @@
 
 #include "types.h"
 #include "vmhandlers.h"
-#include "vmm.h"
-#include "vmx.h"
+#include "vt.h"
 #include "events.h"
 #include "debug.h"
 #include "common.h"
@@ -36,6 +35,12 @@
 hvm_bool isIOStepping = FALSE;
 
 static InjectException(Bit32u trap, Bit32u type);
+
+EVENT_PUBLISH_STATUS HypercallSwitchOff(void)
+{
+  return HVM_SUCCESS(hvm_x86_ops.hvm_switch_off()) ? \
+    EventPublishHandled : EventPublishPass;
+}
 
 void HandleCR(void)
 {
@@ -73,14 +78,14 @@ void HandleCR(void)
 	x = GUEST_CR4;	  
 
       switch(movcrGeneralPurposeRegister) {
-      case 0:  VmxWrite(x, context.GuestContext.RAX); break;
-      case 1:  VmxWrite(x, context.GuestContext.RCX); break;
-      case 2:  VmxWrite(x, context.GuestContext.RDX); break;
-      case 3:  VmxWrite(x, context.GuestContext.RBX); break;
-      case 4:  VmxWrite(x, context.GuestContext.RSP); break;
-      case 5:  VmxWrite(x, context.GuestContext.RBP); break;
-      case 6:  VmxWrite(x, context.GuestContext.RSI); break;
-      case 7:  VmxWrite(x, context.GuestContext.RDI); break;
+      case 0:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RAX); break;
+      case 1:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RCX); break;
+      case 2:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RDX); break;
+      case 3:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RBX); break;
+      case 4:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RSP); break;
+      case 5:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RBP); break;
+      case 6:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RSI); break;
+      case 7:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RDI); break;
       default: break;
       }
     } else if (movcrAccessType == 1) {
@@ -136,21 +141,19 @@ void HandleIO(void)
        reason, we fall back on a simpler (and more effective) solution: we
        disable I/O traps, let the guest do a single step, and then enable I/O
        traps again */
-    hvm_address v;
+    Bit32u v;
     isIOStepping = TRUE;
     
     /* Disable I/O bitmaps */
-    v = VmxRead(CPU_BASED_VM_EXEC_CONTROL);
+    v = hvm_x86_ops.vt_vmcs_read(CPU_BASED_VM_EXEC_CONTROL);
     CmClearBit32(&v, 25);		
-    VmxWrite(CPU_BASED_VM_EXEC_CONTROL, VmxAdjustControls(v, IA32_VMX_PROCBASED_CTLS));
+    hvm_x86_ops.vt_vmcs_write(CPU_BASED_VM_EXEC_CONTROL, v);
 
     /* Re-exec faulty instruction */
-    VmxWrite(GUEST_RIP, context.GuestContext.RIP);
+    context.GuestContext.ResumeRIP = context.GuestContext.RIP;
 
     /* Enable single-step, but don't trap current instruction */
-    v = context.GuestContext.RFLAGS | FLAGS_TF_MASK | FLAGS_RF_MASK;
-    context.GuestContext.RFLAGS = v; 
-    VmxWrite(GUEST_RFLAGS, FLAGS_TO_ULONG(v));
+    context.GuestContext.RFLAGS = context.GuestContext.RFLAGS | FLAGS_TF_MASK | FLAGS_RF_MASK;
   }
 }
 
@@ -176,12 +179,14 @@ void HandleVMLAUNCH(void)
 {
   /* The interruption error code should be undefined, so we just copy the one
      passed by the CPU */
-  VmxWrite(VM_ENTRY_EXCEPTION_ERROR_CODE, context.ExitContext.ExitInterruptionErrorCode);
-  VmxWrite(VM_ENTRY_INTR_INFO_FIELD, 
+  hvm_x86_ops.vt_vmcs_write(VM_ENTRY_EXCEPTION_ERROR_CODE, 
+			    context.ExitContext.ExitInterruptionErrorCode);
+
+  hvm_x86_ops.vt_vmcs_write(VM_ENTRY_INTR_INFO_FIELD, 
 	   INTR_INFO_VALID_MASK | INTR_TYPE_HW_EXCEPTION | TRAP_INVALID_OP);
 
   /* Re-exec faulty instruction */
-  VmxWrite(GUEST_RIP, context.GuestContext.RIP);
+  context.GuestContext.ResumeRIP = context.GuestContext.RIP;
 }
 
 void HandleNMI(void)
@@ -204,9 +209,11 @@ void HandleNMI(void)
 	 must re-enable I/O traps and disable single-stepping if not required
 	 by some plugins */
       Bit32u v;
-      v = VmxRead(CPU_BASED_VM_EXEC_CONTROL);
+
+      v = hvm_x86_ops.vt_vmcs_read(CPU_BASED_VM_EXEC_CONTROL);
       CmSetBit32(&v, 25);		
-      VmxWrite(CPU_BASED_VM_EXEC_CONTROL, VmxAdjustControls(v, IA32_VMX_PROCBASED_CTLS));
+      hvm_x86_ops.vt_vmcs_write(CPU_BASED_VM_EXEC_CONTROL, v);
+
       isIOStepping = FALSE;
       isSynteticDebug = TRUE;
     }
@@ -229,44 +236,40 @@ void HandleNMI(void)
 	 single-stepping */
 
       /* TODO: Check if TF was not enabled by the guest before!!! */
-      VmxWrite(GUEST_RFLAGS, FLAGS_TO_ULONG(context.GuestContext.RFLAGS) & ~FLAGS_TF_MASK);
+      context.GuestContext.RFLAGS = FLAGS_TO_ULONG(context.GuestContext.RFLAGS) & ~FLAGS_TF_MASK;
     } else {
       /* Pass hw exception to the guest OS */
       InjectException(INTR_TYPE_HW_EXCEPTION, trap);
     }
 
     /* Re-execute the faulty instruction */
-    VmxWrite(GUEST_RIP, context.GuestContext.RIP);
+    context.GuestContext.ResumeRIP = context.GuestContext.RIP;
 
     /* Handle PF */
     if (trap == TRAP_PAGE_FAULT) {
       /* Restore into CR2 the faulting address */
-      __asm {
-	PUSH EAX;
-	MOV EAX, context.ExitContext.ExitQualification;
-	MOV CR2, EAX;
-	POP EAX;
-      };
+      RegSetCr2(context.ExitContext.ExitQualification);
     }
   }
 }
 
 static InjectException(Bit32u trap, Bit32u type)
 {
-  Bit32u temp32;
+  Bit32u v;
 
   /* Read the page-fault error code and write it into the VM-entry exception error code field */
-  VmxWrite(VM_ENTRY_EXCEPTION_ERROR_CODE, context.ExitContext.ExitInterruptionErrorCode);
+  hvm_x86_ops.vt_vmcs_write(VM_ENTRY_EXCEPTION_ERROR_CODE, 
+			    context.ExitContext.ExitInterruptionErrorCode);
 
   /* Write the VM-entry interruption-information field */
-  temp32 = (INTR_INFO_VALID_MASK | trap | type);
+  v = (INTR_INFO_VALID_MASK | trap | type);
 
   /* Check if bits 11 (deliver code) and 31 (valid) are set. In this
      case, error code has to be delivered to guest OS */
   if ((context.ExitContext.ExitInterruptionInformation & INTR_INFO_DELIVER_CODE_MASK) &&
       (context.ExitContext.ExitInterruptionInformation & INTR_INFO_VALID_MASK)) {
-    temp32 |= INTR_INFO_DELIVER_CODE_MASK;
+    v |= INTR_INFO_DELIVER_CODE_MASK;
   }
 
-  VmxWrite(VM_ENTRY_INTR_INFO_FIELD, temp32);
+  hvm_x86_ops.vt_vmcs_write(VM_ENTRY_INTR_INFO_FIELD, v);
 }

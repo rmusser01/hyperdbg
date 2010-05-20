@@ -25,19 +25,17 @@
   Inspired to Shawn Embleton's Virtual Machine Monitor
 */
 
-#include <ntddk.h>
-
 #include "config.h"
 #include "debug.h"
 #include "pill.h"
-#include "vmx.h"
-#include "vmm.h"
+#include "vt.h"
 #include "events.h"
 #include "x86.h"
 #include "msr.h"
 #include "idt.h"
 #include "comio.h"
 #include "common.h"
+#include "vmhandlers.h"
 
 #ifdef GUEST_WINDOWS
 #include "winxp.h"
@@ -56,16 +54,12 @@
 /* ################ */
 
 #define HYPERCALL_SWITCHOFF 0xcafebabe
-#define VMM_STACK_SIZE      0x8000
 
 /* #################### */
 /* #### PROTOTYPES #### */
 /* #################### */
 
-NTSTATUS	DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath);
-VOID		DriverUnload(IN PDRIVER_OBJECT DriverObject);
-
-static void       StartVMX();
+static void       StartVT();
 static int        EnableVMX(void);
 static void       InitVMMIDT(PIDT_ENTRY pidt);
 static hvm_status RegisterEvents(void);
@@ -80,41 +74,10 @@ static hvm_status FiniPlugin(void);
 /* #### GLOBALS #### */
 /* ################# */
 
-/* These variables are not global, as they are also accessed by vmm.c */
-hvm_bool		        HandlerLogging		= FALSE;
-hvm_bool		        VMXIsActive		= FALSE;
-
 /* Static variables, that are not directly accessed by other modules or plugins. */
-static VMM_INIT_STATE           VMMInitState;
-
-static Bit32u			ErrorCode		= 0;
-
-static EFLAGS			eFlags			= {0};
-static MSR			msr			= {0};
-
 static hvm_bool			ScrubTheLaunch		= FALSE;
-
-static VMX_FEATURES		vmxFeatures;
-static IA32_VMX_BASIC_MSR	vmxBasicMsr;
-static IA32_FEATURE_CONTROL_MSR	vmxFeatureControl;
-
-static CR0_REG			cr0_reg = {0};
-static CR4_REG			cr4_reg = {0};
-
-static Bit32u			temp32 = 0;
-
-static GDTR			gdt_reg = {0};
-static IDTR			idt_reg = {0};
-
-static Bit32u			gdt_base = 0;
-static Bit32u			idt_base = 0;
-
-static Bit16u			seg_selector = 0;
-
-static MISC_DATA		misc_data = {0};
-
-static void*			GuestReturn = NULL;
-static hvm_address		GuestStack = 0;
+static hvm_address		GuestReturn;
+static hvm_address		GuestStack;
 
 /* ################ */
 /* #### BODIES #### */
@@ -157,139 +120,7 @@ static void InitVMMIDT(PIDT_ENTRY pidt)
   }
 }
 
-/* Enable VMX */
-static int EnableVMX(void)
-{
-  // (1) Check VMX support in processor using CPUID.
-  __asm {
-    PUSHAD;
-    MOV		EAX, 1;
-    CPUID;
-    // ECX contains the VMX_FEATURES FLAGS (VMX supported if bit 5 equals 1)
-    MOV		vmxFeatures, ECX;
-    MOV		EAX, 0x80000008;
-    CPUID;
-    MOV		temp32, EAX;
-    POPAD;
-  };
-
-  if(vmxFeatures.VMX == 0) {
-    WindowsLog("VMX support not present");
-    return FALSE;
-  }
-	
-  WindowsLog("VMX support present");
-	
-  // (2) Determine the VMX capabilities supported by the processor through
-  //     the VMX capability MSRs.
-  ReadMSR(IA32_VMX_BASIC_MSR_CODE, (PMSR) &vmxBasicMsr);
-  ReadMSR(IA32_FEATURE_CONTROL_CODE, (PMSR) &vmxFeatureControl);
-
-  // (3) Create a VMXON region in non-pageable memory of a size specified by
-  //	 IA32_VMX_BASIC_MSR and aligned to a 4-byte boundary. The VMXON region
-  //	 must be hosted in cache-coherent memory.
-  WindowsLog("VMXON region size:      %.8x", vmxBasicMsr.szVmxOnRegion);
-  WindowsLog("VMXON access width bit: %.8x", vmxBasicMsr.PhyAddrWidth);
-  WindowsLog("      [   1] --> 32-bit");
-  WindowsLog("      [   0] --> 64-bit");
-  WindowsLog("VMXON memory type:      %.8x", vmxBasicMsr.MemType);
-  WindowsLog("      [   0]  --> Strong uncacheable");
-  WindowsLog("      [ 1-5]  --> Unused");
-  WindowsLog("      [   6]  --> Write back");
-  WindowsLog("      [7-15]  --> Unused");
-
-  switch(vmxBasicMsr.MemType) {
-  case VMX_MEMTYPE_UNCACHEABLE:
-    WindowsLog("Unsupported memory type %.8x", vmxBasicMsr.MemType);
-    return FALSE;
-    break;
-  case VMX_MEMTYPE_WRITEBACK:
-    break;
-  default:
-    WindowsLog("ERROR: Unknown VMXON region memory type");
-    return FALSE;
-    break;
-  }
-
-  // (4) Initialize the version identifier in the VMXON region (first 32 bits)
-  //	 with the VMCS revision identifier reported by capability MSRs.
-  *(VMMInitState.pVMXONRegion) = vmxBasicMsr.RevId;
-	
-  WindowsLog("vmxBasicMsr.RevId: %.8x", vmxBasicMsr.RevId);
-
-  // (5) Ensure the current processor operating mode meets the required CR0
-  //	 fixed bits (CR0.PE=1, CR0.PG=1). Other required CR0 fixed bits can
-  //	 be detected through the IA32_VMX_CR0_FIXED0 and IA32_VMX_CR0_FIXED1
-  //	 MSRs.
-  CR0_TO_ULONG(cr0_reg) = RegGetCr0();
-
-  if(cr0_reg.PE != 1) {
-    WindowsLog("ERROR: Protected mode not enabled");
-    WindowsLog("Value of CR0: %.8x", CR0_TO_ULONG(cr0_reg));
-    return FALSE;
-  }
-
-  WindowsLog("Protected mode enabled");
-
-  if(cr0_reg.PG != 1) {
-    WindowsLog("ERROR: Paging not enabled");
-    WindowsLog("Value of CR0: %.8x", CR0_TO_ULONG(cr0_reg));
-    return FALSE;
-  }
-	
-  WindowsLog("Paging enabled");
-
-  // This was required by first processors that supported VMX	
-  cr0_reg.NE = 1;
-
-  RegSetCr0(CR0_TO_ULONG(cr0_reg));
-
-  // (6) Enable VMX operation by setting CR4.VMXE=1 [bit 13]. Ensure the
-  //	 resultant CR4 value supports all the CR4 fixed bits reported in
-  //	 the IA32_VMX_CR4_FIXED0 and IA32_VMX_CR4_FIXED1 MSRs.
-  CR4_TO_ULONG(cr4_reg) = RegGetCr4();
-
-  WindowsLog("Old CR4: %.8x", CR4_TO_ULONG(cr4_reg));
-  cr4_reg.VMXE = 1;
-  WindowsLog("New CR4: %.8x", CR4_TO_ULONG(cr4_reg));
-
-  RegSetCr4(CR4_TO_ULONG(cr4_reg));
-	
-  // (7) Ensure that the IA32_FEATURE_CONTROL_MSR (MSR index 0x3A) has been
-  //	 properly programmed and that its lock bit is set (bit 0=1). This MSR
-  //	 is generally configured by the BIOS using WRMSR.
-
-#if 1
-  /* HACK: we do this because BOCHS does not support the IA32_FEATURE_CONTROL_CODE MSR */
-  vmxFeatureControl.Lock = 1;
-#endif
-
-  WindowsLog("IA32_FEATURE_CONTROL Lock Bit: %.8x", vmxFeatureControl.Lock);
-  if(vmxFeatureControl.Lock != 1) {
-    WindowsLog("ERROR: Feature Control Lock Bit != 1");
-    return FALSE;
-  }
-
-  // (8) Execute VMXON with the physical address of the VMXON region as the
-  //	 operand. Check successful execution of VMXON by checking if
-  //	 RFLAGS.CF=0.
-  FLAGS_TO_ULONG(eFlags) = VmxTurnOn(0, VMMInitState.PhysicalVMXONRegionPtr.LowPart);
-
-  if(eFlags.CF == 1) {
-    WindowsLog("ERROR: VMXON operation failed");
-    return FALSE;
-  }
-
-  /* VMXON was successful, so we cannot use WindowsLog() anymore */
-  VMXIsActive = TRUE;
-
-  Log("SUCCESS: VMXON operation completed");
-  Log("VMM is now running");
-	
-  return TRUE;
-}
-
-__declspec(naked) void StartVMX()
+__declspec(naked) void StartVT()
 {	
   //	Get the Guest Return RIP.
   //
@@ -302,31 +133,14 @@ __declspec(naked) void StartVMX()
   __asm	{ POP GuestReturn };
 
   WindowsLog("Guest Return EIP: %.8x", GuestReturn);
-
-  ///////////////////////////
-  //  Set thread affinity  //
-  ///////////////////////////
   WindowsLog("Enabling VMX mode");
+
+  /* Set thread affinity */
   KeSetSystemAffinityThread((KAFFINITY) 0x00000001);
   WindowsLog("Running on Processor #%d", KeGetCurrentProcessorNumber());
 
-  ////////////////
-  //  GDT Info  //
-  ////////////////
-  __asm { SGDT gdt_reg };
-  gdt_base = (gdt_reg.BaseHi << 16) | gdt_reg.BaseLo;
-  WindowsLog("GDT Base:  %.8x", gdt_base);
-  WindowsLog("GDT Limit: %.8x", gdt_reg.Limit);
-	
-  ////////////////////////////
-  //  IDT Segment Selector  //
-  ////////////////////////////
-  __asm	{ SIDT idt_reg };
-  idt_base = (idt_reg.BaseHi << 16) | idt_reg.BaseLo;	
-  WindowsLog("IDT Base:  %.8x", idt_base);
-  WindowsLog("IDT Limit: %.8x", idt_reg.Limit);
-
-  if (!EnableVMX()) {
+  /* Enable VT support */
+  if (!HVM_SUCCESS(hvm_x86_ops.vt_hardware_enable())) {
     goto Abort;
   }
 
@@ -335,311 +149,21 @@ __declspec(naked) void StartVMX()
   /* ****      No more APIs after this point!         **** */
   /* ***************************************************** */
 
-  //  27.6 PREPARATION AND LAUNCHING A VIRTUAL MACHINE
-  // (1) Create a VMCS region in non-pageable memory of size specified by
-  //	 the VMX capability MSR IA32_VMX_BASIC and aligned to 4-KBytes.
-  //	 Software should read the capability MSRs to determine width of the 
-  //	 physical addresses that may be used for a VMCS region and ensure
-  //	 the entire VMCS region can be addressed by addresses with that width.
-  //	 The term "guest-VMCS address" refers to the physical address of the
-  //	 new VMCS region for the following steps.
-  switch(vmxBasicMsr.MemType) {
-  case VMX_MEMTYPE_UNCACHEABLE:
-    Log("Unsupported memory type %.8x", vmxBasicMsr.MemType);
+  /* Initialize the VMCS */
+  if (!HVM_SUCCESS(hvm_x86_ops.vt_vmcs_initialize(GuestStack, GuestReturn)))
     goto Abort;
-    break;
-  case VMX_MEMTYPE_WRITEBACK:
-    break;
-  default:
-    Log("ERROR: Unknown VMCS region memory type");
+
+  /* Update the events that must be handled by the HVM */
+  if (!HVM_SUCCESS(hvm_x86_ops.hvm_update_events()))
     goto Abort;
-    break;
-  }
-	
-  // (2) Initialize the version identifier in the VMCS (first 32 bits)
-  //	 with the VMCS revision identifier reported by the VMX
-  //	 capability MSR IA32_VMX_BASIC.
-  *(VMMInitState.pVMCSRegion) = vmxBasicMsr.RevId;
 
-  // (3) Execute the VMCLEAR instruction by supplying the guest-VMCS address.
-  //	 This will initialize the new VMCS region in memory and set the launch
-  //	 state of the VMCS to "clear". This action also invalidates the
-  //	 working-VMCS pointer register to FFFFFFFF_FFFFFFFFH. Software should
-  //	 verify successful execution of VMCLEAR by checking if RFLAGS.CF = 0
-  //	 and RFLAGS.ZF = 0.
-  FLAGS_TO_ULONG(eFlags) = VmxClear(0, VMMInitState.PhysicalVMCSRegionPtr.LowPart);
-
-  if(eFlags.CF != 0 || eFlags.ZF != 0) {
-    Log("ERROR: VMCLEAR operation failed");
-    goto Abort;
-  }
-	
-  Log("SUCCESS: VMCLEAR operation completed");
-	
-  // (4) Execute the VMPTRLD instruction by supplying the guest-VMCS address.
-  //	 This initializes the working-VMCS pointer with the new VMCS region's
-  //	 physical address.
-  VmxPtrld(0, VMMInitState.PhysicalVMCSRegionPtr.LowPart);
-
-  //
-  //  ***********************************
-  //  *	H.1.1 16-Bit Guest-State Fields *
-  //  ***********************************
-
-  VmxWrite(GUEST_CS_SELECTOR, RegGetCs() & 0xfff8);
-  VmxWrite(GUEST_SS_SELECTOR, RegGetSs() & 0xfff8);
-  VmxWrite(GUEST_DS_SELECTOR, RegGetDs() & 0xfff8);
-  VmxWrite(GUEST_ES_SELECTOR, RegGetEs() & 0xfff8);
-  VmxWrite(GUEST_FS_SELECTOR, RegGetFs() & 0xfff8);
-  VmxWrite(GUEST_GS_SELECTOR, RegGetGs() & 0xfff8);
-  VmxWrite(GUEST_LDTR_SELECTOR, RegGetLdtr() & 0xfff8);
-
-  /* Guest TR selector */
-  __asm	{ STR seg_selector };
-  CmClearBit16(&seg_selector, 2); // TI Flag
-  VmxWrite(GUEST_TR_SELECTOR, seg_selector & 0xfff8);
-
-  //  **********************************
-  //  *	H.1.2 16-Bit Host-State Fields *
-  //  **********************************
-
-  /* FIXME: Host DS, ES & FS mascherati con 0xFFFC? */
-  VmxWrite(HOST_CS_SELECTOR, RegGetCs() & 0xfff8);
-  VmxWrite(HOST_SS_SELECTOR, RegGetSs() & 0xfff8);
-  VmxWrite(HOST_DS_SELECTOR, RegGetDs() & 0xfff8);
-  VmxWrite(HOST_ES_SELECTOR, RegGetEs() & 0xfff8);
-  VmxWrite(HOST_FS_SELECTOR, RegGetFs() & 0xfff8);
-  VmxWrite(HOST_GS_SELECTOR, RegGetGs() & 0xfff8);
-  VmxWrite(HOST_TR_SELECTOR, RegGetTr() & 0xfff8);
-
-  //  ***********************************
-  //  *	H.2.2 64-Bit Guest-State Fields *
-  //  ***********************************
-
-  VmxWrite(VMCS_LINK_POINTER, 0xFFFFFFFF);
-  VmxWrite(VMCS_LINK_POINTER_HIGH, 0xFFFFFFFF);
-
-  /* Reserved Bits of IA32_DEBUGCTL MSR must be 0 */
-  ReadMSR(IA32_DEBUGCTL, &msr);
-  VmxWrite(GUEST_IA32_DEBUGCTL, msr.Lo);
-  VmxWrite(GUEST_IA32_DEBUGCTL_HIGH, msr.Hi);
-
-  //	*******************************
-  //	* H.3.1 32-Bit Control Fields *
-  //	*******************************
-
-  /* Pin-based VM-execution controls */
-  temp32 = 0;
-  VmxWrite(PIN_BASED_VM_EXEC_CONTROL, VmxAdjustControls(temp32, IA32_VMX_PINBASED_CTLS));
-
-  /* Primary processor-based VM-execution controls */
-  temp32 = 0;
-  CmSetBit32(&temp32, CPU_BASED_PRIMARY_IO); /* Use I/O bitmaps */
-  CmSetBit32(&temp32, 7); /* HLT */
-  VmxWrite(CPU_BASED_VM_EXEC_CONTROL, VmxAdjustControls(temp32, IA32_VMX_PROCBASED_CTLS));
-
-  /* I/O bitmap */
-  VmxWrite(IO_BITMAP_A_HIGH, VMMInitState.PhysicalIOBitmapA.HighPart);  
-  VmxWrite(IO_BITMAP_A,      VMMInitState.PhysicalIOBitmapA.LowPart); 
-  VmxWrite(IO_BITMAP_B_HIGH, VMMInitState.PhysicalIOBitmapB.HighPart);  
-  VmxWrite(IO_BITMAP_B,      VMMInitState.PhysicalIOBitmapB.LowPart); 
-  EventUpdateIOBitmaps((PUCHAR) VMMInitState.pIOBitmapA, (PUCHAR) VMMInitState.pIOBitmapB);
-
-  /* Exception bitmap */
-  temp32 = 0;
-  EventUpdateExceptionBitmap(&temp32);
-  CmSetBit32(&temp32, TRAP_DEBUG);   // DO NOT DISABLE: needed to step over I/O instructions!!!
-  VmxWrite(EXCEPTION_BITMAP, temp32);
-
-  /* Time-stamp counter offset */
-  VmxWrite(TSC_OFFSET, 0);
-  VmxWrite(TSC_OFFSET_HIGH, 0);
-
-  VmxWrite(PAGE_FAULT_ERROR_CODE_MASK, 0);
-  VmxWrite(PAGE_FAULT_ERROR_CODE_MATCH, 0);
-  VmxWrite(CR3_TARGET_COUNT, 0);
-  VmxWrite(CR3_TARGET_VALUE0, 0);
-  VmxWrite(CR3_TARGET_VALUE1, 0);                        
-  VmxWrite(CR3_TARGET_VALUE2, 0);
-  VmxWrite(CR3_TARGET_VALUE3, 0);
-
-  /* VM-exit controls */
-  temp32 = 0;
-  CmSetBit32(&temp32, VM_EXIT_ACK_INTERRUPT_ON_EXIT);
-  VmxWrite(VM_EXIT_CONTROLS, VmxAdjustControls(temp32, IA32_VMX_EXIT_CTLS));
-
-  /* VM-entry controls */
-  VmxWrite(VM_ENTRY_CONTROLS, VmxAdjustControls(0, IA32_VMX_ENTRY_CTLS));
-
-  VmxWrite(VM_EXIT_MSR_STORE_COUNT, 0);
-  VmxWrite(VM_EXIT_MSR_LOAD_COUNT, 0);
-
-  VmxWrite(VM_ENTRY_MSR_LOAD_COUNT, 0);
-  VmxWrite(VM_ENTRY_INTR_INFO_FIELD, 0);
-	
-  //  ***********************************
-  //  *	H.3.3 32-Bit Guest-State Fields *
-  //  ***********************************
-
-  VmxWrite(GUEST_CS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetCs()));
-  VmxWrite(GUEST_SS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetSs()));
-  VmxWrite(GUEST_DS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetDs()));
-  VmxWrite(GUEST_ES_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetEs()));
-  VmxWrite(GUEST_FS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetFs()));
-  VmxWrite(GUEST_GS_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetGs()));
-  VmxWrite(GUEST_LDTR_LIMIT, GetSegmentDescriptorLimit(gdt_base, RegGetLdtr()));
-  VmxWrite(GUEST_TR_LIMIT,   GetSegmentDescriptorLimit(gdt_base, RegGetTr()));
-
-  /* Guest GDTR/IDTR limit */
-  VmxWrite(GUEST_GDTR_LIMIT, gdt_reg.Limit);
-  VmxWrite(GUEST_IDTR_LIMIT, idt_reg.Limit);
-
-  /* DR7 */
-  VmxWrite(GUEST_DR7, 0x400);
-
-  /* Guest interruptibility and activity state */
-  VmxWrite(GUEST_INTERRUPTIBILITY_INFO, 0);
-  VmxWrite(GUEST_ACTIVITY_STATE, 0);
-
-  /* Set segment access rights */
-  VmxWrite(GUEST_CS_AR_BYTES,   GetSegmentDescriptorAR(gdt_base, RegGetCs()));
-  VmxWrite(GUEST_DS_AR_BYTES,   GetSegmentDescriptorAR(gdt_base, RegGetDs()));
-  VmxWrite(GUEST_SS_AR_BYTES,   GetSegmentDescriptorAR(gdt_base, RegGetSs()));
-  VmxWrite(GUEST_ES_AR_BYTES,   GetSegmentDescriptorAR(gdt_base, RegGetEs()));
-  VmxWrite(GUEST_FS_AR_BYTES,   GetSegmentDescriptorAR(gdt_base, RegGetFs()));
-  VmxWrite(GUEST_GS_AR_BYTES,   GetSegmentDescriptorAR(gdt_base, RegGetGs()));
-  VmxWrite(GUEST_LDTR_AR_BYTES, GetSegmentDescriptorAR(gdt_base, RegGetLdtr()));
-  VmxWrite(GUEST_TR_AR_BYTES,   GetSegmentDescriptorAR(gdt_base, RegGetTr()));
-
-  /* Guest IA32_SYSENTER_CS */
-  ReadMSR(IA32_SYSENTER_CS, &msr);
-  VmxWrite(GUEST_SYSENTER_CS, msr.Lo);
-
-  //  ******************************************
-  //  * H.4.3 Natural-Width Guest-State Fields *
-  //  ******************************************
-
-  /* Guest CR0 */
-  temp32 = RegGetCr0();
-  CmSetBit32(&temp32, 0);		// PE
-  CmSetBit32(&temp32, 5);		// NE
-  CmSetBit32(&temp32, 31);	// PG
-  VmxWrite(GUEST_CR0, temp32);
-
-  /* Guest CR3 */
-  VmxWrite(GUEST_CR3, RegGetCr3());
-
-  temp32 = RegGetCr4();
-  CmSetBit32(&temp32, 13);		// VMXE
-  VmxWrite(GUEST_CR4, temp32);
-
-  /* Guest segment base addresses */
-  VmxWrite(GUEST_CS_BASE,   GetSegmentDescriptorBase(gdt_base, RegGetCs()));
-  VmxWrite(GUEST_SS_BASE,   GetSegmentDescriptorBase(gdt_base, RegGetSs()));
-  VmxWrite(GUEST_DS_BASE,   GetSegmentDescriptorBase(gdt_base, RegGetDs()));
-  VmxWrite(GUEST_ES_BASE,   GetSegmentDescriptorBase(gdt_base, RegGetEs()));
-  VmxWrite(GUEST_FS_BASE,   GetSegmentDescriptorBase(gdt_base, RegGetFs()));
-  VmxWrite(GUEST_GS_BASE,   GetSegmentDescriptorBase(gdt_base, RegGetGs()));
-  VmxWrite(GUEST_LDTR_BASE, GetSegmentDescriptorBase(gdt_base, RegGetLdtr()));
-  VmxWrite(GUEST_TR_BASE,   GetSegmentDescriptorBase(gdt_base, RegGetTr()));
-
-  /* Guest GDTR/IDTR base */
-  VmxWrite(GUEST_GDTR_BASE, gdt_reg.BaseLo | (gdt_reg.BaseHi << 16));
-  VmxWrite(GUEST_IDTR_BASE, idt_reg.BaseLo | (idt_reg.BaseHi << 16));
-
-  /* Guest RFLAGS */
-  FLAGS_TO_ULONG(eFlags) = RegGetFlags();
-  VmxWrite(GUEST_RFLAGS, FLAGS_TO_ULONG(eFlags));
-
-  /* Guest IA32_SYSENTER_ESP */
-  ReadMSR(IA32_SYSENTER_ESP, &msr);
-  VmxWrite(GUEST_SYSENTER_ESP, msr.Lo);
-
-  /* Guest IA32_SYSENTER_EIP */
-  ReadMSR(IA32_SYSENTER_EIP, &msr);
-  VmxWrite(GUEST_SYSENTER_EIP, msr.Lo);
-	
-  //	*****************************************
-  //	* H.4.4 Natural-Width Host-State Fields *
-  //	*****************************************
-
-  /* Host CR0, CR3 and CR4 */
-  VmxWrite(HOST_CR0, RegGetCr0() & ~(1 << 16)); /* Disable WP */
-  VmxWrite(HOST_CR3, RegGetCr3());
-  VmxWrite(HOST_CR4, RegGetCr4());
-
-  /* Host FS, GS and TR base */
-  VmxWrite(HOST_FS_BASE, GetSegmentDescriptorBase(gdt_base, RegGetFs()));
-  VmxWrite(HOST_GS_BASE, GetSegmentDescriptorBase(gdt_base, RegGetGs()));
-  VmxWrite(HOST_TR_BASE, GetSegmentDescriptorBase(gdt_base, RegGetTr()));
-
-  /* Host GDTR/IDTR base (they both hold *linear* addresses) */
-  VmxWrite(HOST_GDTR_BASE, gdt_reg.BaseLo | (gdt_reg.BaseHi << 16));
-  VmxWrite(HOST_IDTR_BASE, GetSegmentDescriptorBase(gdt_base, RegGetDs()) + (ULONG) VMMInitState.VMMIDT);
-
-  /* Host IA32_SYSENTER_ESP/EIP/CS */
-  ReadMSR(IA32_SYSENTER_ESP, &msr);
-  VmxWrite(HOST_IA32_SYSENTER_ESP, msr.Lo);
-
-  ReadMSR(IA32_SYSENTER_EIP, &msr);
-  VmxWrite(HOST_IA32_SYSENTER_EIP, msr.Lo);
-
-  ReadMSR(IA32_SYSENTER_CS, &msr);
-  VmxWrite(HOST_IA32_SYSENTER_CS, msr.Lo);
-
-  // (5) Issue a sequence of VMWRITEs to initialize various host-state area
-  //	 fields in the working VMCS. The initialization sets up the context
-  //	 and entry-points to the VMM VIRTUAL-MACHINE MONITOR PROGRAMMING
-  //	 CONSIDERATIONS upon subsequent VM exits from the guest. Host-state
-  //	 fields include control registers (CR0, CR3 and CR4), selector fields
-  //	 for the segment registers (CS, SS, DS, ES, FS, GS and TR), and base-
-  //	 address fields (for FS, GS, TR, GDTR and IDTR; RSP, RIP and the MSRs
-  //	 that control fast system calls).
-
-  // (6) Use VMWRITEs to set up the various VM-exit control fields, VM-entry
-  //	 control fields, and VM-execution control fields in the VMCS. Care
-  //	 should be taken to make sure the settings of individual fields match
-  //	 the allowed 0 and 1 settings for the respective controls as reported
-  //	 by the VMX capability MSRs (see Appendix G). Any settings inconsistent
-  //	 with the settings reported by the capability MSRs will cause VM
-  //	 entries to fail.
-	
-  // (7) Use VMWRITE to initialize various guest-state area fields in the
-  //	 working VMCS. This sets up the context and entry-point for guest
-  //	 execution upon VM entry. Chapter 22 describes the guest-state loading
-  //	 and checking done by the processor for VM entries to protected and
-  //	 virtual-8086 guest execution.
-
-  /* Clear the VMX Abort Error Code prior to VMLAUNCH */
-  RtlZeroMemory((VMMInitState.pVMCSRegion + 4), 4);
-  Log("Clearing VMX abort error code: %.8x", *(VMMInitState.pVMCSRegion + 4));
-
-  /* Set RIP, RSP for the Guest right before calling VMLAUNCH */
-  Log("Setting Guest RSP to %.8x", GuestStack);
-  VmxWrite(GUEST_RSP, (hvm_address) GuestStack);
-	
-  Log("Setting Guest RIP to %.8x", GuestReturn);
-  VmxWrite(GUEST_RIP, (hvm_address) GuestReturn);
-
-  /* Set RIP, RSP for the Host right before calling VMLAUNCH */
-  Log("Setting Host RSP to %.8x", ((hvm_address) VMMInitState.VMMStack + VMM_STACK_SIZE - 1));
-  VmxWrite(HOST_RSP, ((hvm_address) VMMInitState.VMMStack + VMM_STACK_SIZE - 1));
-
-  Log("Setting Host RIP to %.8x", VMMEntryPoint);
-  VmxWrite(HOST_RIP, (hvm_address) VMMEntryPoint);
-
-  ///////////////
-  // VMLAUNCH  //
-  ///////////////
-  VmxLaunch();
-
-  FLAGS_TO_ULONG(eFlags) = RegGetFlags();
+  /* LAUNCH! */
+  hvm_x86_ops.vt_launch();
 
   Log("VMLAUNCH Failure");
 	
   /* Get the error number from VMCS */
-  ErrorCode = VmxRead(VM_INSTRUCTION_ERROR);
-  Log("VM instruction error: %.8x", ErrorCode);
+  Log("VM instruction error: %.8x", hvm_x86_ops.vt_vmcs_read(VM_INSTRUCTION_ERROR));
 
  Abort:
 
@@ -661,18 +185,13 @@ VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
   FiniPlugin();
   FiniGuest();
 
-  if(VMXIsActive) {
-    VmxVmCall(HYPERCALL_SWITCHOFF);
+  if(hvm_x86_ops.vt_enabled()) {
+    hvm_x86_ops.vt_hypercall(HYPERCALL_SWITCHOFF);
   }
 
   WindowsLog("[vmm-unload] Freeing memory regions");
 
-  MmFreeNonCachedMemory(VMMInitState.pVMXONRegion, 4096);
-  MmFreeNonCachedMemory(VMMInitState.pVMCSRegion, 4096);
-  ExFreePoolWithTag(VMMInitState.VMMStack, 'kSkF');
-  MmFreeNonCachedMemory(VMMInitState.pIOBitmapA , 4096);
-  MmFreeNonCachedMemory(VMMInitState.pIOBitmapB , 4096);
-  MmFreeNonCachedMemory(VMMInitState.VMMIDT, sizeof(IDT_ENTRY)*256);
+  hvm_x86_ops.vt_finalize();
 
   WindowsLog("[vmm-unload] Driver unloaded");
 }
@@ -702,8 +221,8 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
   WindowsLog("---------------");
   WindowsLog("   Driver Entry:  %.8x", DriverEntry);
   WindowsLog("   Driver Unload: %.8x", DriverUnload);
-  WindowsLog("   StartVMX:      %.8x", StartVMX);
-  WindowsLog("   VMMEntryPoint: %.8x", VMMEntryPoint);
+  WindowsLog("   StartVT:       %.8x", StartVT);
+  WindowsLog("   VMMEntryPoint: %.8x", hvm_x86_ops.hvm_handle_exit);
 	
   /* Check if PAE is enabled. */
   CR4_TO_ULONG(cr4) = RegGetCr4();
@@ -718,74 +237,19 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
   }
 
   /* Register event handlers */
-  if (!NT_SUCCESS(RegisterEvents()))
+  if (!HVM_SUCCESS(RegisterEvents()))
     goto error;
 
-  /* Allocate the VMXON region memory. */
-  VMMInitState.pVMXONRegion = MmAllocateNonCachedMemory(4096);
-  if(VMMInitState.pVMXONRegion == NULL) {
-    WindowsLog("ERROR: Allocating VMXON region memory");
+  /* Initialize VT */
+  if (!HVM_SUCCESS(hvm_x86_ops.vt_initialize(InitVMMIDT)))
     goto error;
-  }
-  WindowsLog("VMXONRegion virtual address:  %.8x", VMMInitState.pVMXONRegion);
-  RtlZeroMemory(VMMInitState.pVMXONRegion, 4096);
-  VMMInitState.PhysicalVMXONRegionPtr = MmGetPhysicalAddress(VMMInitState.pVMXONRegion);
-  WindowsLog("VMXONRegion physical address: %.8x", VMMInitState.PhysicalVMXONRegionPtr.LowPart);
 
-  /* Allocate the VMCS region memory. */
-  VMMInitState.pVMCSRegion = MmAllocateNonCachedMemory(4096);
-  if(VMMInitState.pVMCSRegion == NULL) {
-    WindowsLog("ERROR: Allocating VMCS region memory");
+  /* Initialize guest-specific stuff */
+  if (!HVM_SUCCESS(InitGuest(DriverObject)))
     goto error;
-  }
-  WindowsLog("VMCSRegion virtual address:  %.8x", VMMInitState.pVMCSRegion);
-  RtlZeroMemory(VMMInitState.pVMCSRegion, 4096);
-  VMMInitState.PhysicalVMCSRegionPtr = MmGetPhysicalAddress(VMMInitState.pVMCSRegion);
-  WindowsLog("VMCSRegion physical address: %.8x", VMMInitState.PhysicalVMCSRegionPtr.LowPart);
-	
-  /* Allocate stack for the VM Exit Handler. */
-  VMMInitState.VMMStack = ExAllocatePoolWithTag(NonPagedPool, VMM_STACK_SIZE, 'kSkF');
-  if(VMMInitState.VMMStack == NULL) {
-    WindowsLog("ERROR: Allocating VM exit handler stack memory");
-    goto error;
-  }
-  RtlZeroMemory(VMMInitState.VMMStack, VMM_STACK_SIZE);
-  WindowsLog("VMMStack: %.8x", VMMInitState.VMMStack);
 
-  /* Allocate a memory page for the I/O bitmap A */
-  VMMInitState.pIOBitmapA = MmAllocateNonCachedMemory(4096);
-  if(VMMInitState.pIOBitmapA == NULL) {
-    WindowsLog("ERROR: Allocating I/O bitmap A memory");
-    goto error;
-  }
-  WindowsLog("I/O bitmap A virtual address:  %.8x", VMMInitState.pIOBitmapA);
-  RtlZeroMemory(VMMInitState.pIOBitmapA, 4096);
-  VMMInitState.PhysicalIOBitmapA = MmGetPhysicalAddress(VMMInitState.pIOBitmapA);
-  WindowsLog("I/O bitmap A physical address: %.8x", VMMInitState.PhysicalIOBitmapA.LowPart);
-
-  /* Allocate a memory page for the I/O bitmap A */
-  VMMInitState.pIOBitmapB = MmAllocateNonCachedMemory(4096);
-  if(VMMInitState.pIOBitmapB == NULL) {
-    WindowsLog("ERROR: Allocating I/O bitmap A memory");
-    goto error;
-  }
-  WindowsLog("I/O bitmap A virtual address:  %.8x", VMMInitState.pIOBitmapB);
-  RtlZeroMemory(VMMInitState.pIOBitmapB, 4096);
-  VMMInitState.PhysicalIOBitmapB = MmGetPhysicalAddress(VMMInitState.pIOBitmapB);
-  WindowsLog("I/O bitmap A physical address: %.8x", VMMInitState.PhysicalIOBitmapB.LowPart);
-
-  /* Allocate & initialize the IDT for the VMM */
-  VMMInitState.VMMIDT = MmAllocateNonCachedMemory(sizeof(IDT_ENTRY)*256);
-  if (VMMInitState.VMMIDT == NULL) {
-    WindowsLog("ERROR: Allocating VMM interrupt descriptor table");
-    goto error;
-  }
-  InitVMMIDT(VMMInitState.VMMIDT);
-  WindowsLog("VMMIDT is at %.8x", VMMInitState.VMMIDT);
-
-  if (InitGuest(DriverObject) != HVM_STATUS_SUCCESS)
-    goto error;
-  if (InitPlugin() != HVM_STATUS_SUCCESS)
+  /* Initialize plugins */
+  if (!HVM_SUCCESS(InitPlugin()))
     goto error;
 
   __asm {
@@ -808,7 +272,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
     POP		EntryRFlags;
   };
 	
-  StartVMX();
+  StartVT();
 	
   /* Restore the state of the architecture */
   __asm {
@@ -845,18 +309,7 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
   /* Cleanup & return an error code */
   FiniPlugin();
 
-  if (VMMInitState.pVMXONRegion)
-    MmFreeNonCachedMemory(VMMInitState.pVMXONRegion , 4096);
-  if (VMMInitState.pVMCSRegion)
-    MmFreeNonCachedMemory(VMMInitState.pVMCSRegion , 4096);
-  if (VMMInitState.VMMStack)
-    ExFreePoolWithTag(VMMInitState.VMMStack, 'kSkF');
-  if (VMMInitState.pIOBitmapA)
-    MmFreeNonCachedMemory(VMMInitState.pIOBitmapA , 4096);
-  if (VMMInitState.pIOBitmapB)
-    MmFreeNonCachedMemory(VMMInitState.pIOBitmapB , 4096);
-  if (VMMInitState.VMMIDT)
-    MmFreeNonCachedMemory(VMMInitState.VMMIDT , sizeof(IDT_ENTRY)*256);
+  hvm_x86_ops.vt_finalize();
 
   return STATUS_UNSUCCESSFUL;
 }
@@ -891,7 +344,7 @@ static hvm_status InitPlugin(void)
     return HVM_STATUS_UNSUCCESSFUL;
   }
   /* Initialize the host module of HyperDbg */
-  if(HyperDbgHostInit(&VMMInitState) != HVM_STATUS_SUCCESS) {
+  if(HyperDbgHostInit() != HVM_STATUS_SUCCESS) {
     WindowsLog("ERROR: HyperDbg HOST initialization error");
     return HVM_STATUS_UNSUCCESSFUL;
   }

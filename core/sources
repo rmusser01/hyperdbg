@@ -7,7 +7,6 @@ INCLUDES=.;$(CUSTOM_CORE_INCLUDES)
 
 SOURCES=		\
 	pill.c		\
-	vmm.c		\
 	winxp.c 	\
 	comio.c 	\
 	snprintf.c 	\
@@ -16,9 +15,10 @@ SOURCES=		\
 	events.c 	\
 	vmhandlers.c 	\
 	vmmstring.c     \
-	vmx.c           \
 	common.c	\
-	mmu.c
+	mmu.c           \
+	vt.c            \
+	vmx.c
 
 I386_SOURCES=		\
 	vmx-asm.asm 	\

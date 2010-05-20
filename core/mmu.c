@@ -21,11 +21,10 @@
   
 */
 
-#include "types.h"
+#include "common.h"
 #include "debug.h"
 #include "mmu.h"
 #include "x86.h"
-#include "common.h"
 
 /* ################ */
 /* #### MACROS #### */
@@ -45,7 +44,6 @@
 
 static hvm_status MmuFindUnusedPTE(hvm_address* pdwLogical);
 static hvm_status MmuFindUnusedPDE(hvm_address* pdwLogical);
-static void       MmuInvalidateTLB(hvm_address addr);
 static hvm_status MmuGetPageEntry(hvm_address cr3, hvm_address va, PPTE ppte, hvm_bool* pisLargePage);
 static hvm_bool   MmuGetCr0WP(void);
 static void       MmuPrintPDEntry(PPTE pde);
@@ -144,7 +142,8 @@ hvm_status MmuMapPhysicalPage(hvm_address phy, hvm_address* pva, PPTE pentryOrig
   pentry->ForUse2         = 0;
   pentry->ForUse3         = 0;
   pentry->PageBaseAddr    = PHY_TO_FRAME(phy);
-  MmuInvalidateTLB(dwLogicalAddress);
+
+  hvm_x86_ops.mmu_tlb_flush();
 
   *pva = dwLogicalAddress;
 
@@ -159,7 +158,7 @@ hvm_status MmuUnmapPhysicalPage(hvm_address va, PTE entryOriginal)
   pentry = (PPTE) (VIRTUAL_PT_BASE + (VA_TO_PTE(va) * sizeof(PTE)));
   *pentry = entryOriginal;
 
-  MmuInvalidateTLB(va);
+  hvm_x86_ops.mmu_tlb_flush();
 
   return HVM_STATUS_SUCCESS;
 }
@@ -287,14 +286,6 @@ static hvm_status MmuGetPageEntry(hvm_address cr3, hvm_address va, PPTE ppte,
   *pisLargePage = FALSE;
 
   return HVM_STATUS_SUCCESS;
-}
-
-static void MmuInvalidateTLB(hvm_address addr)
-{
-  __asm { 
-    MOV EAX, CR3;
-    MOV CR3, EAX;     
-  };
 }
 
 static hvm_status MmuFindUnusedPTE(hvm_address* pdwLogical)

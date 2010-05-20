@@ -30,10 +30,13 @@
 #pragma pack (push, 1)
 
 //////////////
-//  EFLAGS  //
+//  RFLAGS  //
 //////////////
-typedef struct _EFLAGS
+typedef struct _RFLAGS
 {
+#if BITS_ARCH == 64
+  unsigned ReservedHi	:32;
+#endif
   unsigned Reserved1	:10;
   unsigned ID		:1;		// Identification flag
   unsigned VIP		:1;		// Virtual interrupt pending
@@ -56,7 +59,7 @@ typedef struct _EFLAGS
   unsigned PF		:1;		// Parity flag
   unsigned Reserved5	:1;
   unsigned CF		:1;		// Carry flag [Bit 0]
-} EFLAGS;
+} RFLAGS;
 
 #define FLAGS_CF_MASK (1 << 0)
 #define FLAGS_PF_MASK (1 << 2)
@@ -231,6 +234,11 @@ Bit32u RegGetCr3();
 Bit32u RegGetCr4();
 Bit32u RegGetIdtBase();
 
+void RegSetFlags(hvm_address v);
+void RegSetCr0(hvm_address v);
+void RegSetCr2(hvm_address v);
+void RegSetCr4(hvm_address v);
+
 /* Access to 16-bit registers */
 Bit16u RegGetCs();
 Bit16u RegGetDs();
@@ -242,9 +250,6 @@ Bit16u RegGetTr();
 Bit16u RegGetLdtr();
 Bit16u RegGetIdtLimit();
 
-void RegSetFlags(hvm_address v);
-void RegSetCr0(hvm_address v);
-void RegSetCr4(hvm_address v);
 void RegSetIdtr(void *base, Bit32u limit);
 void RegRdtsc(Bit64u *pv);
 
