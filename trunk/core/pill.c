@@ -65,34 +65,34 @@
 NTSTATUS	DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath);
 VOID		DriverUnload(IN PDRIVER_OBJECT DriverObject);
 
-static VOID     StartVMX();
-static int      EnableVMX(VOID);
-static VOID     InitVMMIDT(PIDT_ENTRY pidt);
-static NTSTATUS RegisterEvents(VOID);
+static void       StartVMX();
+static int        EnableVMX(void);
+static void       InitVMMIDT(PIDT_ENTRY pidt);
+static hvm_status RegisterEvents(void);
 
 /* Plugin & guest initialization/finalization */
-static NTSTATUS InitGuest(PDRIVER_OBJECT DriverObject);
-static NTSTATUS FiniGuest(VOID);
-static NTSTATUS InitPlugin(VOID);
-static NTSTATUS FiniPlugin(VOID);
+static hvm_status InitGuest(PDRIVER_OBJECT DriverObject);
+static hvm_status FiniGuest(void);
+static hvm_status InitPlugin(void);
+static hvm_status FiniPlugin(void);
 
 /* ################# */
 /* #### GLOBALS #### */
 /* ################# */
 
 /* These variables are not global, as they are also accessed by vmm.c */
-ULONG			        HandlerLogging		= 0;
-ULONG			        VMXIsActive		= 0;
+hvm_bool		        HandlerLogging		= FALSE;
+hvm_bool		        VMXIsActive		= FALSE;
 
 /* Static variables, that are not directly accessed by other modules or plugins. */
 static VMM_INIT_STATE           VMMInitState;
 
-static ULONG			ErrorCode		= 0;
+static Bit32u			ErrorCode		= 0;
 
 static EFLAGS			eFlags			= {0};
 static MSR			msr			= {0};
 
-static ULONG			ScrubTheLaunch		= 0;
+static hvm_bool			ScrubTheLaunch		= FALSE;
 
 static VMX_FEATURES		vmxFeatures;
 static IA32_VMX_BASIC_MSR	vmxBasicMsr;
@@ -101,31 +101,29 @@ static IA32_FEATURE_CONTROL_MSR	vmxFeatureControl;
 static CR0_REG			cr0_reg = {0};
 static CR4_REG			cr4_reg = {0};
 
-static ULONG			temp32 = 0;
+static Bit32u			temp32 = 0;
 
 static GDTR			gdt_reg = {0};
 static IDTR			idt_reg = {0};
 
-static ULONG			gdt_base = 0;
-static ULONG			idt_base = 0;
+static Bit32u			gdt_base = 0;
+static Bit32u			idt_base = 0;
 
-static USHORT			seg_selector = 0;
+static Bit16u			seg_selector = 0;
 
 static MISC_DATA		misc_data = {0};
 
-static PVOID			GuestReturn = NULL;
-static ULONG			GuestStack = 0;
+static void*			GuestReturn = NULL;
+static hvm_address		GuestStack = 0;
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
-static NTSTATUS RegisterEvents(VOID)
+static hvm_status RegisterEvents(void)
 {
   EVENT_CONDITION_HYPERCALL hypercall;
-  ULONG trap;
 
-  trap = 0;
   /* Initialize the event handler */
   EventInit();
 
@@ -134,14 +132,14 @@ static NTSTATUS RegisterEvents(VOID)
 
   if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HypercallSwitchOff)) {
     WindowsLog("ERROR: Unable to register switch-off hypercall handler");
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
 /* Initialize the IDT of the VMM */
-static VOID InitVMMIDT(PIDT_ENTRY pidt)
+static void InitVMMIDT(PIDT_ENTRY pidt)
 {
   int i;
   IDT_ENTRY idte_null;
@@ -160,7 +158,7 @@ static VOID InitVMMIDT(PIDT_ENTRY pidt)
 }
 
 /* Enable VMX */
-static int EnableVMX(VOID)
+static int EnableVMX(void)
 {
   // (1) Check VMX support in processor using CPUID.
   __asm {
@@ -283,7 +281,7 @@ static int EnableVMX(VOID)
   }
 
   /* VMXON was successful, so we cannot use WindowsLog() anymore */
-  VMXIsActive = 1;
+  VMXIsActive = TRUE;
 
   Log("SUCCESS: VMXON operation completed");
   Log("VMM is now running");
@@ -291,13 +289,13 @@ static int EnableVMX(VOID)
   return TRUE;
 }
 
-__declspec(naked) VOID StartVMX()
+__declspec(naked) void StartVMX()
 {	
-  //	Get the Guest Return EIP.
+  //	Get the Guest Return RIP.
   //
   //	Hi	|	    |
   //		+-----------+
-  //		|    EIP    |
+  //		|    RIP    |
   //		+-----------+ <--	ESP after the CALL
   //	Lo	|	    |
 
@@ -436,8 +434,8 @@ __declspec(naked) VOID StartVMX()
 
   /* Primary processor-based VM-execution controls */
   temp32 = 0;
-  CmSetBit(&temp32, CPU_BASED_PRIMARY_IO); /* Use I/O bitmaps */
-  CmSetBit(&temp32, 7); /* HLT */
+  CmSetBit32(&temp32, CPU_BASED_PRIMARY_IO); /* Use I/O bitmaps */
+  CmSetBit32(&temp32, 7); /* HLT */
   VmxWrite(CPU_BASED_VM_EXEC_CONTROL, VmxAdjustControls(temp32, IA32_VMX_PROCBASED_CTLS));
 
   /* I/O bitmap */
@@ -450,7 +448,7 @@ __declspec(naked) VOID StartVMX()
   /* Exception bitmap */
   temp32 = 0;
   EventUpdateExceptionBitmap(&temp32);
-  CmSetBit(&temp32, TRAP_DEBUG);   // DO NOT DISABLE: needed to step over I/O instructions!!!
+  CmSetBit32(&temp32, TRAP_DEBUG);   // DO NOT DISABLE: needed to step over I/O instructions!!!
   VmxWrite(EXCEPTION_BITMAP, temp32);
 
   /* Time-stamp counter offset */
@@ -467,7 +465,7 @@ __declspec(naked) VOID StartVMX()
 
   /* VM-exit controls */
   temp32 = 0;
-  CmSetBit(&temp32, VM_EXIT_ACK_INTERRUPT_ON_EXIT);
+  CmSetBit32(&temp32, VM_EXIT_ACK_INTERRUPT_ON_EXIT);
   VmxWrite(VM_EXIT_CONTROLS, VmxAdjustControls(temp32, IA32_VMX_EXIT_CTLS));
 
   /* VM-entry controls */
@@ -523,16 +521,16 @@ __declspec(naked) VOID StartVMX()
 
   /* Guest CR0 */
   temp32 = RegGetCr0();
-  CmSetBit(&temp32, 0);		// PE
-  CmSetBit(&temp32, 5);		// NE
-  CmSetBit(&temp32, 31);	// PG
+  CmSetBit32(&temp32, 0);		// PE
+  CmSetBit32(&temp32, 5);		// NE
+  CmSetBit32(&temp32, 31);	// PG
   VmxWrite(GUEST_CR0, temp32);
 
   /* Guest CR3 */
   VmxWrite(GUEST_CR3, RegGetCr3());
 
   temp32 = RegGetCr4();
-  CmSetBit(&temp32, 13);		// VMXE
+  CmSetBit32(&temp32, 13);		// VMXE
   VmxWrite(GUEST_CR4, temp32);
 
   /* Guest segment base addresses */
@@ -616,19 +614,19 @@ __declspec(naked) VOID StartVMX()
   RtlZeroMemory((VMMInitState.pVMCSRegion + 4), 4);
   Log("Clearing VMX abort error code: %.8x", *(VMMInitState.pVMCSRegion + 4));
 
-  /* Set EIP, ESP for the Guest right before calling VMLAUNCH */
-  Log("Setting Guest ESP to %.8x", GuestStack);
-  VmxWrite(GUEST_RSP, (ULONG) GuestStack);
+  /* Set RIP, RSP for the Guest right before calling VMLAUNCH */
+  Log("Setting Guest RSP to %.8x", GuestStack);
+  VmxWrite(GUEST_RSP, (hvm_address) GuestStack);
 	
-  Log("Setting Guest EIP to %.8x", GuestReturn);
-  VmxWrite(GUEST_RIP, (ULONG) GuestReturn);
+  Log("Setting Guest RIP to %.8x", GuestReturn);
+  VmxWrite(GUEST_RIP, (hvm_address) GuestReturn);
 
-  /* Set EIP, ESP for the Host right before calling VMLAUNCH */
-  Log("Setting Host ESP to %.8x", ((ULONG) VMMInitState.VMMStack + VMM_STACK_SIZE - 1));
-  VmxWrite(HOST_RSP, ((ULONG) VMMInitState.VMMStack + VMM_STACK_SIZE - 1));
+  /* Set RIP, RSP for the Host right before calling VMLAUNCH */
+  Log("Setting Host RSP to %.8x", ((hvm_address) VMMInitState.VMMStack + VMM_STACK_SIZE - 1));
+  VmxWrite(HOST_RSP, ((hvm_address) VMMInitState.VMMStack + VMM_STACK_SIZE - 1));
 
-  Log("Setting Host EIP to %.8x", VMMEntryPoint);
-  VmxWrite(HOST_RIP, (ULONG) VMMEntryPoint);
+  Log("Setting Host RIP to %.8x", VMMEntryPoint);
+  VmxWrite(HOST_RIP, (hvm_address) VMMEntryPoint);
 
   ///////////////
   // VMLAUNCH  //
@@ -645,7 +643,7 @@ __declspec(naked) VOID StartVMX()
 
  Abort:
 
-  ScrubTheLaunch = 1;
+  ScrubTheLaunch = TRUE;
   __asm {
     MOV		ESP, GuestStack;
     JMP		GuestReturn;
@@ -680,19 +678,19 @@ VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
 }
 
 /* Driver entry point */
-NTSTATUS DriverEntry( IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath )
+NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-  ULONG		EntryEFlags = 0;
-  ULONG		cr4 = 0;
+  hvm_address cr4 = 0;
 
-  ULONG		EntryEAX = 0;
-  ULONG		EntryECX = 0;
-  ULONG		EntryEDX = 0;
-  ULONG		EntryEBX = 0;
-  ULONG		EntryESP = 0;
-  ULONG		EntryEBP = 0;
-  ULONG		EntryESI = 0;
-  ULONG		EntryEDI = 0;
+  hvm_address EntryRFlags = 0;
+  hvm_address EntryRAX    = 0;
+  hvm_address EntryRCX    = 0;
+  hvm_address EntryRDX    = 0;
+  hvm_address EntryRBX    = 0;
+  hvm_address EntryRSP    = 0;
+  hvm_address EntryRBP    = 0;
+  hvm_address EntryRSI    = 0;
+  hvm_address EntryRDI    = 0;
 	
   DriverObject->DriverUnload = DriverUnload;
 
@@ -785,9 +783,9 @@ NTSTATUS DriverEntry( IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registr
   InitVMMIDT(VMMInitState.VMMIDT);
   WindowsLog("VMMIDT is at %.8x", VMMInitState.VMMIDT);
 
-  if (InitGuest(DriverObject) != STATUS_SUCCESS)
+  if (InitGuest(DriverObject) != HVM_STATUS_SUCCESS)
     goto error;
-  if (InitPlugin() != STATUS_SUCCESS)
+  if (InitPlugin() != HVM_STATUS_SUCCESS)
     goto error;
 
   __asm {
@@ -798,32 +796,32 @@ NTSTATUS DriverEntry( IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registr
   /* Save the state of the architecture */
   __asm {
     PUSHAD;
-    POP		EntryEDI;
-    POP		EntryESI;
-    POP		EntryEBP;
-    POP		EntryESP;
-    POP		EntryEBX;
-    POP		EntryEDX;
-    POP		EntryECX;
-    POP		EntryEAX;
+    POP		EntryRDI;
+    POP		EntryRSI;
+    POP		EntryRBP;
+    POP		EntryRSP;
+    POP		EntryRBX;
+    POP		EntryRDX;
+    POP		EntryRCX;
+    POP		EntryRAX;
     PUSHFD;
-    POP		EntryEFlags;
+    POP		EntryRFlags;
   };
 	
   StartVMX();
 	
   /* Restore the state of the architecture */
   __asm {
-    PUSH	EntryEFlags;
+    PUSH	EntryRFlags;
     POPFD;
-    PUSH	EntryEAX;
-    PUSH	EntryECX;
-    PUSH	EntryEDX;
-    PUSH	EntryEBX;
-    PUSH	EntryESP;
-    PUSH	EntryEBP;
-    PUSH	EntryESI;
-    PUSH	EntryEDI;
+    PUSH	EntryRAX;
+    PUSH	EntryRCX;
+    PUSH	EntryRDX;
+    PUSH	EntryRBX;
+    PUSH	EntryRSP;
+    PUSH	EntryRBP;
+    PUSH	EntryRSI;
+    PUSH	EntryRDI;
     POPAD;
   };
 	
@@ -834,7 +832,7 @@ NTSTATUS DriverEntry( IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registr
 	
   WindowsLog("Running on processor #%d", KeGetCurrentProcessorNumber());
 	
-  if( ScrubTheLaunch == 1 ){
+  if(ScrubTheLaunch == TRUE){
     WindowsLog("ERROR: Launch aborted");
     goto error;
   }
@@ -863,12 +861,12 @@ NTSTATUS DriverEntry( IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registr
   return STATUS_UNSUCCESSFUL;
 }
 
-static NTSTATUS InitGuest(PDRIVER_OBJECT DriverObject)
+static hvm_status InitGuest(PDRIVER_OBJECT DriverObject)
 {
 #ifdef GUEST_WINDOWS
-  if (WindowsInit(DriverObject) != STATUS_SUCCESS) {
+  if (WindowsInit(DriverObject) != HVM_STATUS_SUCCESS) {
     WindowsLog("ERROR: Windows-specific initialization routine has failed");
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 #elif defined GUEST_LINUX
 #error Unimplemented
@@ -876,39 +874,39 @@ static NTSTATUS InitGuest(PDRIVER_OBJECT DriverObject)
 #error Please specify a valid guest OS
 #endif
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-static NTSTATUS FiniGuest(VOID)
+static hvm_status FiniGuest(void)
 {
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-static NTSTATUS InitPlugin(VOID)
+static hvm_status InitPlugin(void)
 {
 #ifdef ENABLE_HYPERDBG
   /* Initialize the guest module of HyperDbg */
-  if(HyperDbgGuestInit() != STATUS_SUCCESS) {
+  if(HyperDbgGuestInit() != HVM_STATUS_SUCCESS) {
     WindowsLog("ERROR: HyperDbg GUEST initialization error");
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
   /* Initialize the host module of HyperDbg */
-  if(HyperDbgHostInit(&VMMInitState) != STATUS_SUCCESS) {
+  if(HyperDbgHostInit(&VMMInitState) != HVM_STATUS_SUCCESS) {
     WindowsLog("ERROR: HyperDbg HOST initialization error");
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 #endif
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-static NTSTATUS FiniPlugin(VOID)
+static hvm_status FiniPlugin(void)
 {
 #ifdef ENABLE_HYPERDBG
   HyperDbgHostFini();
   HyperDbgGuestFini();
 #endif
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 

@@ -24,56 +24,53 @@
 #ifndef _PILL_VMM_H
 #define _PILL_VMM_H
 
-#include <ntddk.h>
-
+#include "types.h"
 #include "vmx.h"
 #include "events.h"
 
 typedef struct {
-  /* Exit state */
   struct {
-    ULONG ExitReason;
-    ULONG ExitQualification;
-    ULONG ExitInterruptionInformation;
-    ULONG ExitInterruptionErrorCode;
-    ULONG ExitInstructionLength;
-    ULONG ExitInstructionInformation;
+    Bit32u ExitReason;
+    Bit32u ExitQualification;
+    Bit32u ExitInterruptionInformation;
+    Bit32u ExitInterruptionErrorCode;
+    Bit32u ExitInstructionLength;
+    Bit32u ExitInstructionInformation;
 
-    ULONG IDTVectoringInformationField;
-    ULONG IDTVectoringErrorCode;
-  } ExitState;
+    Bit32u IDTVectoringInformationField;
+    Bit32u IDTVectoringErrorCode;
+  } ExitContext;
 
-  /* Guest state */
   struct {
-    ULONG EIP;
-    ULONG ResumeEIP;
-    ULONG ESP;
-    ULONG CS;
-    ULONG CR0;
-    ULONG CR3;
-    ULONG CR4;
-    ULONG EFLAGS;
+    hvm_address RIP;
+    hvm_address ResumeRIP;
+    hvm_address RSP;
+    hvm_address CS;
+    hvm_address CR0;
+    hvm_address CR3;
+    hvm_address CR4;
+    hvm_address RFLAGS;
 
-    ULONG EAX;
-    ULONG EBX;
-    ULONG ECX;
-    ULONG EDX;
-    ULONG EDI;
-    ULONG ESI;
-    ULONG EBP;
-  } GuestState;
-} VMCS_CACHE;
+    hvm_address RAX;
+    hvm_address RBX;
+    hvm_address RCX;
+    hvm_address RDX;
+    hvm_address RDI;
+    hvm_address RSI;
+    hvm_address RBP;
+  } GuestContext;
+} CPU_CONTEXT;
 
-extern VMCS_CACHE vmcs;
+extern CPU_CONTEXT context;
 
 /* VMM entry point */
-VOID VMMEntryPoint(VOID);
+void VMMEntryPoint(void);
 
 /* The hypercall invoked when we want to turn off VMX. This is registered by
    pill.c. */
-EVENT_PUBLISH_STATUS HypercallSwitchOff(VOID);
+EVENT_PUBLISH_STATUS HypercallSwitchOff(void);
 
 /* VM introspection functions */
-void VMMReadGuestMemory(ULONG32 addr, int size, UCHAR *buf);
+void VMMReadGuestMemory(hvm_address addr, int size, Bit8u *buf);
 
 #endif /* _PILL_VMM_H */

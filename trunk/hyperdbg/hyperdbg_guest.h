@@ -24,9 +24,9 @@
 #ifndef _HYPERDBG_GUEST_H
 #define _HYPERDBG_GUEST_H
 
-#include <ntddk.h>
+#include "hyperdbg.h"
 
-NTSTATUS HyperDbgGuestInit(VOID);
-NTSTATUS HyperDbgGuestFini(VOID);
+hvm_status HyperDbgGuestInit(void);
+hvm_status HyperDbgGuestFini(void);
 
 #endif	/* _HYPERDBG_GUEST_H */

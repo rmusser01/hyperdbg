@@ -23,5 +23,6 @@ SOURCES=		\
 I386_SOURCES=		\
 	vmx-asm.asm 	\
 	reg-asm.asm 	\
-	common-asm.asm
+	common-asm.asm  \
+	io-asm.asm
 

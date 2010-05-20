@@ -24,13 +24,11 @@
 #ifndef _VMHANDLERS_H
 #define _VMHANDLERS_H
 
-#include <ntddk.h>
-
-VOID HandleVMCALL(VOID);
-VOID HandleVMLAUNCH(VOID);
-VOID HandleNMI(VOID);
-VOID HandleIO(VOID);
-VOID HandleCR(VOID);
-VOID HandleHLT(VOID);
+void HandleVMCALL(void);
+void HandleVMLAUNCH(void);
+void HandleNMI(void);
+void HandleIO(void);
+void HandleCR(void);
+void HandleHLT(void);
 
 #endif	/*  _VMHANDLERS_H */

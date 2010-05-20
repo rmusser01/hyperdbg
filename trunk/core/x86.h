@@ -24,7 +24,7 @@
 #ifndef _PILL_X86_H
 #define _PILL_X86_H
 
-#include <ntddk.h>
+#include "types.h"
 #include "msr.h"
 
 #pragma pack (push, 1)
@@ -66,7 +66,7 @@ typedef struct _EFLAGS
 #define FLAGS_TF_MASK (1 << 8)
 #define FLAGS_IF_MASK (1 << 9)
 #define FLAGS_RF_MASK (1 << 16)
-#define FLAGS_TO_ULONG(f) (*(ULONG32*)(&f))
+#define FLAGS_TO_ULONG(f) (*(hvm_address*)(&f))
 
 /////////////////////////
 //  CONTROL REGISTERS  //
@@ -107,8 +107,8 @@ typedef struct _CR4_REG
   unsigned Reserved2	:18;		        // 
 } CR4_REG;
 
-#define CR0_TO_ULONG(cr0) (*(ULONG32*)(&cr0))
-#define CR4_TO_ULONG(cr4) (*(ULONG32*)(&cr4))
+#define CR0_TO_ULONG(cr0) (*(hvm_address*)(&cr0))
+#define CR4_TO_ULONG(cr4) (*(hvm_address*)(&cr4))
 
 //////////////////////////
 //  SELECTOR REGISTERS  //
@@ -165,12 +165,12 @@ typedef struct
 
 typedef struct
 {
-  USHORT limit0;
-  USHORT base0;
-  UCHAR  base1;
-  UCHAR  attr0;
-  UCHAR  limit1attr1;
-  UCHAR  base2;
+  Bit16u limit0;
+  Bit16u base0;
+  Bit8u  base1;
+  Bit8u  attr0;
+  Bit8u  limit1attr1;
+  Bit8u  base2;
 } SEGMENT_DESCRIPTOR2, *PSEGMENT_DESCRIPTOR2;
 
 /* 
@@ -179,78 +179,87 @@ typedef struct
 */
 typedef union
 {
-  USHORT UCHARs;
+  Bit16u UCHARs;
   struct
   {
-    USHORT type :4;              /* 0;  Bit 40-43 */
-    USHORT s    :1;              /* 4;  Bit 44 */
-    USHORT dpl  :2;              /* 5;  Bit 45-46 */
-    USHORT p    :1;              /* 7;  Bit 47 */
+    Bit16u type :4;              /* 0;  Bit 40-43 */
+    Bit16u s    :1;              /* 4;  Bit 44 */
+    Bit16u dpl  :2;              /* 5;  Bit 45-46 */
+    Bit16u p    :1;              /* 7;  Bit 47 */
     // gap!       
-    USHORT avl  :1;              /* 8;  Bit 52 */
-    USHORT l    :1;              /* 9;  Bit 53 */
-    USHORT db   :1;              /* 10; Bit 54 */
-    USHORT g    :1;              /* 11; Bit 55 */
-    USHORT Gap  :4;
+    Bit16u avl  :1;              /* 8;  Bit 52 */
+    Bit16u l    :1;              /* 9;  Bit 53 */
+    Bit16u db   :1;              /* 10; Bit 54 */
+    Bit16u g    :1;              /* 11; Bit 55 */
+    Bit16u Gap  :4;
   } fields;
 } SEGMENT_ATTRIBUTES;
 
 /* Page table entry */
 typedef struct _PTE
 {
-  ULONG Present      :1;
-  ULONG Writable     :1;
-  ULONG Owner        :1;
-  ULONG WriteThrough :1;
-  ULONG CacheDisable :1;
-  ULONG Accessed     :1;
-  ULONG Dirty        :1;
-  ULONG LargePage    :1;
-  ULONG Global       :1;
-  ULONG ForUse1      :1;
-  ULONG ForUse2      :1;
-  ULONG ForUse3      :1;
-  ULONG PageBaseAddr :20;
+  unsigned Present      :1;
+  unsigned Writable     :1;
+  unsigned Owner        :1;
+  unsigned WriteThrough :1;
+  unsigned CacheDisable :1;
+  unsigned Accessed     :1;
+  unsigned Dirty        :1;
+  unsigned LargePage    :1;
+  unsigned Global       :1;
+  unsigned ForUse1      :1;
+  unsigned ForUse2      :1;
+  unsigned ForUse3      :1;
+  unsigned PageBaseAddr :20;
 } PTE, *PPTE;
 
 typedef struct
 {
-  USHORT sel;
+  Bit16u sel;
   SEGMENT_ATTRIBUTES attributes;
-  ULONG32 limit;
-  ULONG64 base;
+  Bit32u limit;
+  Bit64u base;
 } SEGMENT_SELECTOR, *PSEGMENT_SELECTOR;
 
 #pragma pack (pop)
 
 /* Access to 32-bit registers */
-ULONG32 RegGetFlags();
-ULONG32 RegGetCr0();
-ULONG32 RegGetCr2();
-ULONG32 RegGetCr3();
-ULONG32 RegGetCr4();
-ULONG32 RegGetIdtBase();
+Bit32u RegGetFlags();
+Bit32u RegGetCr0();
+Bit32u RegGetCr2();
+Bit32u RegGetCr3();
+Bit32u RegGetCr4();
+Bit32u RegGetIdtBase();
 
 /* Access to 16-bit registers */
-USHORT RegGetCs();
-USHORT RegGetDs();
-USHORT RegGetEs();
-USHORT RegGetFs();
-USHORT RegGetGs();
-USHORT RegGetSs();
-USHORT RegGetTr();
-USHORT RegGetLdtr();
-USHORT RegGetIdtLimit();
+Bit16u RegGetCs();
+Bit16u RegGetDs();
+Bit16u RegGetEs();
+Bit16u RegGetFs();
+Bit16u RegGetGs();
+Bit16u RegGetSs();
+Bit16u RegGetTr();
+Bit16u RegGetLdtr();
+Bit16u RegGetIdtLimit();
 
-VOID RegSetFlags(ULONG32 v);
-VOID RegSetCr0(ULONG32 v);
-VOID RegSetCr4(ULONG32 v);
-VOID RegSetIdtr(PVOID base, ULONG limit);
+void RegSetFlags(hvm_address v);
+void RegSetCr0(hvm_address v);
+void RegSetCr4(hvm_address v);
+void RegSetIdtr(void *base, Bit32u limit);
+void RegRdtsc(Bit64u *pv);
 
 /* Segments-related stuff */
-ULONG GetSegmentDescriptorBase(ULONG gdt_base , USHORT seg_selector);
-ULONG GetSegmentDescriptorDPL(ULONG gdt_base, USHORT seg_selector);
-ULONG GetSegmentDescriptorLimit(ULONG gdt_base, USHORT selector);
-ULONG GetSegmentDescriptorAR(ULONG gdt_base, USHORT selector);
+Bit32u GetSegmentDescriptorBase(Bit32u gdt_base , Bit16u seg_selector);
+Bit32u GetSegmentDescriptorDPL(Bit32u gdt_base, Bit16u seg_selector);
+Bit32u GetSegmentDescriptorLimit(Bit32u gdt_base, Bit16u selector);
+Bit32u GetSegmentDescriptorAR(Bit32u gdt_base, Bit16u selector);
+
+/* IO-access stuff */
+Bit8u  IoReadPortByte(Bit16u portno);
+Bit16u IoReadPortWord(Bit16u portno);
+Bit32u IoReadPortDword(Bit16u portno);
+void   IoWritePortByte(Bit16u portno, Bit8u value);
+void   IoWritePortWord(Bit16u portno, Bit16u value);
+void   IoWritePortDword(Bit16u portno, Bit32u value);
 
 #endif /* _PILL_X86_H */

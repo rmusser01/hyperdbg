@@ -24,14 +24,16 @@
 #ifndef _GUI_H
 #define _GUI_H
 
-extern UCHAR out_matrix[OUT_SIZE_Y][OUT_SIZE_X];
+#include "hyperdbg.h"
 
-VOID VideoUpdateShell(PUCHAR buffer);
-VOID VideoInitShell(VOID);
-VOID VideoDrawFrame(VOID);
-VOID VideoPrintHeader(VOID);
-VOID VideoResetOutMatrix(VOID);
-VOID VideoResetOutMatrixCache(VOID);
-VOID VideoRefreshOutArea(unsigned int);
+extern Bit8u out_matrix[OUT_SIZE_Y][OUT_SIZE_X];
+
+void VideoUpdateShell(Bit8u* buffer);
+void VideoInitShell(void);
+void VideoDrawFrame(void);
+void VideoPrintHeader(void);
+void VideoResetOutMatrix(void);
+void VideoResetOutMatrixCache(void);
+void VideoRefreshOutArea(unsigned int);
 
 #endif	/* _GUI_H */

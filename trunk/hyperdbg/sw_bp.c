@@ -21,16 +21,16 @@
   
 */
 
-#include "sw_bp.h"
-#include "mmu.h"
 #include "debug.h"
+#include "mmu.h"
+#include "sw_bp.h"
 
 #define INT3_OPCODE 0xcc
 
 typedef struct _SW_BP
 {
-  PULONG Addr;
-  UCHAR OldOpcode;
+  hvm_address Addr;
+  Bit8u OldOpcode;
 } SW_BP, *PSW_BP;
 
 /* ################# */
@@ -43,42 +43,42 @@ static SW_BP sw_bps[MAXSWBPS];
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-ULONG32 GetFirstFree(VOID);
+Bit32u GetFirstFree(void);
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
 /* If it returns MAXSWBPS, we have a full-error */
-ULONG32 SwBreakpointSet(ULONG cr3, PULONG address)
+Bit32u SwBreakpointSet(hvm_address cr3, hvm_address address)
 {
-  ULONG32 index;
+  Bit32u index;
   PSW_BP ptr;
-  UCHAR  op;
-  NTSTATUS r;
+  Bit8u  op;
+  hvm_status r;
 
   index = GetFirstFree();
   if(index == MAXSWBPS) return MAXSWBPS;
   ptr = &sw_bps[index];
   ptr->Addr = address;
 
-  r = MmuReadVirtualRegion(cr3, (ULONG) address, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
-  if (r != STATUS_SUCCESS)
+  r = MmuReadVirtualRegion(cr3, address, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
+  if (r != HVM_STATUS_SUCCESS)
     return MAXSWBPS;
 
   op = INT3_OPCODE;
-  r = MmuWriteVirtualRegion(cr3, (ULONG) address, &op, sizeof(op));
-  if (r != STATUS_SUCCESS)
+  r = MmuWriteVirtualRegion(cr3, address, &op, sizeof(op));
+  if (r != HVM_STATUS_SUCCESS)
     return MAXSWBPS;
 
   return index;
 }
 
-BOOLEAN SwBreakpointDelete(ULONG cr3, PULONG address)
+hvm_bool SwBreakpointDelete(hvm_address cr3, hvm_address address)
 {
-  ULONG32 i;
+  Bit32u i;
   PSW_BP ptr;
-  NTSTATUS r;
+  hvm_status r;
 
   i = 0;
   while(i < MAXSWBPS && sw_bps[i].Addr != address) i++;
@@ -90,8 +90,8 @@ BOOLEAN SwBreakpointDelete(ULONG cr3, PULONG address)
 
   /* Restore the old code */
   ptr = &sw_bps[i];
-  r = MmuWriteVirtualRegion(cr3, (ULONG) address, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
-  if (r != STATUS_SUCCESS)
+  r = MmuWriteVirtualRegion(cr3, address, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
+  if (r != HVM_STATUS_SUCCESS)
     return FALSE;
 
   ptr->Addr = 0;
@@ -100,17 +100,17 @@ BOOLEAN SwBreakpointDelete(ULONG cr3, PULONG address)
   return TRUE;
 }
 
-BOOLEAN SwBreakpointDeleteById(ULONG cr3, ULONG32 id)
+hvm_bool SwBreakpointDeleteById(hvm_address cr3, hvm_address id)
 {
   PSW_BP ptr;
-  NTSTATUS r;
+  hvm_status r;
 
   if(id >= MAXSWBPS) return FALSE;
   ptr = &sw_bps[id];
   if(ptr->Addr == 0) return FALSE;
 
-  r = MmuWriteVirtualRegion(cr3, (ULONG) ptr->Addr, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
-  if (r != STATUS_SUCCESS)
+  r = MmuWriteVirtualRegion(cr3, ptr->Addr, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
+  if (r != HVM_STATUS_SUCCESS)
     return FALSE;
 
   ptr->Addr = 0;
@@ -119,9 +119,9 @@ BOOLEAN SwBreakpointDeleteById(ULONG cr3, ULONG32 id)
   return TRUE;
 }
 
-ULONG32 GetFirstFree()
+Bit32u GetFirstFree(void)
 {
-  ULONG32 i;
+  Bit32u i;
   i = 0;
   while(i < MAXSWBPS && sw_bps[i].Addr != 0) i++;
   return i;

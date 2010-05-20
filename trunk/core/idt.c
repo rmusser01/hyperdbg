@@ -24,12 +24,12 @@
 #include "x86.h"
 #include "idt.h"
 
-__declspec(naked) VOID NullIDTHandler(VOID)
+__declspec(naked) void NullIDTHandler(void)
 {
   __asm { IRETD };
 }
 
-VOID RegisterIDTHandler(USHORT index, VOID (*handler) (VOID))
+void RegisterIDTHandler(Bit16u index, void (*handler) (void))
 {
   IDTR tmp_idt;
   PIDT_ENTRY descriptors, pidt_entry;
@@ -45,13 +45,13 @@ VOID RegisterIDTHandler(USHORT index, VOID (*handler) (VOID))
    */
   descriptors[index] = descriptors[0x2e];
 
-  pidt_entry->LowOffset  = ((ULONG) handler) & 0xffff;
-  pidt_entry->HighOffset = ((ULONG) handler) >> 16;
+  pidt_entry->LowOffset  = ((hvm_address) handler) & 0xffff;
+  pidt_entry->HighOffset = ((hvm_address) handler) >> 16;
 }
 
-PIDT_ENTRY GetIDTEntry(UCHAR num)
+PIDT_ENTRY GetIDTEntry(Bit8u num)
 {					
-  ULONG32 flags;
+  Bit32u flags;
   PIDT_ENTRY pidt_entry;
 
   /* Be sure the IF is clear */
@@ -66,7 +66,7 @@ PIDT_ENTRY GetIDTEntry(UCHAR num)
   return pidt_entry;
 }
 
-VOID HookIDT(UCHAR entryno, USHORT selector, VOID (*handler)(VOID))
+void HookIDT(Bit8u entryno, Bit16u selector, void (*handler)(void))
 {
   PIDT_ENTRY pidt_entry;
 

@@ -27,4 +27,6 @@
 #define HYPERDBG_VERSION  "20100325"
 #define HYPERDBG_URL      "http://security.dico.unimi.it/hyperdbg/"
 
+#include "types.h"
+
 #endif /* _HYPERDBG_H */

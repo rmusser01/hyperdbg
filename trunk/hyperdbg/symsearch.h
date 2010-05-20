@@ -24,11 +24,11 @@
 #ifndef _SYMSEARCH_H
 #define _SYMSEARCH_H
 
-#include <ntddk.h>
+#include "hyperdbg.h"
 #include "syms.h"
 
-PSYMBOL SymbolGetFromAddress(PULONG);
-PSYMBOL SymbolGetNearest(PULONG);
-PSYMBOL SymbolGetFromName(PUCHAR);
+PSYMBOL SymbolGetFromAddress(hvm_address);
+PSYMBOL SymbolGetNearest(hvm_address);
+PSYMBOL SymbolGetFromName(Bit8u*);
 
 #endif	/* _SYMSEARCH_H */

@@ -43,21 +43,21 @@ HYPERDBG_STATE hyperdbg_state;
 /* ################ */
 
 /* This function gets called when VMX is still off. */
-NTSTATUS HyperDbgGuestInit(VOID)
+hvm_status HyperDbgGuestInit(void)
 {
-  NTSTATUS r;
+  hvm_status r;
 
   /* Initialize the video subsystem */
-  if(VideoInit() != STATUS_SUCCESS) {
+  if(VideoInit() != HVM_STATUS_SUCCESS) {
     WindowsLog("[HyperDbg] Video initialization error");
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   /* Allocate video buffer */
   r = VideoAlloc();
-  if(!NT_SUCCESS(r)) {
+  if(r != HVM_STATUS_SUCCESS) {
     WindowsLog("[HyperDbg] Cannot initialize video!");
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   /* Initialize global hyperdbg_state structure fields */
@@ -69,9 +69,9 @@ NTSTATUS HyperDbgGuestInit(VOID)
   /* Init guest-specific fields */
 #ifdef GUEST_WINDOWS
   r = WindowsGetKernelBase(&hyperdbg_state.win_state.kernel_base);
-  if (!NT_SUCCESS(r)) {
+  if (r != HVM_STATUS_SUCCESS) {
     WindowsLog("[HyperDbg] Cannot initialize guest-specific variables!");
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 #elif defined GUEST_LINUX
 #error Linux guest is still unimplemented
@@ -81,15 +81,15 @@ NTSTATUS HyperDbgGuestInit(VOID)
 
   WindowsLog("[HyperDbg] Initialized!", 0);
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
 /* This function finalizes HyperDbg. Can be called both in VMX operation (e.g.,
    when unloading the driver) and with VMX turned off (e.g., when pill
    installation is aborting). It is always invoked in non-root mode. */
-NTSTATUS HyperDbgGuestFini(VOID)
+hvm_status HyperDbgGuestFini(void)
 {
-  if(!hyperdbg_state.initialized) return STATUS_SUCCESS;
+  if(!hyperdbg_state.initialized) return HVM_STATUS_SUCCESS;
 
   WindowsLog("[HyperDbg] Unloading...");
 
@@ -98,5 +98,5 @@ NTSTATUS HyperDbgGuestFini(VOID)
 
   hyperdbg_state.initialized = FALSE;
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }

@@ -24,8 +24,8 @@
 #ifndef _HYPERDBG_CMD_H
 #define _HYPERDBG_CMD_H
 
-#include <ntddk.h>
+#include "hyperdbg.h"
 
-BOOLEAN HyperDbgProcessCommand(UCHAR *cmd);
+hvm_bool HyperDbgProcessCommand(Bit8u *cmd);
 
 #endif	/* _HYPERDBG_CMD_H */

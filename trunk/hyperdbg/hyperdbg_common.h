@@ -24,37 +24,37 @@
 #ifndef _HYPERDBG_COMMON_H
 #define _HYPERDBG_COMMON_H
 
-#include <ntddk.h>
+#include "hyperdbg.h"
 
 #define HYPERDBG_MAGIC_SCANCODE     88	/* F12 */
 
 /* Information related to the state of the internal Linux guest */
 typedef struct {
   /* TODO! */
-  ULONG dummy;
+  hvm_address dummy;
 } LINUX_STATE;
 
 /* Information related to the state of the internal Windows guest */
 typedef struct {
-  ULONG kernel_base;
+  hvm_address kernel_base;
 } WIN_STATE;
 
 typedef struct {
   /* This variable is set to 1 when HyperDbg has been initialized */
-  BOOLEAN initialized;
+  hvm_bool initialized;
 
   /* This variable is set to TRUE when user has requested to enter
      HyperDbg-mode, otherwise, it is set to FALSE */
-  BOOLEAN enabled;
+  hvm_bool enabled;
 
   /* This variable is TRUE when guest single-stepping is enabled */
-  BOOLEAN singlestepping;
+  hvm_bool singlestepping;
 
   /* The interrupt vector that the PIC maps to the keyboard IRQ */
-  UCHAR keyb_vector;
+  Bit8u keyb_vector;
 
   /* Accounting variables */
-  ULONG ntraps;
+  Bit32u ntraps;
 
   union {
     WIN_STATE   win_state;

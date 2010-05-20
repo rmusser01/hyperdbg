@@ -21,38 +21,37 @@
   
 */
 
-#include <windows.h>
-
 #include "common.h"
+#include "x86.h"
 
 /* Set a single bit of a DWORD argument */
-VOID CmSetBit(ULONG * dword, ULONG bit)
+void CmSetBit32(Bit32u* dword, Bit32u bit)
 {
-  ULONG mask = ( 1 << bit );
+  Bit32u mask = ( 1 << bit );
   *dword = *dword | mask;
 }
 
 /* Clear a single bit of a DWORD argument */
-VOID CmClearBit32(ULONG* dword, ULONG bit)
+void CmClearBit32(Bit32u* dword, Bit32u bit)
 {
-  ULONG mask = 0xFFFFFFFF;
-  ULONG sub = ( 1 << bit );
+  Bit32u mask = 0xFFFFFFFF;
+  Bit32u sub = (1 << bit);
   mask = mask - sub;
   *dword = *dword & mask;
 }
 
 /* Clear a single bit of a WORD argument */
-VOID CmClearBit16(USHORT* word, ULONG bit)
+void CmClearBit16(Bit16u* word, Bit32u bit)
 {
-  USHORT mask = 0xFFFF;
-  USHORT sub = (USHORT) ( 1 << bit );
+  Bit16u mask = 0xFFFF;
+  Bit16u sub = (Bit16u) (1 << bit);
   mask = mask - sub;
   *word = *word & mask;
 }
 
-
-int wide2ansi(PUCHAR dst, PUCHAR src, ULONG32 n) {
-  ULONG32 cnt;
+int wide2ansi(Bit8u* dst, Bit8u* src, Bit32u n)
+{
+  Bit32u cnt;
 
   if (!dst || !src)
     return -1;
@@ -64,4 +63,56 @@ int wide2ansi(PUCHAR dst, PUCHAR src, ULONG32 n) {
   }
 
   return cnt;
+}
+
+void CmSleep(Bit32u microseconds)
+{
+  Bit32u v;
+
+  /*
+    Int 15h AH=86h
+    BIOS - WAIT (AT,PS)
+
+    AH = 86h
+    CX:DX = interval in microseconds
+    Return:
+    CF clear if successful (wait interval elapsed)
+    CF set on error or AH=83h wait already in progress
+    AH = status (see #00496)
+
+    Note: The resolution of the wait period is 977 microseconds on
+    many systems because many BIOSes use the 1/1024 second fast
+    interrupt from the AT real-time clock chip which is available on INT 70;
+    because newer BIOSes may have much more precise timers available, it is
+    not possible to use this function accurately for very short delays unless
+    the precise behavior of the BIOS is known (or found through testing)
+  */
+
+  while (microseconds) {
+    v = microseconds;
+
+    if (v > 4000000) {
+      v = 4000000;
+    }
+
+    __asm {
+      push eax;
+      push ecx;
+      push edx;
+
+      mov  ah, 0x86;
+      mov  edx, microseconds;
+
+      mov  ecx, edx;
+      shr  ecx, 16;
+
+      int 0x15;
+	
+      pop edx;
+      pop ecx;
+      pop eax;
+    };
+
+    microseconds -= v;
+  }
 }

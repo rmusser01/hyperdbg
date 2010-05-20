@@ -25,29 +25,30 @@
 #define _PILL_H
 
 #include <ntddk.h>
+#include "types.h"
 #include "idt.h"
 
 /* This global structure represents the initial state of the VMM. All these
    variables are wrapped together in order to be exposed to the plugins. */
 typedef struct {
-  PULONG            pVMXONRegion;	    /* VMA of VMXON region */
+  Bit32u*           pVMXONRegion;	    /* VMA of VMXON region */
   PHYSICAL_ADDRESS  PhysicalVMXONRegionPtr; /* PMA of VMXON region */
 
-  PULONG            pVMCSRegion;	    /* VMA of VMCS region */
+  Bit32u*           pVMCSRegion;	    /* VMA of VMCS region */
   PHYSICAL_ADDRESS  PhysicalVMCSRegionPtr;  /* PMA of VMCS region */
 
-  PVOID             VMMStack;               /* VMM stack area */
+  void*             VMMStack;               /* VMM stack area */
 
-  PULONG            pIOBitmapA;	            /* VMA of I/O bitmap A */
+  Bit32u*           pIOBitmapA;	            /* VMA of I/O bitmap A */
   PHYSICAL_ADDRESS  PhysicalIOBitmapA;      /* PMA of I/O bitmap A */
 
-  PULONG            pIOBitmapB;	            /* VMA of I/O bitmap B */
+  Bit32u*           pIOBitmapB;	            /* VMA of I/O bitmap B */
   PHYSICAL_ADDRESS  PhysicalIOBitmapB;      /* PMA of I/O bitmap B */
 
   PIDT_ENTRY        VMMIDT;                 /* VMM interrupt descriptor table */
 } VMM_INIT_STATE, *PVMM_INIT_STATE;
 
-extern ULONG    HandlerLogging;
-extern ULONG    VMXIsActive;
+extern hvm_bool HandlerLogging;
+extern hvm_bool VMXIsActive;
 
 #endif	/* _PILL_H */

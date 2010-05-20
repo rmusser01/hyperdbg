@@ -1557,4 +1557,4 @@ SYMBOL syms[] = {
   {"MmSetPageProtection@12", 0x001ec823}
 };
 
-const ULONG NOS = sizeof(syms) / sizeof(SYMBOL);
+const Bit32u NOS = sizeof(syms) / sizeof(SYMBOL);

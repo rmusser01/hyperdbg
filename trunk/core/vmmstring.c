@@ -21,52 +21,50 @@
   
 */
 
-/* #include "string.h" */
-/* #include "debug.h" */
+#include "types.h"
 
-#include <ntddk.h>
 /* ########################## */
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static UCHAR vmm_chartohex(char c);
-static ULONG vmm_power(ULONG base, ULONG exp);
+static unsigned char vmm_chartohex(char c);
+static Bit32u vmm_power(Bit32u base, Bit32u exp);
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
-BOOLEAN vmm_islower(char c)
+hvm_bool vmm_islower(char c)
 {
   return (c >= 'a' && c <= 'z');
 }
 
-BOOLEAN vmm_isupper(char c)
+hvm_bool vmm_isupper(char c)
 {
   return (c >= 'A' && c <= 'Z');
 }
 
-BOOLEAN vmm_isdigit(char c)
+hvm_bool vmm_isdigit(char c)
 {
   return (c >= '0' && c <= '9');
 }
 
-BOOLEAN vmm_isxdigit(char c)
+hvm_bool vmm_isxdigit(char c)
 {
   return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
 }
 
-BOOLEAN vmm_isascii(char c)
+hvm_bool vmm_isascii(char c)
 {
   return (c >= 0 && c <= 127);
 }
 
-BOOLEAN vmm_isalpha(char c)
+hvm_bool vmm_isalpha(char c)
 {
   return (vmm_islower(c) || vmm_isupper(c));
 }
 
-UCHAR vmm_tolower(UCHAR c)
+unsigned char vmm_tolower(unsigned char c)
 {
   if (!vmm_isupper(c))
     return c;
@@ -74,7 +72,7 @@ UCHAR vmm_tolower(UCHAR c)
   return (c - 'A' + 'a');
 }
 
-UCHAR vmm_toupper(UCHAR c)
+unsigned char vmm_toupper(unsigned char c)
 {
   if (!vmm_islower(c))
     return c;
@@ -82,21 +80,21 @@ UCHAR vmm_toupper(UCHAR c)
   return (c - 'a' + 'A');
 }
 
-VOID vmm_memset(VOID *s, int c, ULONG n)
+void vmm_memset(void *s, int c, Bit32u n)
 {
-  UCHAR *p;
-  ULONG i;
+  unsigned char *p;
+  Bit32u i;
 
-  p = (UCHAR*) s;
+  p = (unsigned char*) s;
   for (i=0; i<n; i++) {
-    p[i] = (UCHAR) c;
+    p[i] = (unsigned char) c;
   }
 }
 
-LONG32 vmm_strncmpi(UCHAR *str1, UCHAR *str2, ULONG n)
+Bit32s vmm_strncmpi(unsigned char *str1, unsigned char *str2, Bit32u n)
 {
-  ULONG i;
-  UCHAR c1, c2;
+  Bit32u i;
+  unsigned char c1, c2;
 
   i = 0;
   while(i < n && str1[i] != 0 && str2[i] != 0) {
@@ -116,9 +114,9 @@ LONG32 vmm_strncmpi(UCHAR *str1, UCHAR *str2, ULONG n)
   }
 }
 
-LONG32 vmm_strncmp(UCHAR *str1, UCHAR *str2, ULONG n)
+Bit32s vmm_strncmp(unsigned char *str1, unsigned char *str2, Bit32u n)
 {
-  ULONG i;
+  Bit32u i;
 
   i = 0;
   while (i < n && str1[i] != 0 && str2[i] != 0) {
@@ -138,18 +136,18 @@ LONG32 vmm_strncmp(UCHAR *str1, UCHAR *str2, ULONG n)
 
 }
 
-ULONG32 vmm_strlen(UCHAR *str)
+Bit32u vmm_strlen(unsigned char *str)
 {
-  ULONG32 i;
+  Bit32u i;
   i = 0;
   while(str[i] != 0x00) i++;
   return i;
 }
 
-BOOLEAN vmm_strtoul(char *str, PULONG result)
+hvm_bool vmm_strtoul(char *str, Bit32u* result)
 {
-  ULONG32 i, len;
-  UCHAR tmp;
+  Bit32u i, len;
+  unsigned char tmp;
   len = 0;
   *result = 0;
   if (str[0] == '0' && str[1] == 'x')
@@ -169,13 +167,13 @@ BOOLEAN vmm_strtoul(char *str, PULONG result)
   return TRUE;
 }
 
-static ULONG vmm_power(ULONG base, ULONG exp)
+static Bit32u vmm_power(Bit32u base, Bit32u exp)
 {
-  if (exp == 0) return (ULONG) 1;
-  else return (ULONG) (base * vmm_power(base, exp-1));
+  if (exp == 0) return (Bit32u) 1;
+  else return (Bit32u) (base * vmm_power(base, exp-1));
 }
 
-static UCHAR vmm_chartohex(char c)
+static unsigned char vmm_chartohex(char c)
 {
   switch(c) {
   case '0':

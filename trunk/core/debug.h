@@ -31,6 +31,8 @@
 //  Log  //
 ///////////
 
+#include <ntddk.h>
+
 #define WindowsLog(fmt, ...) do { DbgPrint("[vmm] " fmt "\n", __VA_ARGS__); } while(0)
 #define NullLog(fmt, ...)    do { } while(0)
 #define SerialLog(fmt, ...)						\

@@ -50,8 +50,8 @@
 ///////////
 typedef struct _MSR
 {
-  ULONG		Lo;
-  ULONG		Hi;
+  Bit32u	Lo;
+  Bit32u	Hi;
 } MSR, *PMSR;
 
 /////////////////////////////
@@ -89,7 +89,7 @@ typedef struct _IA32_FEATURE_CONTROL_MSR
 #pragma pack (pop)
 
 /* Read MSR register to LARGE_INTEGER variable */
-VOID ReadMSR (ULONG32 reg, PMSR msr);
-VOID WriteMSR(ULONG32 reg, ULONG32 highpart, ULONG32 lowpart);
+void ReadMSR (Bit32u reg, PMSR msr);
+void WriteMSR(Bit32u reg, Bit32u highpart, Bit32u lowpart);
 
 #endif /* _PILL_MSR_H */

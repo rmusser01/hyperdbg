@@ -24,10 +24,8 @@
 #ifndef _SCANCODE_H
 #define _SCANCODE_H
 
-#include <ntddk.h>
-
 extern char scancodes_map[255];
 
-VOID init_scancodes_map(VOID);
+void init_scancodes_map(void);
 
 #endif	/* _SCANCODE_H */

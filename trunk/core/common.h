@@ -27,19 +27,18 @@
 #define CORE_VERSION  "20100325"
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
-#define MyKeStallExecutionProcessor(x) {			\
-    volatile int d, p;						\
-    for (d=0; d<x; d++) for (p=0; p<10; p++);			\
-  }
+#include "types.h"
 
 /* Assembly functions (defined in i386/common.asm) */
-VOID NTAPI CmInitSpinLock(ULONG32 *plock);
-VOID NTAPI CmAcquireSpinLock(ULONG32 *plock);
-VOID NTAPI CmReleaseSpinLock(ULONG32 *plock);
+void __stdcall CmInitSpinLock(Bit32u *plock);
+void __stdcall CmAcquireSpinLock(Bit32u *plock);
+void __stdcall CmReleaseSpinLock(Bit32u *plock);
 
-VOID CmSetBit(ULONG* dword, ULONG bit);
-VOID CmClearBit32(ULONG* dword, ULONG bit);
-VOID CmClearBit16(USHORT* word, ULONG bit);
-int wide2ansi(PUCHAR dst, PUCHAR src, ULONG32 n);
+void CmSetBit32(Bit32u* dword, Bit32u bit);
+void CmClearBit32(Bit32u* dword, Bit32u bit);
+void CmClearBit16(Bit16u* word, Bit32u bit);
+void CmSleep(Bit32u microseconds);
+
+int wide2ansi(Bit8u* dst, Bit8u* src, Bit32u n);
 
 #endif	/* _PILL_COMMON_H */
