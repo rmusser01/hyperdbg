@@ -55,11 +55,11 @@ void VideoUpdateShell(Bit8u* buffer)
 {
   int i;
 
-  for(i = 1; i < SHELL_SIZE_X-1; i++) {
+  /* Erase previous input line */
+  for(i = 4; i < SHELL_SIZE_X-1; i++) {
     VideoWriteChar(' ', BLACK, i, SHELL_SIZE_Y-2);
   }
-
-  VideoWriteString("> ", 2, RED, 2, 48);
+  /* Draw current input buffer */
   VideoWriteString(buffer, MAX_INPUT_SIZE, WHITE, 4, SHELL_SIZE_Y-2);
 }
 
@@ -137,6 +137,9 @@ void VideoInitShell(void)
     VideoWriteChar('-', WHITE, i, 11);
     VideoWriteChar('-', WHITE, i, SHELL_SIZE_Y-3);
   }
+  /* Draw cursor */
+  VideoWriteString("> ", 2, RED, 2, SHELL_SIZE_Y-2);
+  
   VideoShowDisassembled();
   VideoResetOutMatrix();
   VideoResetOutMatrixCache();

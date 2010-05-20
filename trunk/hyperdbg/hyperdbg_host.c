@@ -117,10 +117,11 @@ static void HyperDbgCommandLoop(void)
   
   i = 0;
   memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
+
   while (1) {
     if (KeyboardReadKeystroke(&c, FALSE, &isMouse) != HVM_STATUS_SUCCESS) {
       /* Sleep for some time, just to avoid full busy waiting */
-      CmSleep(100);
+      CmSleep(150);
       continue;
     }
 
@@ -133,7 +134,6 @@ static void HyperDbgCommandLoop(void)
       Log("[HyperDbg] Magic key detected! Disabling HyperDbg...");
       break;
     }
-
     c = KeyboardScancodeToKeycode(c);
 
     /* Process this key */
@@ -144,8 +144,9 @@ static void HyperDbgCommandLoop(void)
 
     case '\b':
       /* Backslash */
-      if (i > 0)
+      if (i > 0) {
 	keyboard_buffer[--i] = 0;
+      }
       break;
 
     case '\n':
@@ -163,11 +164,13 @@ static void HyperDbgCommandLoop(void)
     default:
       /* Store this keycode. The '-1' is to ensure keyboard_buffer is always
 	 null-terminated */
-      if (i < (sizeof(keyboard_buffer)/sizeof(Bit8u)-1))
+      if (i < (sizeof(keyboard_buffer)/sizeof(Bit8u)-1)) {
 	keyboard_buffer[i++] = c;
+      }
       break;
     } /* end switch */
 
+    /* There's no need to update the GUI if buffers are the same */
     if (VideoEnabled()) {
       VideoUpdateShell(keyboard_buffer);
     }

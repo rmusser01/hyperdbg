@@ -141,7 +141,7 @@ hvm_status KeyboardReadKeystroke(Bit8u* pc, hvm_bool unget, hvm_bool* pisMouse)
 
     r = i8042ReadKeyboardData(&scancode, pisMouse);
 
-    if (r != HVM_STATUS_SUCCESS) {
+    if (r == HVM_STATUS_SUCCESS) {
       break;
     }
 
