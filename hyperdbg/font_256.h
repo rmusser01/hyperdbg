@@ -1,8 +1,8 @@
 #ifndef _FONT_256_H
 #define _FONT_256_H
 
-#include <ntddk.h>
+#include <hyperdbg.h>
 
-extern UCHAR font_data[];
+extern Bit8u font_data[];
 
 #endif /* _FONT_256_H */

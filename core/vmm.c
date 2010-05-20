@@ -34,7 +34,7 @@
 #pragma warning ( disable : 4731 ) /* EBP modified by inline asm */
 
 /* Our copy of the virtual machine control structure */
-VMCS_CACHE vmcs;
+CPU_CONTEXT context;
 
 /* Temporary variable */
 static ULONG    temp32;
@@ -43,7 +43,7 @@ static ULONG    temp32;
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static VOID VMMReadGuestState(VOID);
+static VOID VMMReadGuestContext(VOID);
 
 /* ################ */
 /* #### BODIES #### */
@@ -53,7 +53,7 @@ EVENT_PUBLISH_STATUS HypercallSwitchOff(VOID)
 {
   /* Switch off VMX mode */
   Log("Terminating VMX Mode");
-  Log("Flow returning to address %.8x", vmcs.GuestState.ResumeEIP);
+  Log("Flow returning to address %.8x", context.GuestContext.ResumeRIP);
 
   /* TODO: We should restore the whole original guest state here -- se Joanna's
      source code */
@@ -61,15 +61,15 @@ EVENT_PUBLISH_STATUS HypercallSwitchOff(VOID)
 
   __asm {
     /* Restore guest CR0 */
-    MOV EAX, vmcs.GuestState.CR0;
+    MOV EAX, context.GuestContext.CR0;
     MOV CR0, EAX;
 
     /* Restore guest CR3 */
-    MOV EAX, vmcs.GuestState.CR3;
+    MOV EAX, context.GuestContext.CR3;
     MOV CR3, EAX;
 
     /* Restore guest CR4 */
-    MOV EAX, vmcs.GuestState.CR4;
+    MOV EAX, context.GuestContext.CR4;
     /* mov cr4, eax; */
     _emit 0x0f;
     _emit 0x22;
@@ -83,76 +83,76 @@ EVENT_PUBLISH_STATUS HypercallSwitchOff(VOID)
 
   __asm {
     /* Restore general-purpose registers */
-    MOV EAX, vmcs.GuestState.EAX;
-    MOV EBX, vmcs.GuestState.EBX;
-    MOV ECX, vmcs.GuestState.ECX;
-    MOV EDX, vmcs.GuestState.EDX;
-    MOV EDI, vmcs.GuestState.EDI;
-    MOV ESI, vmcs.GuestState.ESI;
-    MOV EBP, vmcs.GuestState.EBP;
+    MOV EAX, context.GuestContext.RAX;
+    MOV EBX, context.GuestContext.RBX;
+    MOV ECX, context.GuestContext.RCX;
+    MOV EDX, context.GuestContext.RDX;
+    MOV EDI, context.GuestContext.RDI;
+    MOV ESI, context.GuestContext.RSI;
+    MOV EBP, context.GuestContext.RBP;
 
     /* Restore ESP */
-    MOV	ESP, vmcs.GuestState.ESP;
+    MOV	ESP, context.GuestContext.RSP;
 
     /* Restore guest RFLAGS */
     PUSH EAX;
-    MOV EAX, vmcs.GuestState.EFLAGS;
+    MOV EAX, context.GuestContext.RFLAGS;
     PUSH EAX;
     POPFD;
     POP EAX;
 
     /* Resume guest execution */
-    JMP	vmcs.GuestState.ResumeEIP;
+    JMP	context.GuestContext.ResumeRIP;
   };
 
   /* Unreachable */
   return EventPublishHandled;
 }
 
-/* Read guest state from the VMCS into the global VMCS_CACHE variable. This
+/* Read guest state from the VMCS into the global CPU_CONTEXT variable. This
    procedure reads everything *except for* general purpose registers.
 
    NOTE: general purpose registers are not stored into the VMCS, so they are
    saved at the very beginning of the VMMEntryPoint() procedure */
-static VOID VMMReadGuestState(VOID)
+static VOID VMMReadGuestContext(VOID)
 {
   /* Exit state */
-  vmcs.ExitState.ExitReason                   = VmxRead(VM_EXIT_REASON);
-  vmcs.ExitState.ExitQualification            = VmxRead(EXIT_QUALIFICATION);
-  vmcs.ExitState.ExitInterruptionInformation  = VmxRead(VM_EXIT_INTR_INFO);
-  vmcs.ExitState.ExitInterruptionErrorCode    = VmxRead(VM_EXIT_INTR_ERROR_CODE);
-  vmcs.ExitState.IDTVectoringInformationField = VmxRead(IDT_VECTORING_INFO_FIELD);
-  vmcs.ExitState.IDTVectoringErrorCode        = VmxRead(IDT_VECTORING_ERROR_CODE);
-  vmcs.ExitState.ExitInstructionLength        = VmxRead(VM_EXIT_INSTRUCTION_LEN);
-  vmcs.ExitState.ExitInstructionInformation   = VmxRead(VMX_INSTRUCTION_INFO);
+  context.ExitContext.ExitReason                   = VmxRead(VM_EXIT_REASON);
+  context.ExitContext.ExitQualification            = VmxRead(EXIT_QUALIFICATION);
+  context.ExitContext.ExitInterruptionInformation  = VmxRead(VM_EXIT_INTR_INFO);
+  context.ExitContext.ExitInterruptionErrorCode    = VmxRead(VM_EXIT_INTR_ERROR_CODE);
+  context.ExitContext.IDTVectoringInformationField = VmxRead(IDT_VECTORING_INFO_FIELD);
+  context.ExitContext.IDTVectoringErrorCode        = VmxRead(IDT_VECTORING_ERROR_CODE);
+  context.ExitContext.ExitInstructionLength        = VmxRead(VM_EXIT_INSTRUCTION_LEN);
+  context.ExitContext.ExitInstructionInformation   = VmxRead(VMX_INSTRUCTION_INFO);
 
   /* Read guest state */
-  vmcs.GuestState.EIP    = VmxRead(GUEST_RIP);
-  vmcs.GuestState.ESP    = VmxRead(GUEST_RSP);
-  vmcs.GuestState.CS     = VmxRead(GUEST_CS_SELECTOR);
-  vmcs.GuestState.CR0    = VmxRead(GUEST_CR0);
-  vmcs.GuestState.CR3    = VmxRead(GUEST_CR3);
-  vmcs.GuestState.CR4    = VmxRead(GUEST_CR4);
-  vmcs.GuestState.EFLAGS = VmxRead(GUEST_RFLAGS);
+  context.GuestContext.RIP    = VmxRead(GUEST_RIP);
+  context.GuestContext.RSP    = VmxRead(GUEST_RSP);
+  context.GuestContext.CS     = VmxRead(GUEST_CS_SELECTOR);
+  context.GuestContext.CR0    = VmxRead(GUEST_CR0);
+  context.GuestContext.CR3    = VmxRead(GUEST_CR3);
+  context.GuestContext.CR4    = VmxRead(GUEST_CR4);
+  context.GuestContext.RFLAGS = VmxRead(GUEST_RFLAGS);
 
-  /* Writing the Guest VMCS EIP uses general registers. Must complete this
+  /* Writing the Guest VMCS RIP uses general registers. Must complete this
      before setting general registers for guest return state */
-  vmcs.GuestState.ResumeEIP = vmcs.GuestState.EIP + vmcs.ExitState.ExitInstructionLength;
+  context.GuestContext.ResumeRIP = context.GuestContext.RIP + context.ExitContext.ExitInstructionLength;
 }
 
 /* Updates CPU state with the values from the VMCS cache structure. 
 
    Note: we update only those registers that are not already present in the
    (hardware) VMCS. */
-static __declspec( naked ) VOID VMMUpdateGuestState(VOID)
+static __declspec( naked ) VOID VMMUpdateGuestContext(VOID)
 {
-  __asm { MOV EAX, vmcs.GuestState.EAX };
-  __asm { MOV EBX, vmcs.GuestState.EBX };
-  __asm { MOV ECX, vmcs.GuestState.ECX };
-  __asm { MOV EDX, vmcs.GuestState.EDX };
-  __asm { MOV EDI, vmcs.GuestState.EDI };
-  __asm { MOV ESI, vmcs.GuestState.ESI };
-  __asm { MOV EBP, vmcs.GuestState.EBP };
+  __asm { MOV EAX, context.GuestContext.RAX };
+  __asm { MOV EBX, context.GuestContext.RBX };
+  __asm { MOV ECX, context.GuestContext.RCX };
+  __asm { MOV EDX, context.GuestContext.RDX };
+  __asm { MOV EDI, context.GuestContext.RDI };
+  __asm { MOV ESI, context.GuestContext.RSI };
+  __asm { MOV EBP, context.GuestContext.RBP };
   __asm { RET } ;
 }
 
@@ -165,64 +165,64 @@ __declspec( naked ) VOID VMMEntryPoint()
 
   /* Record the general-purpose registers. We save them here in order to be
      sure that they don't get tampered by the execution of the VMM */
-  __asm { MOV vmcs.GuestState.EAX, EAX };
-  __asm { MOV vmcs.GuestState.EBX, EBX };
-  __asm { MOV vmcs.GuestState.ECX, ECX };
-  __asm { MOV vmcs.GuestState.EDX, EDX };
-  __asm { MOV vmcs.GuestState.EDI, EDI };
-  __asm { MOV vmcs.GuestState.ESI, ESI };
-  __asm { MOV vmcs.GuestState.EBP, EBP };
+  __asm { MOV context.GuestContext.RAX, EAX };
+  __asm { MOV context.GuestContext.RBX, EBX };
+  __asm { MOV context.GuestContext.RCX, ECX };
+  __asm { MOV context.GuestContext.RDX, EDX };
+  __asm { MOV context.GuestContext.RDI, EDI };
+  __asm { MOV context.GuestContext.RSI, ESI };
+  __asm { MOV context.GuestContext.RBP, EBP };
 
   /* Restore host EBP */
   __asm	{ MOV EBP, ESP };
 
-  VMMReadGuestState();
+  VMMReadGuestContext();
 
   /* Restore host IDT -- Not sure if this is really needed. I'm pretty sure we
      have to fix the LIMIT fields of host's IDTR. */
   RegSetIdtr((PVOID) VmxRead(HOST_IDTR_BASE), 0x7ff);
 
   /* Enable logging only for particular VM-exit events */
-  if( vmcs.ExitState.ExitReason == EXIT_REASON_VMCALL ) {
-    HandlerLogging = 1;
+  if( context.ExitContext.ExitReason == EXIT_REASON_VMCALL ) {
+    HandlerLogging = TRUE;
   } else {
-    HandlerLogging = 0;
+    HandlerLogging = FALSE;
   }
 
   if(HandlerLogging) {
     Log("----- VMM Handler CPU0 -----");
-    Log("Guest EAX: %.8x", vmcs.GuestState.EAX);
-    Log("Guest EBX: %.8x", vmcs.GuestState.EBX);
-    Log("Guest ECX: %.8x", vmcs.GuestState.ECX);
-    Log("Guest EDX: %.8x", vmcs.GuestState.EDX);
-    Log("Guest EDI: %.8x", vmcs.GuestState.EDI);
-    Log("Guest ESI: %.8x", vmcs.GuestState.ESI);
-    Log("Guest EBP: %.8x", vmcs.GuestState.EBP);
-    Log("Exit Reason:        %.8x", vmcs.ExitState.ExitReason);
-    Log("Exit Qualification: %.8x", vmcs.ExitState.ExitQualification);
-    Log("Exit Interruption Information:   %.8x", vmcs.ExitState.ExitInterruptionInformation);
-    Log("Exit Interruption Error Code:    %.8x", vmcs.ExitState.ExitInterruptionErrorCode);
-    Log("IDT-Vectoring Information Field: %.8x", vmcs.ExitState.IDTVectoringInformationField);
-    Log("IDT-Vectoring Error Code:        %.8x", vmcs.ExitState.IDTVectoringErrorCode);
-    Log("VM-Exit Instruction Length:      %.8x", vmcs.ExitState.ExitInstructionLength);
-    Log("VM-Exit Instruction Information: %.8x", vmcs.ExitState.ExitInstructionInformation);
-    Log("VM Exit EIP: %.8x", vmcs.GuestState.EIP);
-    Log("VM Exit ESP: %.8x", vmcs.GuestState.ESP);
-    Log("VM Exit CS:  %.4x", vmcs.GuestState.CS);
-    Log("VM Exit CR0: %.8x", vmcs.GuestState.CR0);
-    Log("VM Exit CR3: %.8x", vmcs.GuestState.CR3);
-    Log("VM Exit CR4: %.8x", vmcs.GuestState.CR4);
-    Log("VM Exit EFLAGS: %.8x", vmcs.GuestState.EFLAGS);
+    Log("Guest RAX: %.8x", context.GuestContext.RAX);
+    Log("Guest RBX: %.8x", context.GuestContext.RBX);
+    Log("Guest RCX: %.8x", context.GuestContext.RCX);
+    Log("Guest RDX: %.8x", context.GuestContext.RDX);
+    Log("Guest RDI: %.8x", context.GuestContext.RDI);
+    Log("Guest RSI: %.8x", context.GuestContext.RSI);
+    Log("Guest RBP: %.8x", context.GuestContext.RBP);
+    Log("Exit Reason:        %.8x", context.ExitContext.ExitReason);
+    Log("Exit Qualification: %.8x", context.ExitContext.ExitQualification);
+    Log("Exit Interruption Information:   %.8x", context.ExitContext.ExitInterruptionInformation);
+    Log("Exit Interruption Error Code:    %.8x", context.ExitContext.ExitInterruptionErrorCode);
+    Log("IDT-Vectoring Information Field: %.8x", context.ExitContext.IDTVectoringInformationField);
+    Log("IDT-Vectoring Error Code:        %.8x", context.ExitContext.IDTVectoringErrorCode);
+    Log("VM-Exit Instruction Length:      %.8x", context.ExitContext.ExitInstructionLength);
+    Log("VM-Exit Instruction Information: %.8x", context.ExitContext.ExitInstructionInformation);
+    Log("VM Exit RIP: %.8x", context.GuestContext.RIP);
+    Log("VM Exit RSP: %.8x", context.GuestContext.RSP);
+    Log("VM Exit CS:  %.4x", context.GuestContext.CS);
+    Log("VM Exit CR0: %.8x", context.GuestContext.CR0);
+    Log("VM Exit CR3: %.8x", context.GuestContext.CR3);
+    Log("VM Exit CR4: %.8x", context.GuestContext.CR4);
+    Log("VM Exit RFLAGS: %.8x", context.GuestContext.RFLAGS);
   }
 
   /* Set the next instructin to be executed */
-  VmxWrite(GUEST_RIP, (ULONG) vmcs.GuestState.ResumeEIP);
+  VmxWrite(GUEST_RIP, (ULONG) context.GuestContext.ResumeRIP);
 
   /////////////////////////////////////////////
   //  *** EXIT REASON CHECKS START HERE ***  //
   /////////////////////////////////////////////
 
-  switch(vmcs.ExitState.ExitReason) {
+  switch(context.ExitContext.ExitReason) {
     /////////////////////////////////////////////////////////////////////////////////////
     //  VMCLEAR, VMLAUNCH, VMPTRLD, VMPTRST, VMREAD, VMWRITE, VMRESUME, VMXOFF, VMXON  //
     /////////////////////////////////////////////////////////////////////////////////////
@@ -235,9 +235,9 @@ __declspec( naked ) VOID VMMEntryPoint()
   case EXIT_REASON_VMWRITE:
   case EXIT_REASON_VMXOFF:
   case EXIT_REASON_VMXON:
-    Log("Request has been denied (reason: %.8x)", vmcs.ExitState.ExitReason);
+    Log("Request has been denied (reason: %.8x)", context.ExitContext.ExitReason);
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -246,7 +246,7 @@ __declspec( naked ) VOID VMMEntryPoint()
   case EXIT_REASON_VMLAUNCH:
     HandleVMLAUNCH();
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -258,7 +258,7 @@ __declspec( naked ) VOID VMMEntryPoint()
   case EXIT_REASON_VMCALL:
     HandleVMCALL();
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -272,7 +272,7 @@ __declspec( naked ) VOID VMMEntryPoint()
 
     __asm { INVD };
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -282,13 +282,13 @@ __declspec( naked ) VOID VMMEntryPoint()
     //  RDMSR  //
     /////////////
   case EXIT_REASON_MSR_READ:
-    Log("Read MSR #%.8x", vmcs.GuestState.ECX);
+    Log("Read MSR #%.8x", context.GuestContext.RCX);
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
 
     __asm {
 			
-      MOV		ECX, vmcs.GuestState.ECX;
+      MOV		ECX, context.GuestContext.RCX;
       RDMSR;
 
       JMP		Resume;
@@ -301,10 +301,10 @@ __declspec( naked ) VOID VMMEntryPoint()
     //  WRMSR  //
     /////////////
   case EXIT_REASON_MSR_WRITE:
-    Log("Write MSR #%.8x", vmcs.GuestState.ECX);
+    Log("Write MSR #%.8x", context.GuestContext.RCX);
 
-    WriteMSR(vmcs.GuestState.ECX, vmcs.GuestState.EDX, vmcs.GuestState.EAX);
-    VMMUpdateGuestState();
+    WriteMSR(context.GuestContext.RCX, context.GuestContext.RDX, context.GuestContext.RAX);
+    VMMUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -315,12 +315,12 @@ __declspec( naked ) VOID VMMEntryPoint()
     /////////////
   case EXIT_REASON_CPUID:
     if(HandlerLogging) {
-      Log("CPUID detected (EAX: %.8x)", vmcs.GuestState.EAX);
+      Log("CPUID detected (RAX: %.8x)", context.GuestContext.RAX);
     }
 
     /* XXX Do we really need this check? */
-    if(vmcs.GuestState.EAX == 0x00000000) {
-      VMMUpdateGuestState();
+    if(context.GuestContext.RAX == 0x00000000) {
+      VMMUpdateGuestContext();
 
       __asm {
 	MOV		EAX, 0x00000000;
@@ -332,10 +332,10 @@ __declspec( naked ) VOID VMMEntryPoint()
       };
     }
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
 
     __asm {
-      MOV		EAX, vmcs.GuestState.EAX;
+      MOV		EAX, context.GuestContext.RAX;
       CPUID;
       JMP		Resume;
     };
@@ -349,7 +349,7 @@ __declspec( naked ) VOID VMMEntryPoint()
   case EXIT_REASON_CR_ACCESS:
     HandleCR();
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -361,7 +361,7 @@ __declspec( naked ) VOID VMMEntryPoint()
   case EXIT_REASON_IO_INSTRUCTION:
     HandleIO();
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -370,7 +370,7 @@ __declspec( naked ) VOID VMMEntryPoint()
   case EXIT_REASON_EXCEPTION_NMI:
     HandleNMI();
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -382,7 +382,7 @@ __declspec( naked ) VOID VMMEntryPoint()
     // Cannot execute HLT with interrupt disabled
     // __asm { HLT };
 
-    VMMUpdateGuestState();
+    VMMUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */

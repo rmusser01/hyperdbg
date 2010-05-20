@@ -24,8 +24,6 @@
 #ifndef _VIDEO_H
 #define _VIDEO_H
 
-#include <ntddk.h>
-
 /* Frame buffer resolutions must be defined */
 #ifndef VIDEO_DEFAULT_RESOLUTION_X
 #error VIDEO_DEFAULT_RESOLUTION_X must be defined! 
@@ -77,19 +75,21 @@
 
 #endif
 
-NTSTATUS VideoInit(VOID);
-NTSTATUS VideoFini(VOID);
-NTSTATUS VideoAlloc(VOID);
-NTSTATUS VideoDealloc(VOID);
+#include "hyperdbg.h"
 
-BOOLEAN VideoEnabled(VOID);
+hvm_status VideoInit(void);
+hvm_status VideoFini(void);
+hvm_status VideoAlloc(void);
+hvm_status VideoDealloc(void);
 
-VOID VideoSetResolution(ULONG x, ULONG y);
-VOID VideoSave();
-VOID VideoRestore();
-VOID VideoWriteChar(UCHAR, unsigned int, unsigned int, unsigned int);
-VOID VideoWriteString(char*, unsigned int, unsigned int, unsigned int, unsigned int);
-VOID VideoClear(ULONG color);
+hvm_bool VideoEnabled(void);
+
+void VideoSetResolution(Bit32u x, Bit32u y);
+void VideoSave();
+void VideoRestore();
+void VideoWriteChar(Bit8u, unsigned int, unsigned int, unsigned int);
+void VideoWriteString(char*, unsigned int, unsigned int, unsigned int, unsigned int);
+void VideoClear(Bit32u color);
 
 #endif	/* _VIDEO_H */
 

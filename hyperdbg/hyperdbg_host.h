@@ -24,11 +24,11 @@
 #ifndef _HYPERDBG_HOST_H
 #define _HYPERDBG_HOST_H
 
-#include <ntddk.h>
+#include "hyperdbg.h"
 #include "pill.h"
 #include "events.h"
 
-NTSTATUS HyperDbgHostInit(PVMM_INIT_STATE state);
-NTSTATUS HyperDbgHostFini(VOID);
+hvm_status HyperDbgHostInit(PVMM_INIT_STATE state);
+hvm_status HyperDbgHostFini(void);
 
 #endif	/* _HYPERDBG_HOST_H */

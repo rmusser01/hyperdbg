@@ -24,15 +24,14 @@
 #ifndef _SYMS_H
 #define _SYMS_H
 
-#include <ntddk.h>
 #include "hyperdbg_common.h"
 
 typedef struct _SYMBOL {
-  UCHAR *name;
-  ULONG addr;
+  unsigned char* name;
+  hvm_address addr;
 } SYMBOL, *PSYMBOL;
 
-extern SYMBOL syms[];		/* symbols array */
-extern const ULONG NOS;		/* Number Of Symbols */
+extern SYMBOL syms[];		/* Symbols array */
+extern const Bit32u NOS;	/* Number Of Symbols */
 
 #endif	/* _SYMS_H */

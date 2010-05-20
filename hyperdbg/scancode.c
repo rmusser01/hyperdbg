@@ -136,7 +136,7 @@
 
 char scancodes_map[255];
 
-VOID init_scancodes_map(VOID)
+void init_scancodes_map(void)
 {
   memset(scancodes_map, 0, sizeof(scancodes_map));
 

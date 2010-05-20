@@ -161,4 +161,20 @@ RegSetIdtr PROC StdCall _base, _limit
 	ret
 RegSetIdtr ENDP
 
+RegRdtsc PROC StdCall _out
+	push eax
+	push edx
+
+	rdtsc
+
+	mov ecx, _out
+	mov [ecx],   eax
+	mov [ecx+4], edx
+
+	pop edx
+	pop eax
+	
+	ret
+RegRdtsc ENDP
+	
 END

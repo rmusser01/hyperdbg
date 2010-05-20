@@ -25,33 +25,33 @@
 #define _KEYBOARD_H
 
 /* In READ mode. Can be read at any time */
-#define KEYB_REGISTER_STATUS  ((PUCHAR) 0x64)
+#define KEYB_REGISTER_STATUS  0x64
 
 /* In WRITE mode. Writing this port sets Bit 3 of the status register to 1 and
    the byte is treated as a controller command */
-#define KEYB_REGISTER_COMMAND ((PUCHAR) 0x64)
+#define KEYB_REGISTER_COMMAND 0x64
 
 /* In READ mode. Should be read if bit 0 of status register is 1 */
-#define KEYB_REGISTER_OUTPUT  ((PUCHAR) 0x60)
+#define KEYB_REGISTER_OUTPUT  0x60
 
 /* In WRITE mode. Data should only be written if Bit 1 of the status register
    is zero (register is empty) */
-#define KEYB_REGISTER_DATA    ((PUCHAR) 0x60)
+#define KEYB_REGISTER_DATA    0x60
 
 /* Read a keystroke from keyboard. If 'unget' is true, the read character is
    sent back to the device. */
-NTSTATUS KeyboardReadKeystroke(PUCHAR pc, CHAR unget, PBOOLEAN pisMouse);
-UCHAR    KeyboardScancodeToKeycode(UCHAR c);
-NTSTATUS KeyboardInit(VOID);
+hvm_status KeyboardReadKeystroke(Bit8u* pc, hvm_bool unget, hvm_bool* pisMouse);
+Bit8u    KeyboardScancodeToKeycode(Bit8u c);
+hvm_status KeyboardInit(void);
 
 /* Enable/disable mouse */
-NTSTATUS KeyboardSetMouse(BOOLEAN enabled);
+hvm_status KeyboardSetMouse(hvm_bool enabled);
 
 typedef struct {
-  BOOLEAN lshift;
-  BOOLEAN rshift;
-  BOOLEAN lctrl;
-  BOOLEAN lalt;
+  hvm_bool lshift;
+  hvm_bool rshift;
+  hvm_bool lctrl;
+  hvm_bool lalt;
 } KEYBOARD_STATUS;
 
 /* Global that holds current keyboard status */

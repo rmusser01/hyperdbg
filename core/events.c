@@ -21,11 +21,9 @@
   
 */
 
-/* 
-   Module for handling generic events.
- */
+/* Module for handling generic events. */
 
-#include <ntddk.h>
+#include "types.h"
 #include "events.h"
 #include "common.h"
 #include "debug.h"
@@ -64,26 +62,26 @@ static EVENT events[N_EVENTS];
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static PEVENT  EventFindInternal(EVENT_TYPE type, PVOID pcondition, int condition_size);
-static BOOLEAN EventCheckCondition(EVENT_TYPE type, PVOID c1, PVOID c2);
+static PEVENT   EventFindInternal(EVENT_TYPE type, void* pcondition, int condition_size);
+static hvm_bool EventCheckCondition(EVENT_TYPE type, void* c1, void* c2);
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
-NTSTATUS EventInit(VOID)
+hvm_status EventInit(void)
 {
   int i;
 
   for (i=0; i<sizeof(events)/sizeof(EVENT); i++)
     events[i].type = EventNone;
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-BOOLEAN EventSubscribe(EVENT_TYPE type, PVOID pcondition, int condition_size, EVENT_CALLBACK callback)
+hvm_bool EventSubscribe(EVENT_TYPE type, void* pcondition, int condition_size, EVENT_CALLBACK callback)
 {
-  BOOLEAN b;
+  hvm_bool b;
   int i;
 
   if (!pcondition) return FALSE;
@@ -104,7 +102,7 @@ BOOLEAN EventSubscribe(EVENT_TYPE type, PVOID pcondition, int condition_size, EV
   return b;
 }
 
-BOOLEAN EventUnsubscribe(EVENT_TYPE type, PVOID pcondition, int condition_size)
+hvm_bool EventUnsubscribe(EVENT_TYPE type, void* pcondition, int condition_size)
 {
   PEVENT p;
 
@@ -118,10 +116,10 @@ BOOLEAN EventUnsubscribe(EVENT_TYPE type, PVOID pcondition, int condition_size)
   return TRUE;
 }
 
-EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, PVOID pcondition, int condition_size)
+EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, void* pcondition, int condition_size)
 {
   int i;
-  BOOLEAN b;
+  hvm_bool b;
   EVENT_PUBLISH_STATUS s;
 
   s = EventPublishNone;
@@ -153,10 +151,10 @@ EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, PVOID pcondition, int conditi
 ;
 }
 
-BOOLEAN EventHasType(EVENT_TYPE type)
+hvm_bool EventHasType(EVENT_TYPE type)
 {
   int i;
-  BOOLEAN b;
+  hvm_bool b;
 
   b = FALSE;
   for (i=0; i<sizeof(events)/sizeof(EVENT); i++) {
@@ -169,7 +167,7 @@ BOOLEAN EventHasType(EVENT_TYPE type)
   return b;
 }
 
-VOID EventUpdateExceptionBitmap(PULONG pbitmap)
+void EventUpdateExceptionBitmap(Bit32u* pbitmap)
 {
   int i;
 
@@ -177,20 +175,20 @@ VOID EventUpdateExceptionBitmap(PULONG pbitmap)
     if (events[i].type != EventException)
       continue;
 
-    CmSetBit(pbitmap, events[i].condition.exception.exceptionnum);
+    CmSetBit32(pbitmap, events[i].condition.exception.exceptionnum);
   }
 }
 
-VOID EventUpdateIOBitmaps(PUCHAR pIOBitmapA, PUCHAR pIOBitmapB)
+void EventUpdateIOBitmaps(Bit8u* pIOBitmapA, Bit8u* pIOBitmapB)
 {
   int i;
-  USHORT port;
+  Bit16u port;
 
   for (i=0; i<sizeof(events)/sizeof(EVENT); i++) {  
     if (events[i].type != EventIO)
       continue;
 
-    port = (USHORT) events[i].condition.io.portnum;
+    port = (Bit16u) events[i].condition.io.portnum;
 
     if (port < 0x8000) {
       pIOBitmapA[port / 8] |= 1 << (port & 8);
@@ -200,9 +198,9 @@ VOID EventUpdateIOBitmaps(PUCHAR pIOBitmapA, PUCHAR pIOBitmapB)
   }
 }
 
-static BOOLEAN EventCheckCondition(EVENT_TYPE type, PVOID c1, PVOID c2)
+static hvm_bool EventCheckCondition(EVENT_TYPE type, void* c1, void* c2)
 {
-  BOOLEAN b;
+  hvm_bool b;
 
   b = FALSE;
   switch (type) {
@@ -263,7 +261,7 @@ static BOOLEAN EventCheckCondition(EVENT_TYPE type, PVOID c1, PVOID c2)
   return b;
 }
 
-static PEVENT EventFindInternal(EVENT_TYPE type, PVOID pcondition, int condition_size)
+static PEVENT EventFindInternal(EVENT_TYPE type, void* pcondition, int condition_size)
 {
   int i;
 

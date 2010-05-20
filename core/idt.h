@@ -24,7 +24,7 @@
 #ifndef _IDT_H
 #define _IDT_H
 
-#include <ntddk.h>
+#include "types.h"
 
 #define IDT_TYPE_TASK_GATE    0b00101
 #define IDT_TYPE_32_INT_GATE  0b01110
@@ -45,9 +45,9 @@ typedef struct _IDTR {
   unsigned	BaseHi		:16;
 } IDTR;
 
-VOID       NullIDTHandler(VOID);
-VOID       RegisterIDTHandler(USHORT index, VOID (*handler) (VOID));
-PIDT_ENTRY GetIDTEntry(UCHAR num);
-VOID       HookIDT(UCHAR entryno, USHORT selector, VOID (*handler)(VOID));
+void       NullIDTHandler(void);
+void       RegisterIDTHandler(Bit16u index, void (*handler) (void));
+PIDT_ENTRY GetIDTEntry(Bit8u num);
+void       HookIDT(Bit8u entryno, Bit16u selector, void (*handler)(void));
 
 #endif	/* _IDT_H */

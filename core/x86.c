@@ -21,8 +21,7 @@
   
 */
 
-#include <ntddk.h>
-
+#include "types.h"
 #include "debug.h"
 #include "x86.h"
 #include "winxp.h"
@@ -32,20 +31,20 @@
 //  SEGMENT DESCRIPTOR OPERATORS  //
 ////////////////////////////////////
 
-static NTSTATUS InitializeSegmentSelector(PSEGMENT_SELECTOR SegmentSelector, 
-					  USHORT Selector, ULONG GdtBase)
+static hvm_status InitializeSegmentSelector(PSEGMENT_SELECTOR SegmentSelector, 
+					    Bit16u Selector, Bit32u GdtBase)
 {
   PSEGMENT_DESCRIPTOR2 SegDesc;
 
   if (!SegmentSelector)
-    return STATUS_INVALID_PARAMETER;
+    return HVM_STATUS_INVALID_PARAMETER;
 
   if (Selector & 0x4) {
     Log("InitializeSegmentSelector(): Given selector points to LDT #%.4x\n", Selector);
-    return STATUS_INVALID_PARAMETER;
+    return HVM_STATUS_INVALID_PARAMETER;
   }
 
-  SegDesc = (PSEGMENT_DESCRIPTOR2) ((PUCHAR) GdtBase + (Selector & ~0x7));
+  SegDesc = (PSEGMENT_DESCRIPTOR2) ((Bit8u*) GdtBase + (Selector & ~0x7));
 
   SegmentSelector->sel = Selector;
   SegmentSelector->base = SegDesc->base0 | SegDesc->base1 << 16 | SegDesc->base2 << 24;
@@ -53,9 +52,9 @@ static NTSTATUS InitializeSegmentSelector(PSEGMENT_SELECTOR SegmentSelector,
   SegmentSelector->attributes.UCHARs = SegDesc->attr0 | (SegDesc->limit1attr1 & 0xf0) << 4;
 
   if (!(SegDesc->attr0 & LA_STANDARD)) {
-    ULONG64 tmp;
+    Bit64u tmp;
     // this is a TSS or callgate etc, save the base high part
-    tmp = (*(PULONG64) ((PUCHAR) SegDesc + 8));
+    tmp = (*(Bit64u*) ((Bit8u*) SegDesc + 8));
     SegmentSelector->base = (SegmentSelector->base & 0xffffffff) | (tmp << 32);
   }
 
@@ -64,15 +63,15 @@ static NTSTATUS InitializeSegmentSelector(PSEGMENT_SELECTOR SegmentSelector,
     SegmentSelector->limit = (SegmentSelector->limit << 12) + 0xfff;
   }
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-ULONG GetSegmentDescriptorBase(ULONG gdt_base, USHORT seg_selector)
+Bit32u GetSegmentDescriptorBase(Bit32u gdt_base, Bit16u seg_selector)
 {
-  ULONG			base = 0;
+  Bit32u			base = 0;
   SEGMENT_DESCRIPTOR	segDescriptor = {0};
 	
-  RtlCopyBytes( &segDescriptor, (ULONG *)(gdt_base + (seg_selector >> 3) * 8), 8 );
+  RtlCopyBytes( &segDescriptor, (Bit32u *)(gdt_base + (seg_selector >> 3) * 8), 8 );
   base = segDescriptor.BaseHi;
   base <<= 8;
   base |= segDescriptor.BaseMid;
@@ -82,16 +81,16 @@ ULONG GetSegmentDescriptorBase(ULONG gdt_base, USHORT seg_selector)
   return base;
 }
 
-ULONG GetSegmentDescriptorDPL(ULONG gdt_base, USHORT seg_selector)
+Bit32u GetSegmentDescriptorDPL(Bit32u gdt_base, Bit16u seg_selector)
 {
   SEGMENT_DESCRIPTOR segDescriptor = {0};
 	
-  RtlCopyBytes(&segDescriptor, (ULONG *)(gdt_base + (seg_selector >> 3) * 8), 8);
+  RtlCopyBytes(&segDescriptor, (Bit32u *)(gdt_base + (seg_selector >> 3) * 8), 8);
 	
   return segDescriptor.DPL;
 }
 
-ULONG GetSegmentDescriptorLimit(ULONG gdt_base, USHORT selector)
+Bit32u GetSegmentDescriptorLimit(Bit32u gdt_base, Bit16u selector)
 {
   SEGMENT_SELECTOR SegmentSelector = { 0 };
 
@@ -100,14 +99,14 @@ ULONG GetSegmentDescriptorLimit(ULONG gdt_base, USHORT selector)
   return SegmentSelector.limit;
 }
 
-ULONG GetSegmentDescriptorAR(ULONG gdt_base, USHORT selector)
+Bit32u GetSegmentDescriptorAR(Bit32u gdt_base, Bit16u selector)
 {
   SEGMENT_SELECTOR SegmentSelector = { 0 };
-  ULONG uAccessRights;
+  Bit32u uAccessRights;
 
   InitializeSegmentSelector(&SegmentSelector, selector, gdt_base);
 
-  uAccessRights = ((PUCHAR) & SegmentSelector.attributes)[0] + (((PUCHAR) & SegmentSelector.attributes)[1] << 12);
+  uAccessRights = ((Bit8u*) & SegmentSelector.attributes)[0] + (((Bit8u*) & SegmentSelector.attributes)[1] << 12);
 	
   if (!selector)
     uAccessRights |= 0x10000;
@@ -117,17 +116,17 @@ ULONG GetSegmentDescriptorAR(ULONG gdt_base, USHORT selector)
 
 /* This one is Windows (XP?)-dependent, because it must also take into account the
    possibility that we are virtualized (see the redpill) */
-ULONG32 RegGetIdtBase()
+Bit32u RegGetIdtBase()
 {
   IDTR tmp_idt;
-  ULONG inmem_base, idtr_base, r;
+  Bit32u inmem_base, idtr_base, r;
 
   /* Read IDTR */
   __asm { SIDT tmp_idt };
   idtr_base = (tmp_idt.BaseHi << 16 | tmp_idt.BaseLo);
 
   /* Get IDT base from memory */
-  inmem_base = *(ULONG*) WINDOWS_PIDT_BASE;
+  inmem_base = *(Bit32u*) WINDOWS_PIDT_BASE;
 
   if (idtr_base != inmem_base) {
     /* Virtualized! */

@@ -32,18 +32,18 @@
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static BOOLEAN DicotomicSymbolSearch(ULONG addr, LONG32 start, LONG32 end, PULONG32 index);
+static hvm_bool DicotomicSymbolSearch(hvm_address addr, Bit32u start, Bit32u end, Bit32u* index);
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
-PSYMBOL SymbolGetFromAddress(PULONG addr)
+PSYMBOL SymbolGetFromAddress(hvm_address addr)
 {
   PSYMBOL SearchedSym;
-  ULONG32 index;
+  Bit32u index;
 
-  if(!DicotomicSymbolSearch((ULONG) addr, 0, NOS-1, (PULONG) &index)) {
+  if(!DicotomicSymbolSearch(addr, 0, NOS-1, &index)) {
     SearchedSym = NULL;
   } else {
     SearchedSym = &syms[index];
@@ -52,12 +52,12 @@ PSYMBOL SymbolGetFromAddress(PULONG addr)
   return SearchedSym;
 }
 
-PSYMBOL SymbolGetNearest(PULONG addr)
+PSYMBOL SymbolGetNearest(hvm_address addr)
 {
   PSYMBOL SearchedSym;
-  ULONG32 index;
+  Bit32u index;
 
-  DicotomicSymbolSearch((ULONG) addr, 0, NOS-1, (PULONG) &index);
+  DicotomicSymbolSearch(addr, 0, NOS-1, &index);
   SearchedSym = &syms[index];
 
   return SearchedSym;
@@ -65,10 +65,10 @@ PSYMBOL SymbolGetNearest(PULONG addr)
 
 /* Unfortunately, the list is sorted on the address, so we have to use a linear
    search algotithm */
-PSYMBOL SymbolGetFromName(PUCHAR name)
+PSYMBOL SymbolGetFromName(Bit8u* name)
 {
   PSYMBOL SearchedSym;
-  ULONG32 index;
+  Bit32u index;
 
   for(index = 0; index < NOS; index++) {
     SearchedSym = &syms[index];
@@ -83,9 +83,9 @@ PSYMBOL SymbolGetFromName(PUCHAR name)
 
 /* Returns TRUE and sets Index to the index of the found entries if
    found. Otherwise, returns FALSE and Index is undefined */
-static BOOLEAN DicotomicSymbolSearch(ULONG addr, LONG32 start, LONG32 end, PULONG32 index)
+static hvm_bool DicotomicSymbolSearch(hvm_address addr, Bit32u start, Bit32u end, Bit32u* index)
 {
-  ULONG32 mid;
+  Bit32u mid;
   PSYMBOL CurrentSym;
 
   mid = (start+end)/2;

@@ -24,6 +24,7 @@
 #include "hyperdbg_common.h"
 #include "hyperdbg_host.h"
 #include "hyperdbg_cmd.h"
+#include "common.h"
 #include "keyboard.h"
 #include "video.h"
 #include "x86.h"
@@ -44,38 +45,38 @@
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(VOID);
-static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(VOID);
-static EVENT_PUBLISH_STATUS HyperDbgIOHandler(VOID);
+static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(void);
+static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(void);
+static EVENT_PUBLISH_STATUS HyperDbgIOHandler(void);
 
 /* This hypercall is invoked when we want to change the resolution of the GUI
    dynamically */
-static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(VOID);
+static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(void);
 
-static VOID HyperDbgEnter(VOID);
-static VOID HyperDbgCommandLoop(VOID);
+static void HyperDbgEnter(void);
+static void HyperDbgCommandLoop(void);
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
-static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(VOID)
+static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(void)
 {
-  VideoSetResolution(vmcs.GuestState.EBX, vmcs.GuestState.ECX);
+  VideoSetResolution(context.GuestContext.RBX, context.GuestContext.RCX);
 
   return EventPublishHandled;
 }
 
-static VOID HyperDbgEnter(VOID)
+static void HyperDbgEnter(void)
 {
-  NTSTATUS r;
+  hvm_status r;
 
   /* Update HyperDbg state structure */
   hyperdbg_state.enabled = TRUE;
 
   if(!VideoEnabled()) {
     r = VideoAlloc();
-    if(!NT_SUCCESS(r))
+    if(r != HVM_STATUS_SUCCESS)
       Log("[HyperDbg] Cannot allocate video memory!");
   }
 
@@ -88,22 +89,21 @@ static VOID HyperDbgEnter(VOID)
   hyperdbg_state.enabled = FALSE;
 }
 
-static VOID HyperDbgCommandLoop(VOID)
+static void HyperDbgCommandLoop(void)
 {
-  ULONG32 flags;
-  UCHAR c, keyboard_buffer[256];
+  hvm_address flags;
+  Bit8u c, keyboard_buffer[256];
   int i;
-  BOOLEAN isMouse, ExitLoop;
+  hvm_bool isMouse, exitLoop;
 
-  ExitLoop = FALSE;
+  exitLoop = FALSE;
   
   /* Backup RFLAGS */
   flags = RegGetFlags();
 
   /* Disable interrupts (only if they were enabled) */
   RegSetFlags(flags & ~FLAGS_IF_MASK);
-/*   RegSetFlags(flags | FLAGS_IF_MASK); */
-/*   ComPrint("EFLAGS.IF = %d\n", (RegGetFlags() & FLAGS_IF_MASK)); */
+
   if (VideoEnabled()) {
     /* Backup video memory */
     if (!hyperdbg_state.singlestepping) {
@@ -118,9 +118,9 @@ static VOID HyperDbgCommandLoop(VOID)
   i = 0;
   memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
   while (1) {
-    if (!NT_SUCCESS(KeyboardReadKeystroke(&c, FALSE, &isMouse))) {
+    if (KeyboardReadKeystroke(&c, FALSE, &isMouse) != HVM_STATUS_SUCCESS) {
       /* Sleep for some time, just to avoid full busy waiting */
-      KeStallExecutionProcessor(1000);
+      CmSleep(100);
       continue;
     }
 
@@ -150,7 +150,7 @@ static VOID HyperDbgCommandLoop(VOID)
 
     case '\n':
       /* End of command */
-      ExitLoop = HyperDbgProcessCommand(keyboard_buffer);
+      exitLoop = HyperDbgProcessCommand(keyboard_buffer);
       i = 0;
       memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
       break;
@@ -163,7 +163,7 @@ static VOID HyperDbgCommandLoop(VOID)
     default:
       /* Store this keycode. The '-1' is to ensure keyboard_buffer is always
 	 null-terminated */
-      if (i < (sizeof(keyboard_buffer)/sizeof(UCHAR)-1))
+      if (i < (sizeof(keyboard_buffer)/sizeof(Bit8u)-1))
 	keyboard_buffer[i++] = c;
       break;
     } /* end switch */
@@ -172,7 +172,7 @@ static VOID HyperDbgCommandLoop(VOID)
       VideoUpdateShell(keyboard_buffer);
     }
 
-    if(ExitLoop) {
+    if(exitLoop) {
       break; /* Command says that we must return control to the guest */
     }
   }
@@ -187,28 +187,28 @@ static VOID HyperDbgCommandLoop(VOID)
 }
 
 /* Invoked for write operations to the keyboard I/O port */
-static EVENT_PUBLISH_STATUS HyperDbgIOHandler(VOID)
+static EVENT_PUBLISH_STATUS HyperDbgIOHandler(void)
 {
-  UCHAR c;
-  ULONG size;
-  BOOLEAN isRep, isString, isMouse;
+  Bit8u c;
+  Bit32u size;
+  hvm_bool isRep, isString, isMouse;
 
-  size     = (vmcs.ExitState.ExitQualification & 7) + 1;
-  isString = (vmcs.ExitState.ExitQualification & (1 << 4)) != 0;
-  isRep    = (vmcs.ExitState.ExitQualification & (1 << 5)) != 0;
+  size     = (context.ExitContext.ExitQualification & 7) + 1;
+  isString = (context.ExitContext.ExitQualification & (1 << 4)) != 0;
+  isRep    = (context.ExitContext.ExitQualification & (1 << 5)) != 0;
 
   if (size != 1 || isString || isRep) {
     return EventPublishPass;
   }
 
-  /* inb, from keyboard port, not rep, not string */
-  if (!NT_SUCCESS(KeyboardReadKeystroke(&c, FALSE, &isMouse))) {
+  /* 'inb', from keyboard port, not rep, not string */
+  if (KeyboardReadKeystroke(&c, FALSE, &isMouse) != HVM_STATUS_SUCCESS) {
     /* Something bad happened.. */
     return EventPublishPass;
   }
 
   /* Emulate the 'inb' instruction. The destination is always %al */
-  vmcs.GuestState.EAX = ((ULONG) vmcs.GuestState.EAX & 0xffffff00) | (c & 0xff);
+  context.GuestContext.RAX = ((hvm_address) context.GuestContext.RAX & 0xffffff00) | (c & 0xff);
 
   if (!isMouse && c == HYPERDBG_MAGIC_SCANCODE) {
     /* This is our "magic" scancode! */
@@ -217,7 +217,7 @@ static EVENT_PUBLISH_STATUS HyperDbgIOHandler(VOID)
        instruction, that will never be executed. For this reason, the debugger
        should not highlight 'inb' as the current instruction. Note: the "core"
        does not update the guest RIP with the value cached in the VMCS */
-    vmcs.GuestState.EIP += vmcs.ExitState.ExitInstructionLength;
+    context.GuestContext.RIP += context.ExitContext.ExitInstructionLength;
 
     HyperDbgEnter();
   }
@@ -225,20 +225,20 @@ static EVENT_PUBLISH_STATUS HyperDbgIOHandler(VOID)
   return EventPublishHandled;
 }
 
-static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(VOID)
+static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(void)
 {
-  BOOLEAN ours;
+  hvm_bool ours;
 
   /* DeleteSwBp will check if this bp has been setup by us and eventually reset it */
-  Log("[HyperDbg] checking bp @%.8x", vmcs.GuestState.EIP);
-  ours = SwBreakpointDelete(vmcs.GuestState.CR3, (PULONG) vmcs.GuestState.EIP);
+  Log("[HyperDbg] checking bp @%.8x", context.GuestContext.RIP);
+  ours = SwBreakpointDelete(context.GuestContext.CR3, context.GuestContext.RIP);
   if(!ours) { /* Pass it to the guest */
     return EventPublishPass;
   }
 
-  Log("[HyperDbg] bp is ours, resetting GUEST_RIP to %.8x", vmcs.GuestState.EIP);
+  Log("[HyperDbg] bp is ours, resetting GUEST_RIP to %.8x", context.GuestContext.RIP);
   /* Update guest RIP to re-execute the faulty instruction */
-  VmxWrite(GUEST_RIP, (ULONG) vmcs.GuestState.EIP);
+  VmxWrite(GUEST_RIP, context.GuestContext.RIP);
 
   Log("[HyperDbg] Done!");
 
@@ -247,9 +247,9 @@ static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(VOID)
   return EventPublishHandled;
 }
 
-static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(VOID)
+static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(void)
 {
-  ULONG32 flags;
+  hvm_address flags;
 
   /* Check if we are single-stepping or not. This is needed because #DB
      exceptions are also generated by the core mechanisms that handles I/O
@@ -259,51 +259,51 @@ static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(VOID)
 
   /* FIXME: unset iff TF has not been set by the guest */
   /* Unset TF and hide it to the guest */
-  flags = vmcs.GuestState.EFLAGS;
+  flags = context.GuestContext.RFLAGS;
   flags &= ~FLAGS_TF_MASK; 
-  vmcs.GuestState.EFLAGS = flags;
+  context.GuestContext.RFLAGS = flags;
 
   /* Update guest RIP to re-execute the faulty instruction */
-  VmxWrite(GUEST_RIP, (ULONG) vmcs.GuestState.EIP);
+  VmxWrite(GUEST_RIP, context.GuestContext.RIP);
 
   HyperDbgEnter();
 
   /* Let's set RF to 1 so that we won't trap when really executing the instruction */
-  flags = vmcs.GuestState.EFLAGS;
+  flags = context.GuestContext.RFLAGS;
   flags |= FLAGS_RF_MASK;
-  vmcs.GuestState.EFLAGS = flags;
+  context.GuestContext.RFLAGS = flags;
   VmxWrite(GUEST_RFLAGS, FLAGS_TO_ULONG(flags));
 
   return EventPublishHandled;
 }
 
-EVENT_PUBLISH_STATUS HyperDbgIO(VOID)
+EVENT_PUBLISH_STATUS HyperDbgIO(void)
 {
   return EventPublishHandled;
 }
 
-NTSTATUS HyperDbgHostInit(PVMM_INIT_STATE state)
+hvm_status HyperDbgHostInit(PVMM_INIT_STATE state)
 {
   EVENT_CONDITION_EXCEPTION exception;
   EVENT_CONDITION_IO io;
   EVENT_CONDITION_HYPERCALL hypercall;
-  NTSTATUS r;
+  hvm_status r;
 
   /* Init keyboard module */
   r = KeyboardInit();
-  if (!NT_SUCCESS(r))
+  if (r != HVM_STATUS_SUCCESS)
     return r;
 
   /* Register the INT3 handler */
   exception.exceptionnum = TRAP_INT3;
   if(!EventSubscribe(EventException, &exception, sizeof(exception), HyperDbgSwBpHandler)) {
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   /* Register the DEBUG handler */
   exception.exceptionnum = TRAP_DEBUG;
   if(!EventSubscribe(EventException, &exception, sizeof(exception), HyperDbgDebugHandler)) {
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   /* Register a hypercall to update screen resolution */
@@ -311,20 +311,20 @@ NTSTATUS HyperDbgHostInit(PVMM_INIT_STATE state)
 
   if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HyperDbgHypercallSetResolution)) {
     WindowsLog("ERROR: Unable to register screen resolution hypercall handler");
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   /* Trap keyboard-related I/O instructions */
   io.direction = EventIODirectionIn;
-  io.portnum = (ULONG) KEYB_REGISTER_OUTPUT;
+  io.portnum = (Bit32u) KEYB_REGISTER_OUTPUT;
   if(!EventSubscribe(EventIO, &io, sizeof(io), HyperDbgIOHandler)) {
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-NTSTATUS HyperDbgHostFini(VOID)
+hvm_status HyperDbgHostFini(void)
 {
   EVENT_CONDITION_EXCEPTION exception;
 
@@ -336,5 +336,5 @@ NTSTATUS HyperDbgHostFini(VOID)
   exception.exceptionnum = TRAP_INT3;
   EventUnsubscribe(EventException, &exception, sizeof(exception));
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }

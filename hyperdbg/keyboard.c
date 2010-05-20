@@ -27,10 +27,12 @@
   * http://www.win.tue.nl/~aeb/linux/kbd/scancodes-1.html
 */
 
-#include <ntddk.h>
+#include "hyperdbg.h"
 #include "keyboard.h"
 #include "scancode.h"
 #include "vmmstring.h"
+#include "common.h"
+#include "x86.h"
 
 /* ################ */
 /* #### MACROS #### */
@@ -80,46 +82,46 @@ KEYBOARD_STATUS keyboard_status;
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static NTSTATUS i8042ReadKeyboardData(PUCHAR pc, PBOOLEAN pisMouse);
-static BOOLEAN  i8042WriteKeyboardData(PUCHAR addr, UCHAR data);
+static hvm_status i8042ReadKeyboardData(Bit8u* pc, hvm_bool* pisMouse);
+static hvm_bool   i8042WriteKeyboardData(Bit16u addr, Bit8u data);
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
-static NTSTATUS i8042ReadKeyboardData(PUCHAR pc, PBOOLEAN pisMouse)
+static hvm_status i8042ReadKeyboardData(Bit8u* pc, hvm_bool* pisMouse)
 {
-  UCHAR port_status;
+  Bit8u port_status;
 
-  port_status = READ_PORT_UCHAR(KEYB_REGISTER_STATUS);
+  port_status = IoReadPortByte(KEYB_REGISTER_STATUS);
 
   if (port_status & KEYB_STATUS_OBUFFER_FULL) {
     /* Data is available */
-    *pc = READ_PORT_UCHAR(KEYB_REGISTER_DATA);
+    *pc = IoReadPortByte(KEYB_REGISTER_DATA);
 
     /* Check if data is valid (i.e., no timeout, no parity error) */
     if ((port_status & KEYB_STATUS_PARITY_ERROR) == 0) {
       /* Check if this is a mouse event or not */
       *pisMouse = (port_status & KEYB_STATUS_TRANSMIT_TIMEOUT) != 0;
-      return STATUS_SUCCESS;
+      return HVM_STATUS_SUCCESS;
     }
   }
 
-  return STATUS_UNSUCCESSFUL;
+  return HVM_STATUS_UNSUCCESSFUL;
 }
 
-static BOOLEAN i8042WriteKeyboardData(PUCHAR addr, UCHAR data)
+static hvm_bool i8042WriteKeyboardData(Bit16u addr, Bit8u data)
 {
-  ULONG counter;
+  Bit32u counter;
 
   counter = POLL_STATUS_ITERATIONS;
-  while ((KEYB_STATUS_IBUFFER_FULL & READ_PORT_UCHAR(KEYB_REGISTER_STATUS)) &&
+  while ((KEYB_STATUS_IBUFFER_FULL & IoReadPortByte(KEYB_REGISTER_STATUS)) &&
 	 (counter--)) {
-    KeStallExecutionProcessor(1);
+    CmSleep(1);
   }
 
   if (counter) {
-    WRITE_PORT_UCHAR(addr, data);
+    IoWritePortByte(addr, data);
     return TRUE;
   }
 
@@ -127,29 +129,29 @@ static BOOLEAN i8042WriteKeyboardData(PUCHAR addr, UCHAR data)
 }
 
 /* Inspired from ReactOS's i8042 keyboard driver */
-NTSTATUS KeyboardReadKeystroke(PUCHAR pc, CHAR unget, PBOOLEAN pisMouse)
+hvm_status KeyboardReadKeystroke(Bit8u* pc, hvm_bool unget, hvm_bool* pisMouse)
 {
-  ULONG counter;
-  UCHAR port_status, scancode;
-  NTSTATUS r;
+  Bit32u counter;
+  Bit8u port_status, scancode;
+  hvm_status r;
 
   counter = POLL_STATUS_ITERATIONS;
   while (counter) {
-    port_status = READ_PORT_UCHAR(KEYB_REGISTER_STATUS);
+    port_status = IoReadPortByte(KEYB_REGISTER_STATUS);
 
     r = i8042ReadKeyboardData(&scancode, pisMouse);
 
-    if (NT_SUCCESS(r)) {
+    if (r != HVM_STATUS_SUCCESS) {
       break;
     }
 
-    KeStallExecutionProcessor(1);    
+    CmSleep(1);
 
     counter--;
   }
 
   if (counter == 0) {
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   if (unget) {
@@ -162,14 +164,14 @@ NTSTATUS KeyboardReadKeystroke(PUCHAR pc, CHAR unget, PBOOLEAN pisMouse)
 
   *pc = scancode;
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
 /* Translate a scancode to the corresponding keycode. Keyboard errors are
    silently ignored. */
-UCHAR KeyboardScancodeToKeycode(UCHAR c)
+Bit8u KeyboardScancodeToKeycode(Bit8u c)
 {
-  BOOLEAN handled;
+  hvm_bool handled;
 
   handled = FALSE;
 
@@ -227,25 +229,25 @@ UCHAR KeyboardScancodeToKeycode(UCHAR c)
     /* Map special chars above numbers, us-std keymap */
     switch(scancodes_map[c]) {
     case '1':
-      return (UCHAR)'!';
+      return (Bit8u)'!';
     case '2':
-      return (UCHAR)'@';
+      return (Bit8u)'@';
     case '3':
-      return (UCHAR)'#';
+      return (Bit8u)'#';
     case '4':
-      return (UCHAR)'$';
+      return (Bit8u)'$';
     case '5':
-      return (UCHAR)'%';
+      return (Bit8u)'%';
     case '6':
-      return (UCHAR)'^';
+      return (Bit8u)'^';
     case '7':
-      return (UCHAR)'&';
+      return (Bit8u)'&';
     case '8':
-      return (UCHAR)'*';
+      return (Bit8u)'*';
     case '9':
-      return (UCHAR)'(';
+      return (Bit8u)'(';
     case '0':
-      return (UCHAR)')';
+      return (Bit8u)')';
     }
   }
 
@@ -255,20 +257,20 @@ UCHAR KeyboardScancodeToKeycode(UCHAR c)
     return scancodes_map[c];
 }
 
-NTSTATUS KeyboardSetMouse(BOOLEAN enabled)
+hvm_status KeyboardSetMouse(hvm_bool enabled)
 {
-  UCHAR cmd;
+  Bit8u cmd;
 
   cmd = enabled ? KEYB_COMMAND_ENABLE_MOUSE : KEYB_COMMAND_DISABLE_MOUSE;
 
   i8042WriteKeyboardData(KEYB_REGISTER_COMMAND, cmd);
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-NTSTATUS KeyboardInit(VOID)
+hvm_status KeyboardInit(void)
 {
   init_scancodes_map();
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }

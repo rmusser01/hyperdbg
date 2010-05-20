@@ -24,7 +24,7 @@
 #ifndef _EVENTS_H
 #define _EVENTS_H
 
-#include <ntddk.h>
+#include "types.h"
 
 typedef enum {
   EventPublishNone,              /* Event not accepted */
@@ -43,14 +43,14 @@ typedef enum {
   EventHlt,
 } EVENT_TYPE;
 
-typedef EVENT_PUBLISH_STATUS (*EVENT_CALLBACK)(VOID);
+typedef EVENT_PUBLISH_STATUS (*EVENT_CALLBACK)(void);
 
 typedef struct _EVENT_CONDITION_HYPERCALL {
-  ULONG hypernum;
+  Bit32u hypernum;
 } EVENT_CONDITION_HYPERCALL, *PEVENT_CONDITION_HYPERCALL;
 
 typedef struct _EVENT_CONDITION_EXCEPTION {
-  ULONG exceptionnum;
+  Bit32u exceptionnum;
 } EVENT_CONDITION_EXCEPTION, *PEVENT_CONDITION_EXCEPTION;
 
 typedef enum {
@@ -61,23 +61,23 @@ typedef enum {
 
 typedef struct _EVENT_CONDITION_IO {
   EVENT_IO_DIRECTION direction;
-  ULONG portnum;
+  Bit32u portnum;
 } EVENT_CONDITION_IO, *PEVENT_CONDITION_IO;
 
 typedef struct _EVENT_CONDITION_CR {
-  UCHAR   crno;
-  BOOLEAN iswrite;
+  Bit8u    crno;
+  hvm_bool iswrite;
 } EVENT_CONDITION_CR, *PEVENT_CONDITION_CR;
 
 typedef int EVENT_CONDITION_NONE;
 
-NTSTATUS EventInit(VOID);
-BOOLEAN EventSubscribe(EVENT_TYPE type, PVOID pcondition, int condition_size, EVENT_CALLBACK callback);
-BOOLEAN EventUnsubscribe(EVENT_TYPE type, PVOID pcondition, int condition_size);
-BOOLEAN EventHasType(EVENT_TYPE type);
-EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, PVOID pcondition, int condition_size);
+hvm_status EventInit(void);
+hvm_bool EventSubscribe(EVENT_TYPE type, void* pcondition, int condition_size, EVENT_CALLBACK callback);
+hvm_bool EventUnsubscribe(EVENT_TYPE type, void* pcondition, int condition_size);
+hvm_bool EventHasType(EVENT_TYPE type);
+EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, void* pcondition, int condition_size);
 
-VOID EventUpdateExceptionBitmap(PULONG pbitmap);
-VOID EventUpdateIOBitmaps(PUCHAR pIOBitmapA, PUCHAR pIOBitmapB);
+void EventUpdateExceptionBitmap(Bit32u* pbitmap);
+void EventUpdateIOBitmaps(Bit8u* pIOBitmapA, Bit8u* pIOBitmapB);
 
 #endif	/* _EVENTS_H */

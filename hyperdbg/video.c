@@ -21,6 +21,9 @@
   
 */
 
+#include <ntddk.h>
+
+#include "hyperdbg.h"
 #include "video.h"
 #include "font_256.h"
 #include "pci.h"
@@ -52,93 +55,92 @@
 /* #### GLOBALS #### */
 /* ################# */
 
-static PULONG video_mem = NULL;
-static ULONG  ulVideoAddress = 0;
-static ULONG **video_backup;
-static ULONG video_sizex, video_sizey;
+static Bit32u     *video_mem = NULL;
+static hvm_address video_address = 0;
+static Bit32u    **video_backup;
+static Bit32u      video_sizex, video_sizey;
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
-NTSTATUS VideoInit(VOID)
+hvm_status VideoInit(void)
 {
-  NTSTATUS r;
+  hvm_status r;
 
 #ifndef VIDEO_ADDRESS_MANUAL
   PCIInit();
-  r = PCIDetectDisplay(&ulVideoAddress);
-  if (!NT_SUCCESS(r)) {
+  r = PCIDetectDisplay(&video_address);
+  if (r != HVM_STATUS_SUCCESS) {
     WindowsLog("[E] PCI display detection failed!");
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 #else
-  ulVideoAddress = (ULONG) DEFAULT_VIDEO_ADDRESS;
+  video_address = (hvm_address) DEFAULT_VIDEO_ADDRESS;
 #endif
   
-  WindowsLog("[*] Found PCI display region at physical address %.8x\n", ulVideoAddress);
+  WindowsLog("[*] Found PCI display region at physical address %.8x\n", video_address);
 
   /* Set default screen resolution */
   video_sizex = VIDEO_DEFAULT_RESOLUTION_X;
   video_sizey = VIDEO_DEFAULT_RESOLUTION_Y;
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-NTSTATUS VideoFini(VOID)
+hvm_status VideoFini(void)
 {
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-VOID VideoSetResolution(ULONG x, ULONG y)
+void VideoSetResolution(Bit32u x, Bit32u y)
 {
   video_sizex = x;
   video_sizey = y;
 }
 
-NTSTATUS VideoAlloc(VOID)
+hvm_status VideoAlloc(void)
 {
   PHYSICAL_ADDRESS pa;
-  ULONG32 i;
+  Bit32u i;
   pa.u.HighPart = 0;
-  pa.u.LowPart  = ulVideoAddress;
+  pa.u.LowPart  = video_address;
 
   /* Allocate memory to save current pixels */
-  video_backup = MmAllocateNonCachedMemory(FONT_Y * SHELL_SIZE_Y * sizeof(ULONG));
-  if(video_backup == 0) return STATUS_UNSUCCESSFUL;
+  video_backup = MmAllocateNonCachedMemory(FONT_Y * SHELL_SIZE_Y * sizeof(Bit32u));
+  if(video_backup == 0) return HVM_STATUS_UNSUCCESSFUL;
 
   for(i = 0; i < FONT_Y * SHELL_SIZE_Y; i++) {
-    video_backup[i] = MmAllocateNonCachedMemory(FONT_X * SHELL_SIZE_X * sizeof(ULONG));
-    if(video_backup[i] == 0) return STATUS_UNSUCCESSFUL;
+    video_backup[i] = MmAllocateNonCachedMemory(FONT_X * SHELL_SIZE_X * sizeof(Bit32u));
+    if(video_backup[i] == 0) return HVM_STATUS_UNSUCCESSFUL;
   }
 
   /* Map video memory */
-  video_mem = (PULONG) MmMapIoSpace(pa, FRAME_BUFFER_SIZE, MmWriteCombined);
+  video_mem = (Bit32u*) MmMapIoSpace(pa, FRAME_BUFFER_SIZE, MmWriteCombined);
   if (!video_mem)
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-NTSTATUS VideoDealloc(VOID)
+hvm_status VideoDealloc(void)
 {
-  ULONG32 i;
-
-/*   ComPrint("[HyperDbg] Deallocating video!\n"); */
+  Bit32u i;
 
   for(i = 0; i < FONT_Y * SHELL_SIZE_Y; i++)
-    MmFreeNonCachedMemory(video_backup[i], FONT_X * SHELL_SIZE_X * sizeof(ULONG));
+    MmFreeNonCachedMemory(video_backup[i], FONT_X * SHELL_SIZE_X * sizeof(Bit32u));
 
-  MmFreeNonCachedMemory(video_backup, FONT_Y * SHELL_SIZE_Y * sizeof(ULONG));
+  MmFreeNonCachedMemory(video_backup, FONT_Y * SHELL_SIZE_Y * sizeof(Bit32u));
+
   if (video_mem) {
     MmUnmapIoSpace(video_mem, FRAME_BUFFER_SIZE);
     video_mem = NULL;
   }
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-BOOLEAN VideoEnabled(VOID)
+hvm_bool VideoEnabled(void)
 {  
   return (video_mem != 0);
 }
@@ -148,7 +150,8 @@ BOOLEAN VideoEnabled(VOID)
  * WARNING: str is wrapped on following line if longer than the shell and will
  * overwrite everything on its path ;-)
  */
-VOID VideoWriteString(char *str, unsigned int len, unsigned int color, unsigned int start_x, unsigned int start_y) 
+void VideoWriteString(char *str, unsigned int len, unsigned int color, 
+		      unsigned int start_x, unsigned int start_y) 
 {
   int cur_x, cur_y;
   unsigned int i;
@@ -157,7 +160,6 @@ VOID VideoWriteString(char *str, unsigned int len, unsigned int color, unsigned 
   cur_y = start_y;
   i = 0;
 
-/*   WindowsLog("[V] Writing string %s\n", str); */
   while(i < len) {
     /* '-2' is to avoid overwriting frame */
     if(cur_x == SHELL_SIZE_X - 2) { 
@@ -177,7 +179,7 @@ VOID VideoWriteString(char *str, unsigned int len, unsigned int color, unsigned 
 }
 
 /* Gets a character from the font map and draws it on the screen */
-VOID VideoWriteChar(UCHAR c, unsigned int color, unsigned int x, unsigned int y)
+void VideoWriteChar(Bit8u c, unsigned int color, unsigned int x, unsigned int y)
 {
   /* Used to loop on font size */
   unsigned int x_pix, y_pix; 
@@ -216,7 +218,7 @@ VOID VideoWriteChar(UCHAR c, unsigned int color, unsigned int x, unsigned int y)
   }
 }
 
-VOID VideoClear(ULONG color)
+void VideoClear(Bit32u color)
 {
   int i,j;
 
@@ -227,7 +229,7 @@ VOID VideoClear(ULONG color)
   }
 }
 
-VOID VideoSave(VOID)
+void VideoSave(void)
 {
   int i,j;
 
@@ -238,7 +240,7 @@ VOID VideoSave(VOID)
   }
 }
 
-VOID VideoRestore(VOID)
+void VideoRestore(void)
 {
   int i,j;
 

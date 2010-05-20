@@ -21,8 +21,9 @@
   
 */
 
-#include <ntddk.h>
-#include <ntstrsafe.h>
+#include "types.h"
+#include "debug.h"
+#include "x86.h"
 
 /* ################ */
 /* #### MACROS #### */
@@ -89,74 +90,74 @@ struct pci_desc {
 typedef struct pci_desc pci_desc;
 
 typedef struct pci_info {
-    USHORT  vendor_id;              /* vendor id */
-    USHORT  device_id;              /* device id */
-    USHORT  command;                /* bus number */
-    USHORT  status;                 /* device number on bus */
-    UCHAR   revision;               /* revision id */
-    UCHAR   class_api;              /* specific register interface type */
-    UCHAR   class_sub;              /* specific device function */
-    UCHAR   class_base;             /* device type (display vs network, etc) */
-    UCHAR   line_size;              /* cache line size in 32 bit words */
-    UCHAR   latency;                /* latency timer */
-    UCHAR   header_type;            /* header type */
-    UCHAR   bist;                   /* built-in self-test */
+    Bit16u  vendor_id;              /* vendor id */
+    Bit16u  device_id;              /* device id */
+    Bit16u  command;                /* bus number */
+    Bit16u  status;                 /* device number on bus */
+    Bit8u   revision;               /* revision id */
+    Bit8u   class_api;              /* specific register interface type */
+    Bit8u   class_sub;              /* specific device function */
+    Bit8u   class_base;             /* device type (display vs network, etc) */
+    Bit8u   line_size;              /* cache line size in 32 bit words */
+    Bit8u   latency;                /* latency timer */
+    Bit8u   header_type;            /* header type */
+    Bit8u   bist;                   /* built-in self-test */
 
     union {
         struct {
 	  /* 0x10 */
-            ULONG   base_registers[6];      /* base registers, viewed from host */
-	    ULONG   cardbus_cis;            /* CardBus CIS pointer */
+            Bit32u  base_registers[6];      /* base registers, viewed from host */
+	    Bit32u  cardbus_cis;            /* CardBus CIS pointer */
 
-            USHORT  subsystem_vendor_id;    /* subsystem (add-in card) vendor id */
-            USHORT  subsystem_id;           /* subsystem (add-in card) id */
+            Bit16u  subsystem_vendor_id;    /* subsystem (add-in card) vendor id */
+            Bit16u  subsystem_id;           /* subsystem (add-in card) id */
 
 	  /* 0x30 */
-	    ULONG   rom_base;               /* rom base address, viewed from host */
-            ULONG   rom_base_pci;           /* rom base addr, viewed from pci */
-            ULONG   rom_size;               /* rom size */
+	    Bit32u   rom_base;               /* rom base address, viewed from host */
+            Bit32u   rom_base_pci;           /* rom base addr, viewed from pci */
+            Bit32u   rom_size;               /* rom size */
 
 	  /* 0x3c */
-            UCHAR   interrupt_line;         /* interrupt line */
-            UCHAR   interrupt_pin;          /* interrupt pin */
+            Bit8u   interrupt_line;         /* interrupt line */
+            Bit8u   interrupt_pin;          /* interrupt pin */
 
 	  /* 0x3e */
-	    UCHAR   min_grant;              /* burst period @ 33 Mhz */
-            UCHAR   max_latency;            /* how often PCI access needed */
+	    Bit8u   min_grant;              /* burst period @ 33 Mhz */
+            Bit8u   max_latency;            /* how often PCI access needed */
         } h0;
 
         struct {
 	  /* 0x10 */
-            ULONG   base_registers[2];      /* base registers, viewed from host */
+            Bit32u  base_registers[2];      /* base registers, viewed from host */
 
-            ULONG   base_registers_pci[2];  /* base registers, viewed from pci */
-            ULONG   base_register_sizes[2]; /* size of what base regs point to */
-            UCHAR   base_register_flags[2]; /* flags from base address fields */
+            Bit32u  base_registers_pci[2];  /* base registers, viewed from pci */
+            Bit32u  base_register_sizes[2]; /* size of what base regs point to */
+            Bit8u   base_register_flags[2]; /* flags from base address fields */
 
-            UCHAR   primary_bus;
-            UCHAR   secondary_bus;
-            UCHAR   subordinate_bus;
-            UCHAR   secondary_latency;
-            UCHAR   io_base;
-            UCHAR   io_limit;
-            USHORT  secondary_status;
-            USHORT  memory_base;
-            USHORT  memory_limit;
-            USHORT  prefetchable_memory_base;
-            USHORT  prefetchable_memory_limit;
-            ULONG   prefetchable_memory_base_upper32;
-            ULONG   prefetchable_memory_limit_upper32;
+            Bit8u   primary_bus;
+            Bit8u   secondary_bus;
+            Bit8u   subordinate_bus;
+            Bit8u   secondary_latency;
+            Bit8u   io_base;
+            Bit8u   io_limit;
+            Bit16u  secondary_status;
+            Bit16u  memory_base;
+            Bit16u  memory_limit;
+            Bit16u  prefetchable_memory_base;
+            Bit16u  prefetchable_memory_limit;
+            Bit32u  prefetchable_memory_base_upper32;
+            Bit32u  prefetchable_memory_limit_upper32;
 
 	  /* 0x30 */
-            USHORT  io_base_upper16;
-            USHORT  io_limit_upper16;
-            ULONG   rom_base;               /* rom base address, viewed from host */
-	    ULONG   rom_base_pci;           /* rom base addr, viewed from pci */
+            Bit16u  io_base_upper16;
+            Bit16u  io_limit_upper16;
+            Bit32u  rom_base;               /* rom base address, viewed from host */
+	    Bit32u  rom_base_pci;           /* rom base addr, viewed from pci */
 	    
 	  /* 0x3c */
-	    UCHAR   interrupt_line;         /* interrupt line */
-            UCHAR   interrupt_pin;          /* interrupt pin */
-            USHORT  bridge_control;     
+	    Bit8u   interrupt_line;         /* interrupt line */
+            Bit8u   interrupt_pin;          /* interrupt pin */
+            Bit16u  bridge_control;     
         } h1; 
     } u;
 } pci_info;
@@ -165,40 +166,40 @@ typedef struct pci_info {
 /* #### GLOBALS #### */
 /* ################# */
 
-static UCHAR pci_conf_type = PCI_CONF_TYPE_NONE;
+static Bit8u pci_conf_type = PCI_CONF_TYPE_NONE;
 
 /* ########################## */
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static VOID  PCIListController(VOID);
+static void  PCIListController(void);
 static int   PCIConfRead(unsigned bus, unsigned dev, unsigned fn, unsigned reg, unsigned len, unsigned int *value);
 
 #if 0
-static ULONG PCIGetName(unsigned int v, unsigned int d, unsigned char *out_char, int out_size);
+static Bit32u PCIGetName(unsigned int v, unsigned int d, unsigned char *out_char, int out_size);
 #endif
 
 /* See http://www.cs.ucla.edu/~kohler/class/aos-f04/ref/hardware/vgadoc/PCI.TXT */
-VOID PCIInit(VOID)
+void PCIInit(void)
 {
-  UCHAR tmp1, tmp2;
+  Bit8u tmp1, tmp2;
 
-  WRITE_PORT_UCHAR((PUCHAR) 0xCF8, 0);
-  WRITE_PORT_UCHAR((PUCHAR) 0xCFA, 0);
+  IoWritePortByte(0xCF8, 0);
+  IoWritePortByte(0xCFA, 0);
 
-  tmp1 = READ_PORT_UCHAR((PUCHAR) 0xCF8);
-  tmp2 = READ_PORT_UCHAR((PUCHAR) 0xCFA);
+  tmp1 = IoReadPortByte(0xCF8);
+  tmp2 = IoReadPortByte(0xCFA);
 
   if (tmp1 == 0 && tmp2 == 0) {
     pci_conf_type = PCI_CONF_TYPE_2;
   } else {
-    ULONG tmplong1, tmplong2;
+    Bit32u tmplong1, tmplong2;
 
-    tmplong1 = READ_PORT_ULONG((PULONG) 0xCF8);
-    WRITE_PORT_ULONG((PULONG) 0xCF8, 0x80000000);
+    tmplong1 = IoReadPortDword(0xCF8);
+    IoWritePortDword(0xCF8, 0x80000000);
 
-    tmplong2 = READ_PORT_ULONG((PULONG) 0xCF8);
-    WRITE_PORT_ULONG((PULONG) 0xCF8, tmplong1);
+    tmplong2 = IoReadPortDword(0xCF8);
+    IoWritePortDword(0xCF8, tmplong1);
 
     if (tmplong2 == 0x80000000) {
       pci_conf_type = PCI_CONF_TYPE_1;
@@ -208,7 +209,7 @@ VOID PCIInit(VOID)
   }
 }
 
-static VOID PCIListController(VOID)
+static void PCIListController(void)
 {
   int i, result;
   unsigned int ctrl_bus, ctrl_dev, ctrl_fn, tmp, vendor, device;
@@ -243,33 +244,33 @@ static int PCIConfRead(unsigned bus, unsigned dev, unsigned fn, unsigned reg, un
 
   switch (pci_conf_type) {
   case PCI_CONF_TYPE_1:
-    WRITE_PORT_ULONG((PULONG) 0xCF8, PCI_CONF1_ADDRESS(bus, dev, fn, reg));
+    IoWritePortDword(0xCF8, PCI_CONF1_ADDRESS(bus, dev, fn, reg));
 
     switch(len) {
-    case 1:  *value = READ_PORT_UCHAR ((PUCHAR)  (0xCFC + (reg & 3))); result = 0; break;
-    case 2:  *value = READ_PORT_USHORT((PUSHORT) (0xCFC + (reg & 2))); result = 0; break;
-    case 4:  *value = READ_PORT_ULONG ((PULONG)  0xCFC); result = 0; break;
+    case 1:  *value = IoReadPortByte (0xCFC + (reg & 3)); result = 0; break;
+    case 2:  *value = IoReadPortWord (0xCFC + (reg & 2)); result = 0; break;
+    case 4:  *value = IoReadPortDword(0xCFC); result = 0; break;
     }
     break;
 
   case PCI_CONF_TYPE_2:
-    WRITE_PORT_UCHAR((PUCHAR) 0xCF8, 0xF0 | (fn << 1));
-    WRITE_PORT_UCHAR((PUCHAR) 0xCFA, (unsigned char) bus);
+    IoWritePortByte(0xCF8, 0xF0 | (fn << 1));
+    IoWritePortByte(0xCFA, (unsigned char) bus);
 
     switch(len) {
-    case 1:  *value = READ_PORT_UCHAR ((PUCHAR)  PCI_CONF2_ADDRESS(dev, reg)); result = 0; break;
-    case 2:  *value = READ_PORT_USHORT((PUSHORT) PCI_CONF2_ADDRESS(dev, reg)); result = 0; break;
-    case 4:  *value = READ_PORT_ULONG ((PULONG)  PCI_CONF2_ADDRESS(dev, reg)); result = 0; break;
+    case 1:  *value = IoReadPortByte (PCI_CONF2_ADDRESS(dev, reg)); result = 0; break;
+    case 2:  *value = IoReadPortWord (PCI_CONF2_ADDRESS(dev, reg)); result = 0; break;
+    case 4:  *value = IoReadPortDword(PCI_CONF2_ADDRESS(dev, reg)); result = 0; break;
     }
 
-    WRITE_PORT_UCHAR((PUCHAR) 0xCF8, 0);
+    IoWritePortByte(0xCF8, 0);
     break;
   }
 
   return result;
 }
 
-NTSTATUS PCIDetectDisplay(PULONG pdisplay_address)
+hvm_status PCIDetectDisplay(hvm_address* pdisplay_address)
 {
   int result, i;
   unsigned int ctrl_bus, ctrl_dev, ctrl_fn;
@@ -281,7 +282,7 @@ NTSTATUS PCIDetectDisplay(PULONG pdisplay_address)
 
   unsigned char debug[256];
 
-  DbgPrint("[*] Starting PCI scan\n");
+  WindowsLog("[*] Starting PCI scan\n");
  
   for (ctrl_bus=0; ctrl_bus<255; ctrl_bus++)
     for (ctrl_dev=0; ctrl_dev<31; ctrl_dev++)
@@ -296,7 +297,7 @@ NTSTATUS PCIDetectDisplay(PULONG pdisplay_address)
 	result = PCIConfRead(ctrl_bus, ctrl_dev, ctrl_fn, PCI_HEADER_TYPE, 1, &header_type_tmp);
 	header_type_tmp &= 0x7f;
 
-	DbgPrint("[*] Found device! Vendor: %.4x device: %.4x header: %.2x\n", 
+	WindowsLog("[*] Found device! Vendor: %.4x device: %.4x header: %.2x\n", 
 		 vendor, device, header_type_tmp);
 
 	for (i=0; i<0x40; i++) {
@@ -312,8 +313,8 @@ NTSTATUS PCIDetectDisplay(PULONG pdisplay_address)
 
 	if (header_type_tmp == PCI_HEADER_TYPE_NORMAL) {
 	  int i;
-	  for (i=0; i<sizeof(p_pci_info->u.h0.base_registers)/sizeof(ULONG); i++) {
-	    ULONG pos, flg, j;
+	  for (i=0; i<sizeof(p_pci_info->u.h0.base_registers)/sizeof(Bit32u); i++) {
+	    Bit32u pos, flg, j;
 	    
 	    pos = p_pci_info->u.h0.base_registers[i];
 	    j = PCI_BASE_ADDRESS_0 + 4*i;
@@ -323,7 +324,7 @@ NTSTATUS PCIDetectDisplay(PULONG pdisplay_address)
 	    if (!pos && !flg)
 	      continue;
 	    if (!(flg & PCI_BASE_ADDRESS_SPACE_IO) && (flg & PCI_BASE_ADDRESS_MEM_PREFETCH)) {
-	      DbgPrint("[D] Prefetchable PCI memory at %.8x\n", pos & PCI_BASE_ADDRESS_MEM_MASK);
+	      WindowsLog("[D] Prefetchable PCI memory at %.8x\n", pos & PCI_BASE_ADDRESS_MEM_MASK);
 	      *pdisplay_address = pos & PCI_BASE_ADDRESS_MEM_MASK;
 	      break;
 	    }
@@ -333,30 +334,30 @@ NTSTATUS PCIDetectDisplay(PULONG pdisplay_address)
 	  *pdisplay_address &= ~PCI_BASE_ADDRESS_SPACE_IO;
 	  *pdisplay_address &= PCI_BASE_ADDRESS_MEM_MASK;
 	} else {
-	  DbgPrint("[W] Unexpected PCI header\n");
+	  WindowsLog("[W] Unexpected PCI header\n");
 	  continue;
 	}
 
 #if 0
 	PCIGetName(vendor, device, debug, sizeof(debug));
-	DbgPrint("[*] Good device '%s'\n", debug);
+	WindowsLog("[*] Good device '%s'\n", debug);
 #endif
 
-	return STATUS_SUCCESS;
+	return HVM_STATUS_SUCCESS;
       }
 
-  DbgPrint("[E] PCI scan: failed\n");
+  WindowsLog("[E] PCI scan: failed\n");
 
-  return STATUS_UNSUCCESSFUL;
+  return HVM_STATUS_UNSUCCESSFUL;
 }
 
 #if 0
-static ULONG PCIGetName(unsigned int v, unsigned int d, unsigned char *out_char, int out_size)
+static Bit32u PCIGetName(unsigned int v, unsigned int d, unsigned char *out_char, int out_size)
 {
   unsigned int i, ii;
   pci_desc* vendor;
   pci_desc* device;
-  ULONG precision = 0;
+  Bit32u precision = 0;
 
   for(i=0; i<sizeof(tab_vendor)/sizeof(pci_desc); i++) {
       vendor=&tab_vendor[i];

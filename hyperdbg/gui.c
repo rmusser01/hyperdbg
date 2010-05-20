@@ -21,6 +21,7 @@
   
 */
 
+#include "hyperdbg.h"
 #include "vmm.h"
 #include "vmmstring.h"
 #include "video.h"
@@ -38,20 +39,20 @@
 /* #### GLOBALS #### */
 /* ################# */
 
-UCHAR  out_matrix[OUT_SIZE_Y][OUT_SIZE_X];
-UCHAR  out_matrix_cache[OUT_SIZE_Y][OUT_SIZE_X];
+Bit8u out_matrix[OUT_SIZE_Y][OUT_SIZE_X];
+Bit8u out_matrix_cache[OUT_SIZE_Y][OUT_SIZE_X];
 
 /* ########################## */
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static VOID VideoShowDisassembled(VOID);
+static void VideoShowDisassembled(void);
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
-VOID VideoUpdateShell(PUCHAR buffer)
+void VideoUpdateShell(Bit8u* buffer)
 {
   int i;
 
@@ -64,7 +65,7 @@ VOID VideoUpdateShell(PUCHAR buffer)
 }
 
 /* FIXME: after we decide new size of the shell we have to reset all sizes */
-VOID VideoInitShell(VOID)
+void VideoInitShell(void)
 {
   int i;
   char tmp[SHELL_SIZE_X];
@@ -74,61 +75,61 @@ VOID VideoInitShell(VOID)
   VideoDrawFrame();
 
   /* 1st row */
-  VideoWriteString("EAX=", 4, LIGHT_BLUE, 2, 1);
-  vmm_snprintf(tmp, 9, "%08hx", vmcs.GuestState.EAX);
+  VideoWriteString("RAX=", 4, LIGHT_BLUE, 2, 1);
+  vmm_snprintf(tmp, 9, "%08hx", context.GuestContext.RAX);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 6, 1);
 
-  VideoWriteString("EBX=", 4, LIGHT_BLUE, 15, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   vmcs.GuestState.EBX);
+  VideoWriteString("RBX=", 4, LIGHT_BLUE, 15, 1);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RBX);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 19, 1);
 
-  VideoWriteString("ECX=", 4, LIGHT_BLUE, 28, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   vmcs.GuestState.ECX);
+  VideoWriteString("RCX=", 4, LIGHT_BLUE, 28, 1);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RCX);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 32, 1);
 	
-  VideoWriteString("EDX=", 4, LIGHT_BLUE, 41, 1);
-  vmm_snprintf(tmp, 9, "%08hx", vmcs.GuestState.EDX);
+  VideoWriteString("RDX=", 4, LIGHT_BLUE, 41, 1);
+  vmm_snprintf(tmp, 9, "%08hx", context.GuestContext.RDX);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 45, 1);
 
-  VideoWriteString("ESP=", 4, LIGHT_BLUE, 54, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   vmcs.GuestState.ESP);
+  VideoWriteString("RSP=", 4, LIGHT_BLUE, 54, 1);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RSP);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 58, 1);
 
-  VideoWriteString("EBP=", 4, LIGHT_BLUE, 67, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   vmcs.GuestState.EBP);
+  VideoWriteString("RBP=", 4, LIGHT_BLUE, 67, 1);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RBP);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 71, 1);
 
-  VideoWriteString("EIP=", 4, LIGHT_BLUE, 80, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   vmcs.GuestState.EIP);
+  VideoWriteString("RIP=", 4, LIGHT_BLUE, 80, 1);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RIP);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 84, 1);
 
   /* 2nd row */
-  VideoWriteString("ESI=", 4, LIGHT_BLUE, 2, 2);
-  vmm_snprintf(tmp, 9, "%08hx",  vmcs.GuestState.ESI);
+  VideoWriteString("RSI=", 4, LIGHT_BLUE, 2, 2);
+  vmm_snprintf(tmp, 9, "%08hx",  context.GuestContext.RSI);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 6, 2);
 
-  VideoWriteString("EDI=", 4, LIGHT_BLUE, 15, 2);
-  vmm_snprintf(tmp, 9, "%08hx",   vmcs.GuestState.EDI);
+  VideoWriteString("RDI=", 4, LIGHT_BLUE, 15, 2);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RDI);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 19, 2);
 
   VideoWriteString("CR0=", 4, LIGHT_BLUE, 28, 2);
-  vmm_snprintf(tmp, 9, "%08hx",   vmcs.GuestState.CR0);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.CR0);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 32, 2);
 
   VideoWriteString("CR3=", 4, LIGHT_BLUE, 41, 2);
-  vmm_snprintf(tmp, 9, "%08hx",  vmcs.GuestState.CR3);
+  vmm_snprintf(tmp, 9, "%08hx",  context.GuestContext.CR3);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 45, 2);
 
   VideoWriteString("CR4=", 4, LIGHT_BLUE, 54, 2);
-  vmm_snprintf(tmp, 9, "%08hx",   vmcs.GuestState.CR4);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.CR4);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 58, 2);
 
   VideoWriteString("CS=", 3, LIGHT_BLUE, 67, 2);
-  vmm_snprintf(tmp, 5, "%04hx",   vmcs.GuestState.CS);
+  vmm_snprintf(tmp, 5, "%04hx",   context.GuestContext.CS);
   VideoWriteString(tmp, 4, LIGHT_GREEN, 70, 2);
 	
-  VideoWriteString("EFLAGS=", 7, LIGHT_BLUE, 80, 2);
-  vmm_snprintf(tmp, 9, "%08hx",   vmcs.GuestState.EFLAGS);
+  VideoWriteString("RFLAGS=", 7, LIGHT_BLUE, 80, 2);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RFLAGS);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 87, 2);
 
   /* Draw delimiter lines */
@@ -142,12 +143,12 @@ VOID VideoInitShell(VOID)
   VideoResetOutMatrixCache();
 }
 
-VOID VideoDrawFrame(VOID)
+void VideoDrawFrame(void)
 {
-  ULONG32 i;     /*0123456789012345678*/
-  UCHAR *footer = "-[ Made in Italy ]-";
-  /* UCHAR *footer =   "-------------------"; */
-  ULONG32 color;
+  Bit32u i;     /*0123456789012345678*/
+  Bit8u *footer = "-[ Made in Italy ]-";
+  /* Bit8u *footer =   "-------------------"; */
+  Bit32u color;
   VideoPrintHeader();
 
   for(i = 1; i < SHELL_SIZE_Y-1; i++) {
@@ -182,7 +183,7 @@ VOID VideoDrawFrame(VOID)
 }
 
 
-VOID VideoResetOutMatrixCache(VOID)
+void VideoResetOutMatrixCache(void)
 {
   int i, j; 
   for(i = 0; i < OUT_SIZE_Y; i++)
@@ -191,7 +192,7 @@ VOID VideoResetOutMatrixCache(VOID)
   /* memset(&out_matrix_cache[i], 0x20, OUT_SIZE_X*OUT_SIZE_Y); */
 }
 
-VOID VideoResetOutMatrix(VOID)
+void VideoResetOutMatrix(void)
 {
   int i, j;
   for(i = 0; i < OUT_SIZE_Y; i++)
@@ -201,7 +202,7 @@ VOID VideoResetOutMatrix(VOID)
 }
 
 /* Redraw the whole out area */
-VOID VideoRefreshOutArea(unsigned int color)
+void VideoRefreshOutArea(unsigned int color)
 {
   int i, j;
   for(i = 0; i < OUT_SIZE_Y; i++) {
@@ -215,7 +216,7 @@ VOID VideoRefreshOutArea(unsigned int color)
   }
 }
 
-VOID VideoPrintHeader(VOID)
+void VideoPrintHeader(void)
 {
   int i, numberofdash;
   char *name;
@@ -235,20 +236,20 @@ VOID VideoPrintHeader(VOID)
 
 #if GUEST_WINDOWS
   {
-    ULONG pep, pid;
-    NTSTATUS r;
+    hvm_address pep, pid;
+    hvm_status r;
     char str_tmp[64];
     char proc_name[16];
-    r = WindowsFindProcess(vmcs.GuestState.CR3, &pep);
-    if (r != STATUS_SUCCESS) goto error;
+    r = WindowsFindProcess(context.GuestContext.CR3, &pep);
+    if (r != HVM_STATUS_SUCCESS) goto error;
 
-    r = MmuReadVirtualRegion(vmcs.GuestState.CR3, pep + OFFSET_EPROCESS_UNIQUEPID, &pid, sizeof(pid));
-    if (r != STATUS_SUCCESS) goto error;
+    r = MmuReadVirtualRegion(context.GuestContext.CR3, pep + OFFSET_EPROCESS_UNIQUEPID, &pid, sizeof(pid));
+    if (r != HVM_STATUS_SUCCESS) goto error;
 
     vmm_memset(str_tmp, 0, sizeof(str_tmp));
 
-    r = MmuReadVirtualRegion(vmcs.GuestState.CR3, pep + OFFSET_EPROCESS_IMAGEFILENAME, proc_name, 16);
-    if (r != STATUS_SUCCESS) goto error;
+    r = MmuReadVirtualRegion(context.GuestContext.CR3, pep + OFFSET_EPROCESS_IMAGEFILENAME, proc_name, 16);
+    if (r != HVM_STATUS_SUCCESS) goto error;
     vmm_snprintf(str_tmp, sizeof(str_tmp), "=[pid: %.8x; proc: %s]=", pid, proc_name);
     VideoWriteString(str_tmp, vmm_strlen(str_tmp), LIGHT_GREEN, 2, 0);
   error:
@@ -259,12 +260,13 @@ VOID VideoPrintHeader(VOID)
 
 /* FIXME: after we decide the new size of the, shell we have to reset all the
    sizes */
-VOID VideoShowDisassembled()
+void VideoShowDisassembled()
 {
-  ULONG addr, tmpaddr, y, x, operand, i;
+  hvm_address addr, tmpaddr;
+  Bit32u y, x, operand, i;
   ud_t ud_obj;
-  UCHAR str_addr[10], instr[SHELL_SIZE_X-15], disasbuf[96];
-  PUCHAR disasinst;
+  Bit8u str_addr[10], instr[SHELL_SIZE_X-15], disasbuf[96];
+  Bit8u* disasinst;
   PSYMBOL sym;
   memset(str_addr, 0x20, 10);
   memset(instr, 0x20, SHELL_SIZE_X-15);
@@ -274,11 +276,11 @@ VOID VideoShowDisassembled()
   operand = 0;
   VideoResetOutMatrix();
   
-  if(MmuIsAddressValid(vmcs.GuestState.CR3, vmcs.GuestState.EIP)) {
-    addr = vmcs.GuestState.EIP;
+  if(MmuIsAddressValid(context.GuestContext.CR3, context.GuestContext.RIP)) {
+    addr = context.GuestContext.RIP;
   } else { /* FIXME: rewrite better */
-    ComPrint("[HyperDbg] EIP not valid!\n");
-    VideoWriteString("EIP not valid!", 14, RED, x, y);
+    ComPrint("[HyperDbg] RIP not valid!\n");
+    VideoWriteString("RIP not valid!", 14, RED, x, y);
     return; /* end here */
   }
   tmpaddr = addr;
@@ -288,8 +290,8 @@ VOID VideoShowDisassembled()
   ud_set_mode(&ud_obj, 32);
   ud_set_syntax(&ud_obj, UD_SYN_ATT);
 
-  MmuReadVirtualRegion(vmcs.GuestState.CR3, addr, disasbuf, sizeof(disasbuf)/sizeof(UCHAR));
-  ud_set_input_buffer(&ud_obj, disasbuf, sizeof(disasbuf)/sizeof(UCHAR));
+  MmuReadVirtualRegion(context.GuestContext.CR3, addr, disasbuf, sizeof(disasbuf)/sizeof(Bit8u));
+  ud_set_input_buffer(&ud_obj, disasbuf, sizeof(disasbuf)/sizeof(Bit8u));
 
   while(ud_disassemble(&ud_obj)) {
     sym = 0; /* reset symbol */
@@ -299,13 +301,13 @@ VOID VideoShowDisassembled()
     VideoWriteString(str_addr, 9, LIGHT_BLUE, x, y);
     /* check if the operand is an address */
     /* FIXME: write better ;-) */
-    disasinst = (PUCHAR) ud_insn_asm(&ud_obj);
-    while(disasinst[i] != (UCHAR)'\0' && disasinst[i] != (UCHAR)' ') i++; /* reach the end or the first operand */
+    disasinst = (Bit8u*) ud_insn_asm(&ud_obj);
+    while(disasinst[i] != (Bit8u)'\0' && disasinst[i] != (Bit8u)' ') i++; /* reach the end or the first operand */
     if(disasinst[i] != 0 && (vmm_strlen(disasinst) - (&disasinst[i] - disasinst)) == 11) { /* 11 is the size of 0x12345678 + 1 space (USE >= 11 to parse also inst 0x12345678, XXX */
       /* check if it's likely to be an address */
-      if(disasinst[i+1] == (UCHAR)'0' && disasinst[i+2] == 'x') {
-	if(vmm_strtoul(&disasinst[i+1], &operand)) { /* if it's convertible to a ULONG */
-	  sym = SymbolGetFromAddress((PULONG)operand);
+      if(disasinst[i+1] == (Bit8u)'0' && disasinst[i+2] == 'x') {
+	if(vmm_strtoul(&disasinst[i+1], &operand)) { /* if it's convertible to a hvm_address */
+	  sym = SymbolGetFromAddress((hvm_address)operand);
 	}
       }
     }

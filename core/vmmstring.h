@@ -24,23 +24,27 @@
 #ifndef _STRING_H
 #define _STRING_H
 
-#include <ntddk.h>
+#include "types.h"
+#include <stdarg.h>
 
-UCHAR*  vmm_strncpy(UCHAR *dst, UCHAR *src, ULONG n);
-LONG32  vmm_strncmp(UCHAR *str1, UCHAR *str2, ULONG n);
-LONG32  vmm_strncmpi(UCHAR *str1, UCHAR *str2, ULONG n);
-ULONG32 vmm_strlen(UCHAR *str);
-BOOLEAN vmm_strtoul(char *str, PULONG out);
-VOID    vmm_memset(VOID *s, int c, ULONG n);
-int     vmm_snprintf(char*, size_t, const char*, ...);
-int     vmm_vsnprintf(char*, size_t, const char*, va_list);
-BOOLEAN vmm_islower(char c);
-BOOLEAN vmm_isupper(char c);
-BOOLEAN vmm_isalpha(char c);
-BOOLEAN vmm_isdigit(char c);
-BOOLEAN vmm_isxdigit(char c);
-BOOLEAN vmm_isascii(char c);
-UCHAR   vmm_tolower(UCHAR c);
-UCHAR   vmm_toupper(UCHAR c);
+unsigned char* vmm_strncpy(unsigned char *dst, unsigned char *src, Bit32u n);
+Bit32s         vmm_strncmp(unsigned char *str1, unsigned char *str2, Bit32u n);
+Bit32s         vmm_strncmpi(unsigned char *str1, unsigned char *str2, Bit32u n);
+Bit32u         vmm_strlen(unsigned char *str);
+hvm_bool       vmm_strtoul(char *str, Bit32u *out);
+void           vmm_memset(void *s, int c, Bit32u n);
+
+int            vmm_snprintf(char*, size_t, const char*, ...);
+int            vmm_vsnprintf(char*, size_t, const char*, va_list);
+
+unsigned char  vmm_tolower(unsigned char c);
+unsigned char  vmm_toupper(unsigned char c);
+
+hvm_bool       vmm_islower(char c);
+hvm_bool       vmm_isupper(char c);
+hvm_bool       vmm_isalpha(char c);
+hvm_bool       vmm_isdigit(char c);
+hvm_bool       vmm_isxdigit(char c);
+hvm_bool       vmm_isascii(char c);
 
 #endif /* _STRING_H */

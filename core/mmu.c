@@ -21,7 +21,7 @@
   
 */
 
-#include <ntddk.h>
+#include "types.h"
 #include "debug.h"
 #include "mmu.h"
 #include "x86.h"
@@ -43,23 +43,23 @@
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static NTSTATUS MmuFindUnusedPTE(PULONG pdwLogical);
-static NTSTATUS MmuFindUnusedPDE(PULONG pdwLogical);
-static VOID     MmuInvalidateTLB(ULONG addr);
-static NTSTATUS MmuGetPageEntry(ULONG cr3, ULONG va, PPTE ppte, PBOOLEAN pisLargePage);
-static BOOLEAN  MmuGetCr0WP(VOID);
-static VOID     MmuPrintPDEntry(PPTE pde);
-static VOID     MmuPrintPTEntry(PPTE pte);
+static hvm_status MmuFindUnusedPTE(hvm_address* pdwLogical);
+static hvm_status MmuFindUnusedPDE(hvm_address* pdwLogical);
+static void       MmuInvalidateTLB(hvm_address addr);
+static hvm_status MmuGetPageEntry(hvm_address cr3, hvm_address va, PPTE ppte, hvm_bool* pisLargePage);
+static hvm_bool   MmuGetCr0WP(void);
+static void       MmuPrintPDEntry(PPTE pde);
+static void       MmuPrintPTEntry(PPTE pte);
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
-BOOLEAN MmuIsAddressWritable(ULONG cr3, ULONG va)
+hvm_bool MmuIsAddressWritable(hvm_address cr3, hvm_address va)
 {
-  NTSTATUS r;
+  hvm_status r;
   PTE p;
-  BOOLEAN isLarge;
+  hvm_bool isLarge;
 
   if (!MmuIsAddressValid(CR3_TO_PDBASE(cr3), va)) {
     return FALSE;
@@ -72,57 +72,57 @@ BOOLEAN MmuIsAddressWritable(ULONG cr3, ULONG va)
   }
 
   r = MmuGetPageEntry(CR3_TO_PDBASE(cr3), va, &p, &isLarge);
-  if (r != STATUS_SUCCESS) {
+  if (r != HVM_STATUS_SUCCESS) {
     return FALSE;
   }
 
   return (p.Writable != 0);
 }
 
-BOOLEAN  MmuIsAddressValid(ULONG cr3, ULONG va)
+hvm_bool MmuIsAddressValid(hvm_address cr3, hvm_address va)
 {
-  NTSTATUS r;
-  BOOLEAN isLarge;
+  hvm_status r;
+  hvm_bool isLarge;
 
   r = MmuGetPageEntry(CR3_TO_PDBASE(cr3), va, NULL, &isLarge);
 
-  return (r == STATUS_SUCCESS);
+  return (r == HVM_STATUS_SUCCESS);
 }
 
-NTSTATUS MmuGetPhysicalAddress(ULONG cr3, ULONG va, PULONG pphy)
+hvm_status MmuGetPhysicalAddress(hvm_address cr3, hvm_address va, hvm_address* pphy)
 {
-  NTSTATUS r;
+  hvm_status r;
   PTE pte;
-  BOOLEAN isLarge;
+  hvm_bool isLarge;
 
   r = MmuGetPageEntry(CR3_TO_PDBASE(cr3), va, &pte, &isLarge);
-  if (r != STATUS_SUCCESS) {
-    return STATUS_UNSUCCESSFUL;
+  if (r != HVM_STATUS_SUCCESS) {
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   if (isLarge) {
     *pphy = LARGEFRAME_TO_PHY(pte.PageBaseAddr>>10) + LARGEPAGE_OFFSET(va);
     MmuPrint("[MMU] MmuGetPhysicalAddress(LARGE) cr3: %.8x frame: %.8x va: %.8x phy: %.8x\n", 
 	     CR3_TO_PDBASE(cr3), pte.PageBaseAddr, va, *pphy);
-    return STATUS_SUCCESS;
+    return HVM_STATUS_SUCCESS;
   }
 
   *pphy = FRAME_TO_PHY(pte.PageBaseAddr) + PAGE_OFFSET(va);
   
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-NTSTATUS MmuMapPhysicalPage(ULONG phy, PULONG pva, PPTE pentryOriginal)
+hvm_status MmuMapPhysicalPage(hvm_address phy, hvm_address* pva, PPTE pentryOriginal)
 {
-  NTSTATUS r;
-  ULONG dwEntryAddress, dwLogicalAddress;
+  hvm_status r;
+  hvm_address dwEntryAddress, dwLogicalAddress;
   PTE *pentry;
 
   /* Get unused PTE address in the current process */
   MmuPrint("[MMU] MmuMapPhysicalPage() Searching for unused PTE...\n");
   r = MmuFindUnusedPTE(&dwLogicalAddress);
   MmuPrint("[MMU] MmuMapPhysicalPage() Unused PTE found at %.8x\n", dwLogicalAddress);
-  if (r != STATUS_SUCCESS) return STATUS_UNSUCCESSFUL;
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
 
   dwEntryAddress = VIRTUAL_PT_BASE + (VA_TO_PTE(dwLogicalAddress) * sizeof(PTE));
   pentry = (PPTE) dwEntryAddress;
@@ -148,10 +148,10 @@ NTSTATUS MmuMapPhysicalPage(ULONG phy, PULONG pva, PPTE pentryOriginal)
 
   *pva = dwLogicalAddress;
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-NTSTATUS MmuUnmapPhysicalPage(ULONG va, PTE entryOriginal)
+hvm_status MmuUnmapPhysicalPage(hvm_address va, PTE entryOriginal)
 {
   PPTE pentry;
 
@@ -161,23 +161,23 @@ NTSTATUS MmuUnmapPhysicalPage(ULONG va, PTE entryOriginal)
 
   MmuInvalidateTLB(va);
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-NTSTATUS MmuReadWritePhysicalRegion(ULONG phy, PVOID buffer, ULONG size, BOOLEAN isWrite)
+hvm_status MmuReadWritePhysicalRegion(hvm_address phy, void* buffer, Bit32u size, hvm_bool isWrite)
 {
-  NTSTATUS r;
-  ULONG dwLogicalAddress;
+  hvm_status r;
+  hvm_address dwLogicalAddress;
   PTE entryOriginal;
 
   /* Check that the memory region to read does not cross multiple frames */
   if (PHY_TO_FRAME(phy) != PHY_TO_FRAME(phy+size-1)) {
     MmuPrint("[MMU] Error: physical region %.8x-%.8x crosses multiple frames\n", phy, phy+size-1);
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   r = MmuMapPhysicalPage(phy, &dwLogicalAddress, &entryOriginal);
-  if (r != STATUS_SUCCESS) return STATUS_UNSUCCESSFUL;
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
 
   dwLogicalAddress += PAGE_OFFSET(phy);
 
@@ -185,23 +185,25 @@ NTSTATUS MmuReadWritePhysicalRegion(ULONG phy, PVOID buffer, ULONG size, BOOLEAN
     /* Read memory page */
     MmuPrint("[MMU] MmuReadWritePhysicalRegion() Going to read %d from va: %.8x\n", size, dwLogicalAddress);
 
-    memcpy(buffer, (PUCHAR) dwLogicalAddress, size);
+    memcpy(buffer, (Bit8u*) dwLogicalAddress, size);
   } else {
     /* Write to memory page */
-    memcpy((PUCHAR) dwLogicalAddress, buffer, size);
+    memcpy((Bit8u*) dwLogicalAddress, buffer, size);
   }
 
   MmuPrint("[MMU] MmuReadWritePhysicalRegion() All done!\n");
 
   MmuUnmapPhysicalPage(dwLogicalAddress, entryOriginal);
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-NTSTATUS MmuReadWriteVirtualRegion(ULONG cr3, ULONG va, PVOID buffer, ULONG size, BOOLEAN isWrite)
+hvm_status MmuReadWriteVirtualRegion(hvm_address cr3, hvm_address va, void* buffer, 
+				     Bit32u size, hvm_bool isWrite)
 {
-  NTSTATUS r;
-  ULONG phy, i, n;
+  hvm_status r;
+  hvm_address phy;
+  Bit32u i, n;
 
   i = 0;
   MmuPrint("[MMU] MmuReadWriteVirtualRegion() cr3: %.8x va: %.8x size: %.8x isWrite? %d\n",
@@ -210,23 +212,23 @@ NTSTATUS MmuReadWriteVirtualRegion(ULONG cr3, ULONG va, PVOID buffer, ULONG size
   while (va+i < va+size) {
     n = MIN(size-i, PAGE_SIZE-PAGE_OFFSET(va+i));
     r = MmuGetPhysicalAddress(CR3_TO_PDBASE(cr3), va+i, &phy);
-    if (r != STATUS_SUCCESS)
-      return STATUS_UNSUCCESSFUL;
+    if (r != HVM_STATUS_SUCCESS)
+      return HVM_STATUS_UNSUCCESSFUL;
 
     MmuPrint("[MMU] MmuReadWriteVirtualRegion() Reading phy %.8x (write? %d)\n",
 	     phy, isWrite);
-    r = MmuReadWritePhysicalRegion(phy, (PVOID) ((ULONG)buffer+i), n, isWrite);    
-    MmuPrint("[MMU] MmuReadWriteVirtualRegion() Read! Success? %d\n", (r == STATUS_SUCCESS));
+    r = MmuReadWritePhysicalRegion(phy, (void*) ((hvm_address)buffer+i), n, isWrite);    
+    MmuPrint("[MMU] MmuReadWriteVirtualRegion() Read! Success? %d\n", (r == HVM_STATUS_SUCCESS));
 
-    if (r != STATUS_SUCCESS)
-      return STATUS_UNSUCCESSFUL;
+    if (r != HVM_STATUS_SUCCESS)
+      return HVM_STATUS_UNSUCCESSFUL;
 
     i += n;
   }
 
   MmuPrint("[MMU] MmuReadWriteVirtualRegion() done!\n");
 
-  return STATUS_SUCCESS;;
+  return HVM_STATUS_SUCCESS;;
 }
 
 /* 
@@ -234,10 +236,11 @@ NTSTATUS MmuReadWriteVirtualRegion(ULONG cr3, ULONG va, PVOID buffer, ULONG size
    that maps the specified address in the specified process.
    Note: 'ppte' is OPTIONAL (i.e., it can be NULL).
  */
-static NTSTATUS MmuGetPageEntry(ULONG cr3, ULONG va, PPTE ppte, PBOOLEAN pisLargePage)
+static hvm_status MmuGetPageEntry(hvm_address cr3, hvm_address va, PPTE ppte, 
+				  hvm_bool* pisLargePage)
 {
-  NTSTATUS r;
-  ULONG addr;
+  hvm_status r;
+  hvm_address addr;
   PTE p;
 
   MmuPrint("[MMU] MmuGetPageEntry() cr3: %.8x va: %.8x\n", CR3_TO_PDBASE(cr3), va);
@@ -246,9 +249,9 @@ static NTSTATUS MmuGetPageEntry(ULONG cr3, ULONG va, PPTE ppte, PBOOLEAN pisLarg
   addr = CR3_TO_PDBASE(cr3) + (VA_TO_PDE(va)*sizeof(PTE));
   MmuPrint("[MMU] MmuGetPageEntry() Reading phy %.8x (NOT large)\n", addr);
   r = MmuReadPhysicalRegion(addr, &p, sizeof(PTE));
-  if (r != STATUS_SUCCESS) {
+  if (r != HVM_STATUS_SUCCESS) {
     MmuPrint("[MMU] MmuGetPageEntry() cannot read PDE from %.8x\n", addr);
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   MmuPrint("[MMU] MmuGetPageEntry() PDE read. Present? %d Large? %d\n", p.Present, p.LargePage);
@@ -256,21 +259,21 @@ static NTSTATUS MmuGetPageEntry(ULONG cr3, ULONG va, PPTE ppte, PBOOLEAN pisLarg
 /*   MmuPrintPDEntry(&p); */
 
   if (!p.Present)
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
 
   /* If it's present and it's a 4MB page, then this is a hit */
   if(p.LargePage) {
     if (ppte) *ppte = p;
     *pisLargePage = TRUE;
-    return STATUS_SUCCESS;
+    return HVM_STATUS_SUCCESS;
   }
 
   /* Read PTE */
   addr = FRAME_TO_PHY(p.PageBaseAddr) + (VA_TO_PTE(va)*sizeof(PTE));
   r = MmuReadPhysicalRegion(addr, &p, sizeof(PTE));
-  if (r != STATUS_SUCCESS) {
+  if (r != HVM_STATUS_SUCCESS) {
     MmuPrint("[MMU] MmuGetPageEntry() cannot read PTE from %.8x\n", addr);
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
   MmuPrint("[MMU] MmuGetPageEntry() PTE read. Present? %d\n", p.Present);
@@ -278,15 +281,15 @@ static NTSTATUS MmuGetPageEntry(ULONG cr3, ULONG va, PPTE ppte, PBOOLEAN pisLarg
 /*   MmuPrintPTEntry(&p); */
 
   if (!p.Present)
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
 
   if (ppte) *ppte = p;
   *pisLargePage = FALSE;
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-static VOID MmuInvalidateTLB(ULONG addr)
+static void MmuInvalidateTLB(hvm_address addr)
 {
   __asm { 
     MOV EAX, CR3;
@@ -294,21 +297,22 @@ static VOID MmuInvalidateTLB(ULONG addr)
   };
 }
 
-static NTSTATUS MmuFindUnusedPTE(PULONG pdwLogical)
+static hvm_status MmuFindUnusedPTE(hvm_address* pdwLogical)
 {
-  ULONG dwCurrentAddress, dwPTEAddr, dwPDEAddr, dwPDE, dwPTE;
+  hvm_address dwCurrentAddress, dwPTEAddr, dwPDEAddr;
+  Bit32u dwPDE, dwPTE;
 
   for (dwCurrentAddress=PAGE_SIZE; dwCurrentAddress < 0x80000000; dwCurrentAddress += PAGE_SIZE) {
     /* Check if memory page at logical address 'dwCurrentAddress' is free */
     dwPDEAddr = VIRTUAL_PD_BASE + (VA_TO_PDE(dwCurrentAddress) * sizeof(PTE));
 
-    dwPDE = *(PULONG) dwPDEAddr;
+    dwPDE = *(Bit32u*) dwPDEAddr;
     if (!PDE_TO_VALID(dwPDE))
       continue;
 
     dwPTEAddr = VIRTUAL_PT_BASE + (VA_TO_PTE(dwCurrentAddress) * sizeof(PTE));
 
-    dwPTE = *(PULONG) dwPTEAddr;
+    dwPTE = *(Bit32u*) dwPTEAddr;
     if (PDE_TO_VALID(dwPTE)) {
       /* Skip *valid* PTEs */
       continue;
@@ -316,21 +320,22 @@ static NTSTATUS MmuFindUnusedPTE(PULONG pdwLogical)
 
     /* All done!*/
     *pdwLogical = dwCurrentAddress;
-    return STATUS_SUCCESS;
+    return HVM_STATUS_SUCCESS;
   }
 
-  return STATUS_UNSUCCESSFUL;
+  return HVM_STATUS_UNSUCCESSFUL;
 }
 
-static NTSTATUS MmuFindUnusedPDE(PULONG pdwLogical)
+static hvm_status MmuFindUnusedPDE(hvm_address* pdwLogical)
 {
-  ULONG dwCurrentAddress, dwPDEAddr, dwPDE;
+  hvm_address dwCurrentAddress, dwPDEAddr;
+  Bit32u dwPDE;
 
   for (dwCurrentAddress=PAGE_SIZE; dwCurrentAddress < 0x80000000; dwCurrentAddress += PAGE_SIZE) {
     /* Check if memory page at logical address 'dwCurrentAddress' is free */
     dwPDEAddr = VIRTUAL_PD_BASE + (VA_TO_PDE(dwCurrentAddress) * sizeof(PTE));
 
-    dwPDE = *(PULONG) dwPDEAddr;
+    dwPDE = *(Bit32u*) dwPDEAddr;
     if (PDE_TO_VALID(dwPDE)) {
       /* Skip *valid* PDEs */
       continue;
@@ -338,22 +343,22 @@ static NTSTATUS MmuFindUnusedPDE(PULONG pdwLogical)
 
     /* All done!*/
     *pdwLogical = dwCurrentAddress;
-    return STATUS_SUCCESS;
+    return HVM_STATUS_SUCCESS;
   }
 
-  return STATUS_UNSUCCESSFUL;
+  return HVM_STATUS_UNSUCCESSFUL;
 }
 
-static BOOLEAN MmuGetCr0WP(VOID)
+static hvm_bool MmuGetCr0WP(void)
 {
-  BOOLEAN WPFlag;
+  hvm_bool WPFlag;
 
   WPFlag = ((RegGetCr0() >> 16) & 0x1) != 0;
 
   return WPFlag;
 }
 
-static VOID MmuPrintPDEntry(PPTE pde)
+static void MmuPrintPDEntry(PPTE pde)
 {
   ComPrint("======= PDE @ 0x%.8x =======\n", pde);
   ComPrint("Present [0x%.8x]\n", pde->Present);
@@ -368,7 +373,7 @@ static VOID MmuPrintPDEntry(PPTE pde)
   ComPrint("PTAddress [0x%.8x]\n", pde->PageBaseAddr);
 }
 
-static VOID MmuPrintPTEntry(PPTE pte)
+static void MmuPrintPTEntry(PPTE pte)
 {
   ComPrint("======= PTE @ 0x%.8x ======\n", pte);
   ComPrint("Present [0x%.8x]\n", pte->Present);

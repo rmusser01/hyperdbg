@@ -24,9 +24,9 @@
 #ifndef _PCI_H
 #define _PCI_H
 
-#include <ntddk.h>
+#include "hyperdbg.h"
 
-VOID     PCIInit(VOID);
-NTSTATUS PCIDetectDisplay(PULONG pdisplay_address);
+void       PCIInit(void);
+hvm_status PCIDetectDisplay(hvm_address* pdisplay_address);
 
 #endif	/* _PCI_H */

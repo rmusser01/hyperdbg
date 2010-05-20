@@ -21,11 +21,12 @@
   
 */
 
+#include "types.h"
 #include "x86.h"
 #include "msr.h"
 #include "vmx.h"
 
-ULONG32 VmxAdjustControls(ULONG32 c, ULONG32 n)
+Bit32u VmxAdjustControls(Bit32u c, Bit32u n)
 {
   MSR msr;
 

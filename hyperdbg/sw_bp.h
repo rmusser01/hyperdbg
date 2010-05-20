@@ -24,12 +24,12 @@
 #ifndef _SW_BP_H
 #define _SW_BP_H
 
-#include <ntddk.h>
+#include "hyperdbg.h"
 
 #define MAXSWBPS 100
 
-ULONG32 SwBreakpointSet(ULONG cr3, PULONG address);
-BOOLEAN SwBreakpointDelete(ULONG cr3, PULONG address);
-BOOLEAN SwBreakpointDeleteById(ULONG cr3, ULONG32 id); 
+hvm_address SwBreakpointSet(hvm_address cr3, hvm_address address);
+hvm_bool    SwBreakpointDelete(hvm_address cr3, hvm_address address);
+hvm_bool    SwBreakpointDeleteById(hvm_address cr3, Bit32u id); 
 
 #endif

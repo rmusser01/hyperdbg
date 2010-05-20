@@ -24,19 +24,19 @@
 #ifndef _PILL_COMIO_H
 #define _PILL_COMIO_H
 
-#include <ntddk.h>
-
 #define COM_PORT_IRQ                    0x004
 #define COM_PORT_ADDRESS                0x3f8
 
+#include "types.h"
+
 /* COM level communication */
-VOID  NTAPI ComInit(VOID);
-VOID  NTAPI ComPrint(PUCHAR fmt, ...);
-UCHAR NTAPI ComIsInitialized();
+void  __stdcall ComInit(void);
+void  __stdcall ComPrint(Bit8u* fmt, ...);
+Bit8u __stdcall ComIsInitialized();
 
 /* Hardware port level communication */
-VOID  NTAPI PortInit(VOID);
-VOID  NTAPI PortSendByte(UCHAR b);
-UCHAR NTAPI PortRecvByte(VOID);
+void  __stdcall PortInit(void);
+void  __stdcall PortSendByte(Bit8u b);
+Bit8u __stdcall PortRecvByte(void);
 
 #endif	/* _PILL_COMIO_H */

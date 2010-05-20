@@ -27,6 +27,7 @@
 #include "debug.h"
 #include "common.h"
 #include "vmmstring.h"
+#include "x86.h"
 #include <stdarg.h>
 
 #define TRANSMIT_HOLDING_REGISTER	   0x00
@@ -55,18 +56,18 @@
 #define IER_RESERVED1                   (1 << 6)
 #define IER_RESERVED2                   (1 << 7)
 
-static PUCHAR  DebugComPort = 0;
-static ULONG32 ComSpinLock;	/* Spin lock that guards accesses to the COM port */
+static Bit16u  DebugComPort = 0;
+static Bit32u  ComSpinLock;	/* Spin lock that guards accesses to the COM port */
 
-VOID NTAPI ComInit()
+void __stdcall ComInit()
 {
   CmInitSpinLock(&ComSpinLock);
 }
 
-VOID NTAPI ComPrint(PUCHAR fmt, ...)
+void __stdcall ComPrint(Bit8u* fmt, ...)
 {
   va_list args;
-  UCHAR str[1024] = {0};
+  Bit8u str[1024] = {0};
   unsigned int i;
 
   va_start (args, fmt);
@@ -80,30 +81,30 @@ VOID NTAPI ComPrint(PUCHAR fmt, ...)
   CmReleaseSpinLock(&ComSpinLock);
 }
 
-UCHAR NTAPI ComIsInitialized()
+Bit8u __stdcall ComIsInitialized()
 {
   /* Ok, we should also check if ComInit() has been invoked.. but we assume it
      has */
   return (DebugComPort != 0);
 }
 
-VOID NTAPI PortInit()
+void __stdcall PortInit()
 {
-  DebugComPort = (PUCHAR) COM_PORT_ADDRESS;
+  DebugComPort = COM_PORT_ADDRESS;
 }
 
-VOID NTAPI PortSendByte(UCHAR b)
+void __stdcall PortSendByte(Bit8u b)
 {
   /* Empty input buffer */
-  while (!(READ_PORT_UCHAR(DebugComPort + LINE_STATUS_REGISTER) & LSR_THR_EMPTY));
+  while (!(IoReadPortByte(DebugComPort + LINE_STATUS_REGISTER) & LSR_THR_EMPTY));
 
-  WRITE_PORT_UCHAR(DebugComPort + TRANSMIT_HOLDING_REGISTER, b);
+  IoWritePortByte(DebugComPort + TRANSMIT_HOLDING_REGISTER, b);
 }
 
-UCHAR NTAPI PortRecvByte(VOID)
+Bit8u __stdcall PortRecvByte(void)
 {
   /* Wait until we receive something -- busy waiting!! */
-  while ((READ_PORT_UCHAR(DebugComPort + LINE_STATUS_REGISTER) & LSR_DATA_AVAILABLE) == 0);
+  while ((IoReadPortByte(DebugComPort + LINE_STATUS_REGISTER) & LSR_DATA_AVAILABLE) == 0);
 
-  return READ_PORT_UCHAR(DebugComPort + RECEIVER_BUFFER_REGISTER);
+  return IoReadPortByte(DebugComPort + RECEIVER_BUFFER_REGISTER);
 }
