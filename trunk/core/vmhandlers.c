@@ -32,7 +32,7 @@
 
 /* When this variable is TRUE, we are single stepping over an I/O
    instruction */
-hvm_bool isIOStepping = FALSE;
+static hvm_bool isIOStepping = FALSE;
 
 static InjectException(Bit32u trap, Bit32u type);
 
@@ -146,7 +146,7 @@ void HandleIO(void)
     
     /* Disable I/O bitmaps */
     v = hvm_x86_ops.vt_vmcs_read(CPU_BASED_VM_EXEC_CONTROL);
-    CmClearBit32(&v, 25);		
+    CmClearBit32(&v, CPU_BASED_PRIMARY_IO);		
     hvm_x86_ops.vt_vmcs_write(CPU_BASED_VM_EXEC_CONTROL, v);
 
     /* Re-exec faulty instruction */
@@ -211,7 +211,7 @@ void HandleNMI(void)
       Bit32u v;
 
       v = hvm_x86_ops.vt_vmcs_read(CPU_BASED_VM_EXEC_CONTROL);
-      CmSetBit32(&v, 25);		
+      CmSetBit32(&v, CPU_BASED_PRIMARY_IO);		
       hvm_x86_ops.vt_vmcs_write(CPU_BASED_VM_EXEC_CONTROL, v);
 
       isIOStepping = FALSE;

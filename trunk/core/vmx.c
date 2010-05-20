@@ -406,7 +406,7 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
 
   /* Host GDTR/IDTR base (they both hold *linear* addresses) */
   VmxVmcsWrite(HOST_GDTR_BASE, gdt_reg.BaseLo | (gdt_reg.BaseHi << 16));
-  VmxVmcsWrite(HOST_IDTR_BASE, GetSegmentDescriptorBase(gdt_base, RegGetDs()) + (ULONG) vmxInitState.VMMIDT);
+  VmxVmcsWrite(HOST_IDTR_BASE, GetSegmentDescriptorBase(gdt_base, RegGetDs()) + (Bit32u) vmxInitState.VMMIDT);
 
   /* Host IA32_SYSENTER_ESP/EIP/CS */
   ReadMSR(IA32_SYSENTER_ESP, &msr);
@@ -790,7 +790,7 @@ hvm_status VmxHvmSwitchOff(void)
 
   /* TODO: We should restore the whole original guest state here -- se Joanna's
      source code */
-  RegSetIdtr((PVOID) VmxRead(GUEST_IDTR_BASE), VmxRead(GUEST_IDTR_LIMIT));
+  RegSetIdtr((void*) VmxRead(GUEST_IDTR_BASE), VmxRead(GUEST_IDTR_LIMIT));
 
   __asm {
     /* Restore guest CR0 */
@@ -867,7 +867,7 @@ __declspec(naked) void VmxHvmHandleExit()
 
   /* Restore host IDT -- Not sure if this is really needed. I'm pretty sure we
      have to fix the LIMIT fields of host's IDTR. */
-  RegSetIdtr((PVOID) VmxRead(HOST_IDTR_BASE), 0x7ff);
+  RegSetIdtr((void*) VmxRead(HOST_IDTR_BASE), 0x7ff);
 
   /* Enable logging only for particular VM-exit events */
   if( context.ExitContext.ExitReason == EXIT_REASON_VMCALL ) {
