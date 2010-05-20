@@ -27,4 +27,7 @@
 /* Comment the following line to disable debugging */
 // #define DEBUG 1
 
+/* Stack area reserved to the HVM */
+#define VMM_STACK_SIZE      0x8000
+
 #endif _CONFIG_H

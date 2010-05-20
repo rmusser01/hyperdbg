@@ -34,6 +34,7 @@ typedef Bit32u hvm_status;
 #define HVM_STATUS_SUCCESS           0x00000000
 #define HVM_STATUS_UNSUCCESSFUL      0xC0000001
 #define HVM_STATUS_INVALID_PARAMETER 0xC000000D
+#define HVM_SUCCESS(x) ((x) == HVM_STATUS_SUCCESS)
 
 /* Common types */
 #ifndef NULL

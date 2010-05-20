@@ -24,7 +24,6 @@
 #include "hyperdbg.h"
 #include "hyperdbg_cmd.h"
 #include "hyperdbg_common.h"
-#include "vmm.h"
 #include "vmmstring.h"
 #include "debug.h"
 #include "video.h"
@@ -33,7 +32,7 @@
 #include "mmu.h"
 #include "sw_bp.h"
 #include "x86.h"       /* Needed for the FLAGS_TF_MASK macro */
-#include "vmx.h"
+#include "vt.h"
 #include "extern.h"    /* From libudis */
 #include "symsearch.h"
 #include "syms.h"
@@ -416,7 +415,6 @@ static void CmdSetSingleStep(PHYPERDBG_CMD pcmd)
 
   /* These will be written @ vmentry */
   context.GuestContext.RFLAGS = flags; 
-  VmxWrite(GUEST_RFLAGS, FLAGS_TO_ULONG(flags));
 
   /* Update HyperDbg state structure */
   hyperdbg_state.singlestepping = TRUE;

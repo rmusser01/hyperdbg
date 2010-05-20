@@ -24,11 +24,15 @@
 #ifndef _VMHANDLERS_H
 #define _VMHANDLERS_H
 
+#include "events.h"
+
 void HandleVMCALL(void);
 void HandleVMLAUNCH(void);
 void HandleNMI(void);
 void HandleIO(void);
 void HandleCR(void);
 void HandleHLT(void);
+
+EVENT_PUBLISH_STATUS HypercallSwitchOff(void);
 
 #endif	/*  _VMHANDLERS_H */

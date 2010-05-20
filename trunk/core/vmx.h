@@ -276,20 +276,4 @@ enum {
   HOST_RIP = 0x00006c16,
 };
 
-/* Memory types used to access the VMCS (bits 53:50 of the IA32_VMX_BASIC MSR */
-#define VMX_MEMTYPE_UNCACHEABLE 0
-#define VMX_MEMTYPE_WRITEBACK   6
-
-/* Assembly functions */
-void    __stdcall VmxLaunch();
-Bit32u  __stdcall VmxTurnOn(Bit32u phyvmxonhigh, Bit32u phyvmxonlow);
-void    __stdcall VmxTurnOff();
-Bit32u  __stdcall VmxClear(Bit32u phyvmxonhigh, Bit32u phyvmxonlow);
-Bit32u  __stdcall VmxPtrld(Bit32u phyvmxonhigh, Bit32u phyvmxonlow);
-void    __stdcall VmxResume();
-Bit32u  __stdcall VmxRead(Bit32u field);
-void    __stdcall VmxWrite(Bit32u field, Bit32u value);
-void    __stdcall VmxVmCall(Bit32u num);
-Bit32u  VmxAdjustControls(Bit32u Ctl, Bit32u Msr);
-
 #endif /* _PILL_VMX_H */

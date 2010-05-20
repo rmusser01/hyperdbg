@@ -29,11 +29,11 @@
 #include "video.h"
 #include "x86.h"
 #include "debug.h"
-#include "vmm.h"
 #include "vmmstring.h"
 #include "gui.h"
 #include "events.h"
 #include "sw_bp.h"
+#include "vt.h"
 
 /* ################ */
 /* #### MACROS #### */
@@ -237,8 +237,9 @@ static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(void)
   }
 
   Log("[HyperDbg] bp is ours, resetting GUEST_RIP to %.8x", context.GuestContext.RIP);
+
   /* Update guest RIP to re-execute the faulty instruction */
-  VmxWrite(GUEST_RIP, context.GuestContext.RIP);
+  context.GuestContext.ResumeRIP = context.GuestContext.RIP;
 
   Log("[HyperDbg] Done!");
 
@@ -264,7 +265,7 @@ static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(void)
   context.GuestContext.RFLAGS = flags;
 
   /* Update guest RIP to re-execute the faulty instruction */
-  VmxWrite(GUEST_RIP, context.GuestContext.RIP);
+  context.GuestContext.ResumeRIP = context.GuestContext.RIP;
 
   HyperDbgEnter();
 
@@ -272,7 +273,6 @@ static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(void)
   flags = context.GuestContext.RFLAGS;
   flags |= FLAGS_RF_MASK;
   context.GuestContext.RFLAGS = flags;
-  VmxWrite(GUEST_RFLAGS, FLAGS_TO_ULONG(flags));
 
   return EventPublishHandled;
 }
@@ -282,7 +282,7 @@ EVENT_PUBLISH_STATUS HyperDbgIO(void)
   return EventPublishHandled;
 }
 
-hvm_status HyperDbgHostInit(PVMM_INIT_STATE state)
+hvm_status HyperDbgHostInit(void)
 {
   EVENT_CONDITION_EXCEPTION exception;
   EVENT_CONDITION_IO io;

@@ -48,12 +48,18 @@ RegSetCr0 PROC StdCall _CR0
 	mov cr0, eax
 	ret
 RegSetCr0 ENDP
-	
+
 RegGetCr2 PROC
 	mov eax, cr2
 	ret
 RegGetCr2 ENDP
 
+RegSetCr2 PROC StdCall _CR2
+	mov eax, _CR2
+	mov cr2, eax
+	ret
+RegSetCr2 ENDP
+	
 RegGetCr3 PROC
 	mov eax, cr3
 	ret

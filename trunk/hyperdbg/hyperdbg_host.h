@@ -28,7 +28,7 @@
 #include "pill.h"
 #include "events.h"
 
-hvm_status HyperDbgHostInit(PVMM_INIT_STATE state);
+hvm_status HyperDbgHostInit(void);
 hvm_status HyperDbgHostFini(void);
 
 #endif	/* _HYPERDBG_HOST_H */

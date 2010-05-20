@@ -28,7 +28,7 @@
 #include "winxp.h"
 #include "keyboard.h"
 #include "debug.h"
-#include "vmx.h"
+#include "vt.h"
 #include "video.h"
 
 /* ################# */

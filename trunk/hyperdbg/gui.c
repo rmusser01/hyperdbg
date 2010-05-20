@@ -22,7 +22,6 @@
 */
 
 #include "hyperdbg.h"
-#include "vmm.h"
 #include "vmmstring.h"
 #include "video.h"
 #include "debug.h"

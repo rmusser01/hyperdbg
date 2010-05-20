@@ -28,6 +28,7 @@
 #define MIN(a,b) (((a)<(b))?(a):(b))
 
 #include "types.h"
+#include "vt.h"
 
 /* Assembly functions (defined in i386/common.asm) */
 void __stdcall CmInitSpinLock(Bit32u *plock);
