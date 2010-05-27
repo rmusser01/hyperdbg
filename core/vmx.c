@@ -657,17 +657,14 @@ static hvm_status VmxHardwareEnable(void)
 	
   // (7) Ensure that the IA32_FEATURE_CONTROL_MSR (MSR index 0x3A) has been
   //	 properly programmed and that its lock bit is set (bit 0=1). This MSR
-  //	 is generally configured by the BIOS using WRMSR.
-
-#if 1
-  /* HACK: we do this because BOCHS does not support the IA32_FEATURE_CONTROL_CODE MSR */
-  vmxFeatureControl.Lock = 1;
-#endif
-
+  //	 is generally configured by the BIOS using WRMSR. If it's not set, it's
+  //     safe for us to set it.
   WindowsLog("IA32_FEATURE_CONTROL Lock Bit: %.8x", vmxFeatureControl.Lock);
   if(vmxFeatureControl.Lock != 1) {
-    WindowsLog("ERROR: Feature Control Lock Bit != 1");
-    return HVM_STATUS_UNSUCCESSFUL;
+    WindowsLog("Setting IA32_FEATURE_CONTROL Lock Bit and Vmxon Enable bit");
+  	vmxFeatureControl.EnableVmxon = 1;
+  	vmxFeatureControl.Lock = 1;
+  	WriteMSR(IA32_FEATURE_CONTROL_CODE, 0, ((PMSR)&vmxFeatureControl)->Lo);
   }
 
   // (8) Execute VMXON with the physical address of the VMXON region as the
