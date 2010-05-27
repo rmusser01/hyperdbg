@@ -78,7 +78,6 @@ typedef struct HVM_X86_OPS {
   hvm_status  (*vt_vmcs_initialize)(hvm_address guest_stack, hvm_address guest_return);
   Bit32u      (*vt_vmcs_read)(Bit32u encoding);
   void        (*vt_vmcs_write)(Bit32u encoding, Bit32u value);
-
   void        (*vt_set_cr0)(hvm_address cr0);
   void        (*vt_set_cr3)(hvm_address cr3);
   void        (*vt_set_cr4)(hvm_address cr4);
@@ -90,6 +89,7 @@ typedef struct HVM_X86_OPS {
   void       (*hvm_handle_exit)(void);
   hvm_status (*hvm_switch_off)(void);
   hvm_status (*hvm_update_events)(void);
+  void       (*hvm_inject_exception)(Bit32u trap, Bit32u type);
 };
 
 extern struct CPU_CONTEXT context;

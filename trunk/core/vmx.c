@@ -49,7 +49,6 @@ static hvm_status VmxFinalize(void);
 static hvm_status VmxHardwareEnable(void);
 static hvm_status VmxHardwareDisable(void);
 static void       VmxInvalidateTLB(void);
-
 static void       VmxSetCr0(hvm_address cr0);
 static void       VmxSetCr3(hvm_address cr3);
 static void       VmxSetCr4(hvm_address cr4);
@@ -61,6 +60,7 @@ static void       VmxVmcsWrite(Bit32u encoding, Bit32u value);
 static void       VmxHvmHandleExit(void);
 static hvm_status VmxHvmSwitchOff(void);
 static hvm_status VmxHvmUpdateEvents(void);
+static void       VmxHvmInjectException(Bit32u trap, Bit32u type);
 
 /* Assembly functions (defined in i386/vmx-asm.asm) */
 void    __stdcall VmxLaunch(void);
@@ -87,7 +87,6 @@ struct HVM_X86_OPS hvm_x86_ops = {
   VmxVmcsInitialize,		/* vt_vmcs_initialize */
   VmxVmcsRead,			/* vt_vmcs_read */
   VmxVmcsWrite,			/* vt_vmcs_write */
-
   VmxSetCr0,			/* vt_set_cr0 */
   VmxSetCr3,			/* vt_set_cr3 */
   VmxSetCr4,			/* vt_set_cr4 */
@@ -99,6 +98,7 @@ struct HVM_X86_OPS hvm_x86_ops = {
   VmxHvmHandleExit,     	/* hvm_handle_exit */
   VmxHvmSwitchOff,		/* hvm_switch_off */
   VmxHvmUpdateEvents,		/* hvm_update_events */
+  VmxHvmInjectException,	/* hvm_inject_exception */
 };
 
 /* Utility functions */
@@ -786,7 +786,7 @@ static void VmxReadGuestContext(void)
   context.GuestContext.ResumeRIP = context.GuestContext.RIP + context.ExitContext.ExitInstructionLength;
 }
 
-hvm_status VmxHvmUpdateEvents(void)
+static hvm_status VmxHvmUpdateEvents(void)
 {
   Bit32u temp32;
 
@@ -802,7 +802,27 @@ hvm_status VmxHvmUpdateEvents(void)
   return HVM_STATUS_SUCCESS;
 }
 
-hvm_status VmxHvmSwitchOff(void)
+static void VmxHvmInjectException(Bit32u trap, Bit32u type)
+{
+  Bit32u v;
+
+  /* Read the page-fault error code and write it into the VM-entry exception error code field */
+  VmxVmcsWrite(VM_ENTRY_EXCEPTION_ERROR_CODE, context.ExitContext.ExitInterruptionErrorCode);
+
+  /* Write the VM-entry interruption-information field */
+  v = (INTR_INFO_VALID_MASK | trap | type);
+
+  /* Check if bits 11 (deliver code) and 31 (valid) are set. In this
+     case, error code has to be delivered to guest OS */
+  if ((context.ExitContext.ExitInterruptionInformation & INTR_INFO_DELIVER_CODE_MASK) &&
+      (context.ExitContext.ExitInterruptionInformation & INTR_INFO_VALID_MASK)) {
+    v |= INTR_INFO_DELIVER_CODE_MASK;
+  }
+
+  VmxVmcsWrite(VM_ENTRY_INTR_INFO_FIELD, v);
+}
+
+static hvm_status VmxHvmSwitchOff(void)
 {
   /* Switch off VMX mode */
   Log("Terminating VMX Mode");
