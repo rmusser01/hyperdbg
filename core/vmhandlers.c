@@ -68,24 +68,24 @@ void HandleCR(void)
       (movcrControlRegister == 0 || movcrControlRegister == 3 || movcrControlRegister == 4)) {
     if (movcrAccessType == 0) {
       /* CRx <-- reg32 */
-      Bit32u x;
+      void (*f)(hvm_address);      
 
       if (movcrControlRegister == 0) 
-	x = GUEST_CR0;
+	f = hvm_x86_ops.vt_set_cr0;
       else if (movcrControlRegister == 3)
-	x = GUEST_CR3;
+	f = hvm_x86_ops.vt_set_cr3;
       else
-	x = GUEST_CR4;	  
+	f = hvm_x86_ops.vt_set_cr4;
 
       switch(movcrGeneralPurposeRegister) {
-      case 0:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RAX); break;
-      case 1:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RCX); break;
-      case 2:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RDX); break;
-      case 3:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RBX); break;
-      case 4:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RSP); break;
-      case 5:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RBP); break;
-      case 6:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RSI); break;
-      case 7:  hvm_x86_ops.vt_vmcs_write(x, context.GuestContext.RDI); break;
+      case 0:  f(context.GuestContext.RAX); break;
+      case 1:  f(context.GuestContext.RCX); break;
+      case 2:  f(context.GuestContext.RDX); break;
+      case 3:  f(context.GuestContext.RBX); break;
+      case 4:  f(context.GuestContext.RSP); break;
+      case 5:  f(context.GuestContext.RBP); break;
+      case 6:  f(context.GuestContext.RSI); break;
+      case 7:  f(context.GuestContext.RDI); break;
       default: break;
       }
     } else if (movcrAccessType == 1) {
