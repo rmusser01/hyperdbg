@@ -79,6 +79,10 @@ typedef struct HVM_X86_OPS {
   Bit32u      (*vt_vmcs_read)(Bit32u encoding);
   void        (*vt_vmcs_write)(Bit32u encoding, Bit32u value);
 
+  void        (*vt_set_cr0)(hvm_address cr0);
+  void        (*vt_set_cr3)(hvm_address cr3);
+  void        (*vt_set_cr4)(hvm_address cr4);
+
   /* Memory management */
   void (*mmu_tlb_flush)(void);
 

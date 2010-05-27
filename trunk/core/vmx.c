@@ -50,6 +50,10 @@ static hvm_status VmxHardwareEnable(void);
 static hvm_status VmxHardwareDisable(void);
 static void       VmxInvalidateTLB(void);
 
+static void       VmxSetCr0(hvm_address cr0);
+static void       VmxSetCr3(hvm_address cr3);
+static void       VmxSetCr4(hvm_address cr4);
+
 static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_return);
 static Bit32u     VmxVmcsRead(Bit32u encoding);
 static void       VmxVmcsWrite(Bit32u encoding, Bit32u value);
@@ -83,6 +87,10 @@ struct HVM_X86_OPS hvm_x86_ops = {
   VmxVmcsInitialize,		/* vt_vmcs_initialize */
   VmxVmcsRead,			/* vt_vmcs_read */
   VmxVmcsWrite,			/* vt_vmcs_write */
+
+  VmxSetCr0,			/* vt_set_cr0 */
+  VmxSetCr3,			/* vt_set_cr3 */
+  VmxSetCr4,			/* vt_set_cr4 */
 
   /* Memory management */
   VmxInvalidateTLB,     	/* mmu_tlb_flush */
@@ -690,6 +698,21 @@ static hvm_status VmxHardwareDisable(void)
 {
   /* TODO */
   return HVM_STATUS_SUCCESS;
+}
+
+static void VmxSetCr0(hvm_address cr0)
+{
+  hvm_x86_ops.vt_vmcs_write(GUEST_CR0, cr0);
+}
+
+static void VmxSetCr3(hvm_address cr3)
+{
+  hvm_x86_ops.vt_vmcs_write(GUEST_CR3, cr3);
+}
+
+static void VmxSetCr4(hvm_address cr4)
+{
+  hvm_x86_ops.vt_vmcs_write(GUEST_CR4, cr4);
 }
 
 static void VmxInvalidateTLB(void)
