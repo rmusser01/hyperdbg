@@ -34,8 +34,6 @@
    instruction */
 static hvm_bool isIOStepping = FALSE;
 
-static InjectException(Bit32u trap, Bit32u type);
-
 EVENT_PUBLISH_STATUS HypercallSwitchOff(void)
 {
   return HVM_SUCCESS(hvm_x86_ops.hvm_switch_off()) ? \
@@ -239,7 +237,7 @@ void HandleNMI(void)
       context.GuestContext.RFLAGS = FLAGS_TO_ULONG(context.GuestContext.RFLAGS) & ~FLAGS_TF_MASK;
     } else {
       /* Pass hw exception to the guest OS */
-      InjectException(INTR_TYPE_HW_EXCEPTION, trap);
+      hvm_x86_ops.hvm_inject_exception(INTR_TYPE_HW_EXCEPTION, trap);
     }
 
     /* Re-execute the faulty instruction */
@@ -251,25 +249,4 @@ void HandleNMI(void)
       RegSetCr2(context.ExitContext.ExitQualification);
     }
   }
-}
-
-static InjectException(Bit32u trap, Bit32u type)
-{
-  Bit32u v;
-
-  /* Read the page-fault error code and write it into the VM-entry exception error code field */
-  hvm_x86_ops.vt_vmcs_write(VM_ENTRY_EXCEPTION_ERROR_CODE, 
-			    context.ExitContext.ExitInterruptionErrorCode);
-
-  /* Write the VM-entry interruption-information field */
-  v = (INTR_INFO_VALID_MASK | trap | type);
-
-  /* Check if bits 11 (deliver code) and 31 (valid) are set. In this
-     case, error code has to be delivered to guest OS */
-  if ((context.ExitContext.ExitInterruptionInformation & INTR_INFO_DELIVER_CODE_MASK) &&
-      (context.ExitContext.ExitInterruptionInformation & INTR_INFO_VALID_MASK)) {
-    v |= INTR_INFO_DELIVER_CODE_MASK;
-  }
-
-  hvm_x86_ops.vt_vmcs_write(VM_ENTRY_INTR_INFO_FIELD, v);
 }

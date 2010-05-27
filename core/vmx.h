@@ -125,29 +125,6 @@ typedef struct _MISC_DATA
 #define INTR_TYPE_HW_EXCEPTION          (3 << 8)        /* hardware exception */
 #define INTR_TYPE_SW_EXCEPTION          (6 << 8)        /* software exception */
 
-/* Trap/fault mnemonics */
-#define TRAP_DIVIDE_ERROR      0
-#define TRAP_DEBUG             1
-#define TRAP_NMI               2
-#define TRAP_INT3              3
-#define TRAP_OVERFLOW          4
-#define TRAP_BOUNDS            5
-#define TRAP_INVALID_OP        6
-#define TRAP_NO_DEVICE         7
-#define TRAP_DOUBLE_FAULT      8
-#define TRAP_COPRO_SEG         9
-#define TRAP_INVALID_TSS      10
-#define TRAP_NO_SEGMENT       11
-#define TRAP_STACK_ERROR      12
-#define TRAP_GP_FAULT         13
-#define TRAP_PAGE_FAULT       14
-#define TRAP_SPURIOUS_INT     15
-#define TRAP_COPRO_ERROR      16
-#define TRAP_ALIGNMENT_CHECK  17
-#define TRAP_MACHINE_CHECK    18
-#define TRAP_SIMD_ERROR       19
-#define TRAP_DEFERRED_NMI     31
-
 /* VMCS Encodings */
 enum {
   GUEST_ES_SELECTOR = 0x00000800,
