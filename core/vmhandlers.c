@@ -40,20 +40,16 @@ EVENT_PUBLISH_STATUS HypercallSwitchOff(void)
     EventPublishHandled : EventPublishPass;
 }
 
-void HandleCR(void)
+void HandleCR(Bit8u crno, VtCrAccessType accesstype, hvm_bool ismemory, VtRegister gpr)
 {
   EVENT_CONDITION_CR cr;
   EVENT_PUBLISH_STATUS s;
-  Bit32u movcrControlRegister, movcrAccessType, movcrOperandType, movcrGeneralPurposeRegister;
 
-  movcrControlRegister = (context.ExitContext.ExitQualification & 0x0000000F);
-  movcrAccessType      = ((context.ExitContext.ExitQualification & 0x00000030) >> 4);
-  movcrOperandType     = ((context.ExitContext.ExitQualification & 0x00000040) >> 6);
-  movcrGeneralPurposeRegister = ((context.ExitContext.ExitQualification & 0x00000F00) >> 8);
+  Log("HandleCR(%d, %d, %d, %d)", crno, accesstype, ismemory, gpr);
 
   /* Notify to plugins */
-  cr.crno    = (Bit8u) movcrControlRegister;
-  cr.iswrite = movcrAccessType == 0;
+  cr.crno    = crno;
+  cr.iswrite = (accesstype == VT_CR_ACCESS_WRITE);
   s = EventPublish(EventControlRegister, &cr, sizeof(cr));  
 
   if (s == EventPublishHandled) {
@@ -62,51 +58,54 @@ void HandleCR(void)
   }
 
   /* Process the event (only for MOV CRx, REG instructions) */
-  if (movcrOperandType == 0 && 
-      (movcrControlRegister == 0 || movcrControlRegister == 3 || movcrControlRegister == 4)) {
-    if (movcrAccessType == 0) {
+  if (!ismemory && (crno == 0 || crno == 3 || crno == 4)) {
+    if (accesstype == VT_CR_ACCESS_WRITE) {
       /* CRx <-- reg32 */
       void (*f)(hvm_address);      
 
-      if (movcrControlRegister == 0) 
+      if (crno == 0) 
 	f = hvm_x86_ops.vt_set_cr0;
-      else if (movcrControlRegister == 3)
+      else if (crno == 3)
 	f = hvm_x86_ops.vt_set_cr3;
       else
 	f = hvm_x86_ops.vt_set_cr4;
 
-      switch(movcrGeneralPurposeRegister) {
-      case 0:  f(context.GuestContext.RAX); break;
-      case 1:  f(context.GuestContext.RCX); break;
-      case 2:  f(context.GuestContext.RDX); break;
-      case 3:  f(context.GuestContext.RBX); break;
-      case 4:  f(context.GuestContext.RSP); break;
-      case 5:  f(context.GuestContext.RBP); break;
-      case 6:  f(context.GuestContext.RSI); break;
-      case 7:  f(context.GuestContext.RDI); break;
-      default: break;
+      switch(gpr) {
+      case VT_REGISTER_RAX:  f(context.GuestContext.RAX); break;
+      case VT_REGISTER_RCX:  f(context.GuestContext.RCX); break;
+      case VT_REGISTER_RDX:  f(context.GuestContext.RDX); break;
+      case VT_REGISTER_RBX:  f(context.GuestContext.RBX); break;
+      case VT_REGISTER_RSP:  f(context.GuestContext.RSP); break;
+      case VT_REGISTER_RBP:  f(context.GuestContext.RBP); break;
+      case VT_REGISTER_RSI:  f(context.GuestContext.RSI); break;
+      case VT_REGISTER_RDI:  f(context.GuestContext.RDI); break;
+      default: 
+	Log("HandleCR(WRITE): unknown register %d", gpr);
+	break;
       }
-    } else if (movcrAccessType == 1) {
+    } else if (accesstype == VT_CR_ACCESS_READ) {
       /* reg32 <-- CRx */
       hvm_address x;
 
-      if (movcrControlRegister == 0)
+      if (crno == 0)
 	x = context.GuestContext.CR0;
-      else if (movcrControlRegister == 3)
+      else if (crno == 3)
 	x = context.GuestContext.CR3;
       else
 	x = context.GuestContext.CR4;
 
-      switch(movcrGeneralPurposeRegister) {
-      case 0:  context.GuestContext.RAX = x; break;
-      case 1:  context.GuestContext.RCX = x; break;
-      case 2:  context.GuestContext.RDX = x; break;
-      case 3:  context.GuestContext.RBX = x; break;
-      case 4:  context.GuestContext.RSP = x; break;
-      case 5:  context.GuestContext.RBP = x; break;
-      case 6:  context.GuestContext.RSI = x; break;
-      case 7:  context.GuestContext.RDI = x; break;
-      default: break;
+      switch(gpr) {
+      case VT_REGISTER_RAX:  context.GuestContext.RAX = x; break;
+      case VT_REGISTER_RCX:  context.GuestContext.RCX = x; break;
+      case VT_REGISTER_RDX:  context.GuestContext.RDX = x; break;
+      case VT_REGISTER_RBX:  context.GuestContext.RBX = x; break;
+      case VT_REGISTER_RSP:  context.GuestContext.RSP = x; break;
+      case VT_REGISTER_RBP:  context.GuestContext.RBP = x; break;
+      case VT_REGISTER_RSI:  context.GuestContext.RSI = x; break;
+      case VT_REGISTER_RDI:  context.GuestContext.RDI = x; break;
+      default: 
+	Log("HandleCR(READ): unknown register %d", gpr);
+	break;
       }
     }
   }
@@ -177,11 +176,7 @@ void HandleVMLAUNCH(void)
 {
   /* The interruption error code should be undefined, so we just copy the one
      passed by the CPU */
-  hvm_x86_ops.vt_vmcs_write(VM_ENTRY_EXCEPTION_ERROR_CODE, 
-			    context.ExitContext.ExitInterruptionErrorCode);
-
-  hvm_x86_ops.vt_vmcs_write(VM_ENTRY_INTR_INFO_FIELD, 
-	   INTR_INFO_VALID_MASK | INTR_TYPE_HW_EXCEPTION | TRAP_INVALID_OP);
+  hvm_x86_ops.hvm_inject_exception(INTR_TYPE_HW_EXCEPTION, TRAP_INVALID_OP);  
 
   /* Re-exec faulty instruction */
   context.GuestContext.ResumeRIP = context.GuestContext.RIP;
