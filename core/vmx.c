@@ -64,6 +64,8 @@ static void       VmxHvmInjectException(Bit32u trap, Bit32u type);
 
 /* Internal VMX functions (i.e., not used outside this module) */
 static void VmxInternalHandleCR(void);
+static void VmxInternalHandleIO(void);
+static void VmxInternalHandleNMI(void);
 
 /* Assembly functions (defined in i386/vmx-asm.asm) */
 void    __stdcall VmxLaunch(void);
@@ -949,6 +951,31 @@ static void VmxInternalHandleCR(void)
 	   );
 }
 
+static void VmxInternalHandleIO(void)
+{
+  Bit16u   port;
+  hvm_bool isoutput;
+
+  port     = (Bit16u) ((context.ExitContext.ExitQualification & 0xffff0000) >> 16);
+  isoutput = !(context.ExitContext.ExitQualification & (1 << 3));
+
+  HandleIO(port,		/* I/O port */
+	   isoutput		/* Direction */
+	   );
+}
+
+static void VmxInternalHandleNMI(void)
+{
+  Bit32u trap;
+
+  trap = context.ExitContext.ExitInterruptionInformation & INTR_INFO_VECTOR_MASK;
+
+  HandleNMI(trap, 		                  /* Trap number */
+	    context.ExitContext.ExitQualification /* Exit qualification 
+						     (should be meaningful only for #PF and #DB) */
+	    );
+}
+
 ///////////////////////
 //  VMM Entry Point  //
 ///////////////////////
@@ -1149,7 +1176,7 @@ __declspec(naked) void VmxHvmHandleExit()
     //  I/O instruction  //
     ///////////////////////
   case EXIT_REASON_IO_INSTRUCTION:
-    HandleIO();
+    VmxInternalHandleIO();
 
     VmxUpdateGuestContext();
     goto Resume;
@@ -1158,7 +1185,7 @@ __declspec(naked) void VmxHvmHandleExit()
     break;
 
   case EXIT_REASON_EXCEPTION_NMI:
-    HandleNMI();
+    VmxInternalHandleNMI();
 
     VmxUpdateGuestContext();
     goto Resume;

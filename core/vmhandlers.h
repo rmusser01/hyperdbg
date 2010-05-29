@@ -29,8 +29,8 @@
 
 void HandleVMCALL(void);
 void HandleVMLAUNCH(void);
-void HandleNMI(void);
-void HandleIO(void);
+void HandleNMI(Bit32u trap, Bit32u qualification);
+void HandleIO(Bit16u port, hvm_bool isoutput);
 void HandleCR(Bit8u crno, VtCrAccessType accesstype, hvm_bool ismemory, VtRegister gpr);
 void HandleHLT(void);
 
