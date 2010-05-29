@@ -31,6 +31,33 @@
 #include "msr.h"
 #include "idt.h"
 
+/* CR access types */
+typedef enum {
+  VT_CR_ACCESS_WRITE,
+  VT_CR_ACCESS_READ,
+  VT_CR_ACCESS_CLTS,
+  VT_CR_ACCESS_LMSW,
+} VtCrAccessType;
+
+typedef enum {
+  VT_REGISTER_RAX,
+  VT_REGISTER_RBX,
+  VT_REGISTER_RCX,
+  VT_REGISTER_RDX,
+  VT_REGISTER_RSP,
+  VT_REGISTER_RBP,
+  VT_REGISTER_RSI,
+  VT_REGISTER_RDI,
+  VT_REGISTER_R8,
+  VT_REGISTER_R9,
+  VT_REGISTER_R10,
+  VT_REGISTER_R11,
+  VT_REGISTER_R12,
+  VT_REGISTER_R13,
+  VT_REGISTER_R14,  
+  VT_REGISTER_R15,
+} VtRegister;
+
 typedef struct CPU_CONTEXT {
   struct {
     Bit32u ExitReason;

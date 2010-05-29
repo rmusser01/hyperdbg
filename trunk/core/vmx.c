@@ -62,6 +62,9 @@ static hvm_status VmxHvmSwitchOff(void);
 static hvm_status VmxHvmUpdateEvents(void);
 static void       VmxHvmInjectException(Bit32u trap, Bit32u type);
 
+/* Internal VMX functions (i.e., not used outside this module) */
+static void VmxInternalHandleCR(void);
+
 /* Assembly functions (defined in i386/vmx-asm.asm) */
 void    __stdcall VmxLaunch(void);
 Bit32u  __stdcall VmxTurnOn(Bit32u phyvmxonhigh, Bit32u phyvmxonlow);
@@ -883,6 +886,69 @@ static hvm_status VmxHvmSwitchOff(void)
   return STATUS_SUCCESS;
 }
 
+static void VmxInternalHandleCR(void)
+{
+  Bit8u movcrControlRegister;
+  Bit32u movcrAccessType, movcrOperandType, movcrGeneralPurposeRegister;
+  VtCrAccessType accesstype;
+  VtRegister gpr;
+
+  movcrControlRegister = (Bit8u) (context.ExitContext.ExitQualification & 0x0000000F);
+  movcrAccessType      = ((context.ExitContext.ExitQualification & 0x00000030) >> 4);
+  movcrOperandType     = ((context.ExitContext.ExitQualification & 0x00000040) >> 6);
+  movcrGeneralPurposeRegister = ((context.ExitContext.ExitQualification & 0x00000F00) >> 8);
+
+  /* Read access type */
+  switch (movcrAccessType) {
+  case 0:
+    accesstype = VT_CR_ACCESS_WRITE;
+    break;
+  case 1:
+  default: 
+    accesstype = VT_CR_ACCESS_READ; 
+    break;
+  case 2: 
+    accesstype = VT_CR_ACCESS_CLTS;  
+    break;
+  case 3: 
+    accesstype = VT_CR_ACCESS_LMSW;  
+    break;
+  }
+
+  /* Read general purpose register */
+  if (movcrOperandType == 1 && accesstype != VT_CR_ACCESS_CLTS && accesstype != VT_CR_ACCESS_LMSW) {
+    switch (movcrGeneralPurposeRegister) {
+    case 0:  gpr = VT_REGISTER_RAX; break;
+    case 1:  gpr = VT_REGISTER_RCX; break;
+    case 2:  gpr = VT_REGISTER_RDX; break;
+    case 3:  gpr = VT_REGISTER_RBX; break;
+    case 4:  gpr = VT_REGISTER_RSP; break;
+    case 5:  gpr = VT_REGISTER_RBP; break;
+    case 6:  gpr = VT_REGISTER_RSI; break;
+    case 7:  gpr = VT_REGISTER_RDI; break;
+    case 8:  gpr = VT_REGISTER_R8;  break;
+    case 9:  gpr = VT_REGISTER_R9;  break;
+    case 10: gpr = VT_REGISTER_R10; break;
+    case 11: gpr = VT_REGISTER_R11; break;
+    case 12: gpr = VT_REGISTER_R12; break;
+    case 13: gpr = VT_REGISTER_R13; break;
+    case 14: gpr = VT_REGISTER_R14; break;
+    case 15: gpr = VT_REGISTER_R15; break;
+    default: gpr = 0;               break;
+    }
+  } else {
+    gpr = 0;
+  }
+
+  /* Invoke the VMX-independent handler */
+  HandleCR(movcrControlRegister,           /* Control register involved in this operation */
+	   accesstype,                     /* Access type */
+	   movcrOperandType == 1,          /* Does this operation involve a memory operand? */
+	   gpr                  	   /* The general purpose register involved in this operation 
+					      (only if the previous argument is "false") */
+	   );
+}
+
 ///////////////////////
 //  VMM Entry Point  //
 ///////////////////////
@@ -1071,7 +1137,7 @@ __declspec(naked) void VmxHvmHandleExit()
     //  Control Register Access  //
     ///////////////////////////////
   case EXIT_REASON_CR_ACCESS:
-    HandleCR();
+    VmxInternalHandleCR();
 
     VmxUpdateGuestContext();
     goto Resume;
@@ -1130,3 +1196,4 @@ __declspec(naked) void VmxHvmHandleExit()
 
   VmxResume();
 }
+

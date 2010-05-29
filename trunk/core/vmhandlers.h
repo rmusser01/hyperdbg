@@ -24,13 +24,14 @@
 #ifndef _VMHANDLERS_H
 #define _VMHANDLERS_H
 
+#include "vt.h"
 #include "events.h"
 
 void HandleVMCALL(void);
 void HandleVMLAUNCH(void);
 void HandleNMI(void);
 void HandleIO(void);
-void HandleCR(void);
+void HandleCR(Bit8u crno, VtCrAccessType accesstype, hvm_bool ismemory, VtRegister gpr);
 void HandleHLT(void);
 
 EVENT_PUBLISH_STATUS HypercallSwitchOff(void);
