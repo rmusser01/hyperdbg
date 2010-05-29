@@ -118,15 +118,13 @@ void HandleHLT(void)
   EventPublish(EventHlt, &none, sizeof(none));
 }
 
-void HandleIO(void)
+void HandleIO(Bit16u port, hvm_bool isoutput)
 {
   EVENT_IO_DIRECTION dir;
-  Bit32u port;
   EVENT_CONDITION_IO io;
   EVENT_PUBLISH_STATUS s;
 
-  dir  = (context.ExitContext.ExitQualification & (1 << 3)) ? EventIODirectionIn : EventIODirectionOut;
-  port = (context.ExitContext.ExitQualification & 0xffff0000) >> 16;
+  dir  = isoutput ? EventIODirectionOut : EventIODirectionIn;
 
   io.direction = dir;
   io.portnum = port;
@@ -182,14 +180,12 @@ void HandleVMLAUNCH(void)
   context.GuestContext.ResumeRIP = context.GuestContext.RIP;
 }
 
-void HandleNMI(void)
+void HandleNMI(Bit32u trap, Bit32u qualification)
 {
-  Bit32u trap;
   EVENT_PUBLISH_STATUS s;
   EVENT_CONDITION_EXCEPTION e;
   hvm_bool isSynteticDebug;
 
-  trap = context.ExitContext.ExitInterruptionInformation & INTR_INFO_VECTOR_MASK;
   isSynteticDebug = FALSE;
   
   switch (trap) {
@@ -241,7 +237,7 @@ void HandleNMI(void)
     /* Handle PF */
     if (trap == TRAP_PAGE_FAULT) {
       /* Restore into CR2 the faulting address */
-      RegSetCr2(context.ExitContext.ExitQualification);
+      RegSetCr2(qualification);
     }
   }
 }
