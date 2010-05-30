@@ -669,15 +669,25 @@ static hvm_status VmxHardwareEnable(void)
   RegSetCr4(CR4_TO_ULONG(cr4_reg));
 	
   // (7) Ensure that the IA32_FEATURE_CONTROL_MSR (MSR index 0x3A) has been
-  //	 properly programmed and that its lock bit is set (bit 0=1). This MSR
-  //	 is generally configured by the BIOS using WRMSR. If it's not set, it's
-  //     safe for us to set it.
-  WindowsLog("IA32_FEATURE_CONTROL Lock Bit: %.8x", vmxFeatureControl.Lock);
+  //	 properly programmed and that its lock bit is set (bit 0=1) and VMX is
+  //	 enabled (bit 2=1). This MSR is generally configured by the BIOS using 
+  //	 WRMSR. If it's not set, it's safe for us to set it.
+  WindowsLog("IA32_FEATURE_CONTROL Lock Bit: %.8x, EnableVmx bit %.8x", 
+	     vmxFeatureControl.Lock, vmxFeatureControl.EnableVmxon);
+	
   if(vmxFeatureControl.Lock != 1) {
+    // MSR hasn't been locked, we can enable VMX and lock it
     WindowsLog("Setting IA32_FEATURE_CONTROL Lock Bit and Vmxon Enable bit");
-  	vmxFeatureControl.EnableVmxon = 1;
-  	vmxFeatureControl.Lock = 1;
-  	WriteMSR(IA32_FEATURE_CONTROL_CODE, 0, ((PMSR)&vmxFeatureControl)->Lo);
+    vmxFeatureControl.EnableVmxon = 1;
+    vmxFeatureControl.Lock = 1;
+    WriteMSR(IA32_FEATURE_CONTROL_CODE, 0, ((PMSR)&vmxFeatureControl)->Lo);
+  } else {
+    if(vmxFeatureControl.EnableVmxon == 0) {
+      // If the lock bit is set and VMX is disabled, it was most likely done
+      // by the BIOS and we can't use VMXON
+      WindowsLog("ERROR: VMX is disabled by the BIOS");
+      return HVM_STATUS_UNSUCCESSFUL;
+    }
   }
 
   // (8) Execute VMXON with the physical address of the VMXON region as the
