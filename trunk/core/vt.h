@@ -24,12 +24,11 @@
 #ifndef _VT_H
 #define _VT_H
 
-/* FIXME: remove this dependency */
-#include "vmx.h"
-
 #include "types.h"
 #include "msr.h"
 #include "idt.h"
+
+#define HVM_DELIVER_NO_ERROR_CODE (-1)
 
 /* CR access types */
 typedef enum {
@@ -59,18 +58,6 @@ typedef enum {
 } VtRegister;
 
 typedef struct CPU_CONTEXT {
-  struct {
-    Bit32u ExitReason;
-    Bit32u ExitQualification;
-    Bit32u ExitInterruptionInformation;
-    Bit32u ExitInterruptionErrorCode;
-    Bit32u ExitInstructionLength;
-    Bit32u ExitInstructionInformation;
-
-    Bit32u IDTVectoringInformationField;
-    Bit32u IDTVectoringErrorCode;
-  } ExitContext;
-
   struct {
     hvm_address RIP;
     hvm_address ResumeRIP;
@@ -102,12 +89,18 @@ typedef struct HVM_X86_OPS {
   hvm_status  (*vt_hardware_enable)(void);
   hvm_status  (*vt_hardware_disable)(void);
   void        (*vt_hypercall)(Bit32u num);
+
+  /* These will be removed in a near future... */
   hvm_status  (*vt_vmcs_initialize)(hvm_address guest_stack, hvm_address guest_return);
   Bit32u      (*vt_vmcs_read)(Bit32u encoding);
   void        (*vt_vmcs_write)(Bit32u encoding, Bit32u value);
+
   void        (*vt_set_cr0)(hvm_address cr0);
   void        (*vt_set_cr3)(hvm_address cr3);
   void        (*vt_set_cr4)(hvm_address cr4);
+
+  void        (*vt_trap_io)(hvm_bool enabled);
+  Bit32u      (*vt_get_exit_instr_len)(void);
 
   /* Memory management */
   void (*mmu_tlb_flush)(void);
@@ -116,7 +109,7 @@ typedef struct HVM_X86_OPS {
   void       (*hvm_handle_exit)(void);
   hvm_status (*hvm_switch_off)(void);
   hvm_status (*hvm_update_events)(void);
-  void       (*hvm_inject_exception)(Bit32u trap, Bit32u type);
+  void       (*hvm_inject_hw_exception)(Bit32u type, Bit32u error_code);
 };
 
 extern struct CPU_CONTEXT context;

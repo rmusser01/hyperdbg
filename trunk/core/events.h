@@ -33,6 +33,17 @@ typedef enum {
   EventPublishPass,		 /* The event should be passed on */
 } EVENT_PUBLISH_STATUS;
 
+/* This structure is the argument that is passed to event handlers */
+typedef struct {
+  union {
+    struct {
+      Bit8u    size;
+      hvm_bool isstring;
+      hvm_bool isrep;
+    } EventIO;
+  };
+} EVENT_ARGUMENTS, *PEVENT_ARGUMENTS;
+
 /* If you add an event type, you must also modify EventCheckCondition() in events.c */
 typedef enum {
   EventNone = 0,
@@ -43,7 +54,7 @@ typedef enum {
   EventHlt,
 } EVENT_TYPE;
 
-typedef EVENT_PUBLISH_STATUS (*EVENT_CALLBACK)(void);
+typedef EVENT_PUBLISH_STATUS (*EVENT_CALLBACK)(PEVENT_ARGUMENTS);
 
 typedef struct _EVENT_CONDITION_HYPERCALL {
   Bit32u hypernum;
@@ -75,7 +86,7 @@ hvm_status EventInit(void);
 hvm_bool EventSubscribe(EVENT_TYPE type, void* pcondition, int condition_size, EVENT_CALLBACK callback);
 hvm_bool EventUnsubscribe(EVENT_TYPE type, void* pcondition, int condition_size);
 hvm_bool EventHasType(EVENT_TYPE type);
-EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, void* pcondition, int condition_size);
+EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, PEVENT_ARGUMENTS args, void* pcondition, int condition_size);
 
 void EventUpdateExceptionBitmap(Bit32u* pbitmap);
 void EventUpdateIOBitmaps(Bit8u* pIOBitmapA, Bit8u* pIOBitmapB);

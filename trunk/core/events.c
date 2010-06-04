@@ -116,7 +116,7 @@ hvm_bool EventUnsubscribe(EVENT_TYPE type, void* pcondition, int condition_size)
   return TRUE;
 }
 
-EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, void* pcondition, int condition_size)
+EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, PEVENT_ARGUMENTS args, void* pcondition, int condition_size)
 {
   int i;
   hvm_bool b;
@@ -139,7 +139,7 @@ EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, void* pcondition, int conditi
       continue;
 
     /* Found a matching event */
-    s = events[i].callback();
+    s = events[i].callback(args);
       
     if (s == EventPublishHandled) {
       /* No more events to process */
