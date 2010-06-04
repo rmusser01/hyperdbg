@@ -734,24 +734,24 @@ static hvm_status VmxHardwareDisable(void)
 
 static void VmxSetCr0(hvm_address cr0)
 {
-  hvm_x86_ops.vt_vmcs_write(GUEST_CR0, cr0);
+  VmxVmcsWrite(GUEST_CR0, cr0);
 }
 
 static void VmxSetCr3(hvm_address cr3)
 {
-  hvm_x86_ops.vt_vmcs_write(GUEST_CR3, cr3);
+  VmxVmcsWrite(GUEST_CR3, cr3);
 }
 
 static void VmxSetCr4(hvm_address cr4)
 {
-  hvm_x86_ops.vt_vmcs_write(GUEST_CR4, cr4);
+  VmxVmcsWrite(GUEST_CR4, cr4);
 }
 
 static void VmxTrapIO(hvm_bool enabled)
 {
   Bit32u v;
 
-  v = hvm_x86_ops.vt_vmcs_read(CPU_BASED_VM_EXEC_CONTROL);
+  v = VmxVmcsRead(CPU_BASED_VM_EXEC_CONTROL);
 
   if (enabled) {
     /* Enable I/O bitmaps */
@@ -761,7 +761,7 @@ static void VmxTrapIO(hvm_bool enabled)
     CmClearBit32(&v, CPU_BASED_PRIMARY_IO);
   }
 
-  hvm_x86_ops.vt_vmcs_write(CPU_BASED_VM_EXEC_CONTROL, v);
+  VmxVmcsWrite(CPU_BASED_VM_EXEC_CONTROL, v);
 }
 
 static Bit32u VmxGetExitInstructionLength(void)
