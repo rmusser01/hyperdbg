@@ -26,6 +26,10 @@
 #include "mmu.h"
 #include "x86.h"
 
+#ifdef ENABLE_PAE
+#error PAE support still not available
+#endif
+
 /* ################ */
 /* #### MACROS #### */
 /* ################ */

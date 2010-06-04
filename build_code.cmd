@@ -9,14 +9,19 @@ set CUSTOM_CORE_CFLAGS=/DHVM_ARCH_BITS=32 /DGUEST_WINDOWS=1
 
 if "%1"=="" goto NoTarget
 
-if "%1"=="hyperdbg"  goto hyperdbg
+if "%1"=="hyperdbg"      goto hyperdbg
+if "%1"=="hyperdbg-pae"  goto hyperdbg-pae
 
 echo [!] Unknown module: %1
-echo     Available modules: hyperdbg naked
+echo     Available modules: hyperdbg hyperdbg-pae naked
 goto End
 
 REM The "CUSTOM_CORE_CFLAGS" variable is included into USER_C_FLAGS by core/sources
 REM The "CUSTOM_PLUGIN_CFLAGS" variable is included into USER_C_FLAGS by <plugin>/sources
+
+:hyperdbg-pae
+set CUSTOM_PLUGIN_CFLAGS=/DENABLE_PAE=1 %CUSTOM_PLUGIN_CFLAGS%
+set CUSTOM_CORE_CFLAGS=/DENABLE_PAE=1 %CUSTOM_CORE_CFLAGS%
 
 :hyperdbg
 

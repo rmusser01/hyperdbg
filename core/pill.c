@@ -198,7 +198,7 @@ VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
 /* Driver entry point */
 NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING RegistryPath)
 {
-  hvm_address cr4 = 0;
+  CR4_REG cr4;
 
   hvm_address EntryRFlags = 0;
   hvm_address EntryRAX    = 0;
@@ -223,17 +223,22 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
   WindowsLog("   StartVT:       %.8x", StartVT);
   WindowsLog("   VMMEntryPoint: %.8x", hvm_x86_ops.hvm_handle_exit);
 	
-  /* Check if PAE is enabled. */
+  /* Check if PAE is enabled or not */
   CR4_TO_ULONG(cr4) = RegGetCr4();
 
-  if(cr4 & 0x00000020) {
-    WindowsLog("******************************");
-    WindowsLog("Error : PAE must be disabled.");
-    WindowsLog("Add the following to boot.ini:");
-    WindowsLog("  /noexecute=alwaysoff /nopae");
-    WindowsLog("******************************");
+#ifdef ENABLE_PAE
+  if(!cr4.PAE) {
+    WindowsLog("PAE support enabled, but the guest is NOT using it ");
+    WindowsLog("Add the option /pae to boot.ini");
     goto error;
   }
+#else
+  if(cr4.PAE) {
+    WindowsLog("PAE support disabled, but the guest is using it ");
+    WindowsLog("Add the options /noexecute=alwaysoff /nopae to boot.ini");
+    goto error;
+  }
+#endif
 
   /* Register event handlers */
   if (!HVM_SUCCESS(RegisterEvents()))
