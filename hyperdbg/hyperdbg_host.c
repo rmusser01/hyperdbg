@@ -45,13 +45,13 @@
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(void);
-static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(void);
-static EVENT_PUBLISH_STATUS HyperDbgIOHandler(void);
+static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(PEVENT_ARGUMENTS args);
+static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(PEVENT_ARGUMENTS args);
+static EVENT_PUBLISH_STATUS HyperDbgIOHandler(PEVENT_ARGUMENTS args);
 
 /* This hypercall is invoked when we want to change the resolution of the GUI
    dynamically */
-static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(void);
+static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(PEVENT_ARGUMENTS args);
 
 static void HyperDbgEnter(void);
 static void HyperDbgCommandLoop(void);
@@ -60,7 +60,7 @@ static void HyperDbgCommandLoop(void);
 /* #### BODIES #### */
 /* ################ */
 
-static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(void)
+static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(PEVENT_ARGUMENTS args)
 {
   VideoSetResolution(context.GuestContext.RBX, context.GuestContext.RCX);
 
@@ -190,17 +190,13 @@ static void HyperDbgCommandLoop(void)
 }
 
 /* Invoked for write operations to the keyboard I/O port */
-static EVENT_PUBLISH_STATUS HyperDbgIOHandler(void)
+static EVENT_PUBLISH_STATUS HyperDbgIOHandler(PEVENT_ARGUMENTS args)
 {
   Bit8u c;
-  Bit32u size;
-  hvm_bool isRep, isString, isMouse;
+  hvm_bool isMouse;
 
-  size     = (context.ExitContext.ExitQualification & 7) + 1;
-  isString = (context.ExitContext.ExitQualification & (1 << 4)) != 0;
-  isRep    = (context.ExitContext.ExitQualification & (1 << 5)) != 0;
-
-  if (size != 1 || isString || isRep) {
+  /* This handler needs an event argument! */
+  if (!args || args->EventIO.size != 1 || args->EventIO.isstring || args->EventIO.isrep) {
     return EventPublishPass;
   }
 
@@ -218,9 +214,9 @@ static EVENT_PUBLISH_STATUS HyperDbgIOHandler(void)
 
     /* FIXME: quite dirty... The problem is that RIP points to the 'inb'
        instruction, that will never be executed. For this reason, the debugger
-       should not highlight 'inb' as the current instruction. Note: the "core"
-       does not update the guest RIP with the value cached in the VMCS */
-    context.GuestContext.RIP += context.ExitContext.ExitInstructionLength;
+       should not highlight 'inb' as the current instruction. 
+       NOTE: the "core" does not update the guest RIP with the value cached in the VMCS */
+    context.GuestContext.RIP += hvm_x86_ops.vt_get_exit_instr_len();
 
     HyperDbgEnter();
   }
@@ -228,7 +224,7 @@ static EVENT_PUBLISH_STATUS HyperDbgIOHandler(void)
   return EventPublishHandled;
 }
 
-static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(void)
+static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(PEVENT_ARGUMENTS args)
 {
   hvm_bool ours;
 
@@ -251,7 +247,7 @@ static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(void)
   return EventPublishHandled;
 }
 
-static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(void)
+static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(PEVENT_ARGUMENTS args)
 {
   hvm_address flags;
 

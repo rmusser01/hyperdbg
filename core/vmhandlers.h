@@ -29,11 +29,11 @@
 
 void HandleVMCALL(void);
 void HandleVMLAUNCH(void);
-void HandleNMI(Bit32u trap, Bit32u qualification);
-void HandleIO(Bit16u port, hvm_bool isoutput);
+void HandleNMI(Bit32u trap, Bit32u error_code, Bit32u qualification);
+void HandleIO(Bit16u port, hvm_bool isoutput, Bit8u size, hvm_bool isstring, hvm_bool isrep);
 void HandleCR(Bit8u crno, VtCrAccessType accesstype, hvm_bool ismemory, VtRegister gpr);
 void HandleHLT(void);
 
-EVENT_PUBLISH_STATUS HypercallSwitchOff(void);
+EVENT_PUBLISH_STATUS HypercallSwitchOff(PEVENT_ARGUMENTS args);
 
 #endif	/*  _VMHANDLERS_H */

@@ -41,6 +41,18 @@
 #define VMX_MEMTYPE_UNCACHEABLE 0
 #define VMX_MEMTYPE_WRITEBACK   6
 
+static struct {
+  Bit32u ExitReason;
+  Bit32u ExitQualification;
+  Bit32u ExitInterruptionInformation;
+  Bit32u ExitInterruptionErrorCode;
+  Bit32u ExitInstructionLength;
+  Bit32u ExitInstructionInformation;
+
+  Bit32u IDTVectoringInformationField;
+  Bit32u IDTVectoringErrorCode;
+} vmxcontext;
+
 /* VMX operations */
 static hvm_bool   VmxHasCPUSupport(void);
 static hvm_bool   VmxIsEnabled(void);
@@ -52,6 +64,8 @@ static void       VmxInvalidateTLB(void);
 static void       VmxSetCr0(hvm_address cr0);
 static void       VmxSetCr3(hvm_address cr3);
 static void       VmxSetCr4(hvm_address cr4);
+static void       VmxTrapIO(hvm_bool enabled);
+static Bit32u     VmxGetExitInstructionLength(void);
 
 static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_return);
 static Bit32u     VmxVmcsRead(Bit32u encoding);
@@ -60,12 +74,13 @@ static void       VmxVmcsWrite(Bit32u encoding, Bit32u value);
 static void       VmxHvmHandleExit(void);
 static hvm_status VmxHvmSwitchOff(void);
 static hvm_status VmxHvmUpdateEvents(void);
-static void       VmxHvmInjectException(Bit32u trap, Bit32u type);
+static void       VmxHvmInjectHwException(Bit32u trap, Bit32u type);
 
 /* Internal VMX functions (i.e., not used outside this module) */
-static void VmxInternalHandleCR(void);
-static void VmxInternalHandleIO(void);
-static void VmxInternalHandleNMI(void);
+static void       VmxInternalHandleCR(void);
+static void       VmxInternalHandleIO(void);
+static void       VmxInternalHandleNMI(void);
+static void       VmxInternalHvmInjectException(Bit32u type, Bit32u trap, Bit32u error_code);
 
 /* Assembly functions (defined in i386/vmx-asm.asm) */
 void    __stdcall VmxLaunch(void);
@@ -95,6 +110,8 @@ struct HVM_X86_OPS hvm_x86_ops = {
   VmxSetCr0,			/* vt_set_cr0 */
   VmxSetCr3,			/* vt_set_cr3 */
   VmxSetCr4,			/* vt_set_cr4 */
+  VmxTrapIO,			/* vt_trap_io */
+  VmxGetExitInstructionLength,	/* vt_get_exit_instr_len */
 
   /* Memory management */
   VmxInvalidateTLB,     	/* mmu_tlb_flush */
@@ -103,7 +120,7 @@ struct HVM_X86_OPS hvm_x86_ops = {
   VmxHvmHandleExit,     	/* hvm_handle_exit */
   VmxHvmSwitchOff,		/* hvm_switch_off */
   VmxHvmUpdateEvents,		/* hvm_update_events */
-  VmxHvmInjectException,	/* hvm_inject_exception */
+  VmxHvmInjectHwException,	/* hvm_inject_hw_exception */
 };
 
 /* Utility functions */
@@ -730,6 +747,28 @@ static void VmxSetCr4(hvm_address cr4)
   hvm_x86_ops.vt_vmcs_write(GUEST_CR4, cr4);
 }
 
+static void VmxTrapIO(hvm_bool enabled)
+{
+  Bit32u v;
+
+  v = hvm_x86_ops.vt_vmcs_read(CPU_BASED_VM_EXEC_CONTROL);
+
+  if (enabled) {
+    /* Enable I/O bitmaps */
+    CmSetBit32(&v,   CPU_BASED_PRIMARY_IO);
+  } else {
+    /* Disable I/O bitmaps */
+    CmClearBit32(&v, CPU_BASED_PRIMARY_IO);
+  }
+
+  hvm_x86_ops.vt_vmcs_write(CPU_BASED_VM_EXEC_CONTROL, v);
+}
+
+static Bit32u VmxGetExitInstructionLength(void)
+{
+  return vmxcontext.ExitInstructionLength;
+}
+
 static void VmxInvalidateTLB(void)
 {
   __asm { 
@@ -778,14 +817,14 @@ static __declspec(naked) void VmxUpdateGuestContext(void)
 static void VmxReadGuestContext(void)
 {
   /* Exit state */
-  context.ExitContext.ExitReason                   = VmxRead(VM_EXIT_REASON);
-  context.ExitContext.ExitQualification            = VmxRead(EXIT_QUALIFICATION);
-  context.ExitContext.ExitInterruptionInformation  = VmxRead(VM_EXIT_INTR_INFO);
-  context.ExitContext.ExitInterruptionErrorCode    = VmxRead(VM_EXIT_INTR_ERROR_CODE);
-  context.ExitContext.IDTVectoringInformationField = VmxRead(IDT_VECTORING_INFO_FIELD);
-  context.ExitContext.IDTVectoringErrorCode        = VmxRead(IDT_VECTORING_ERROR_CODE);
-  context.ExitContext.ExitInstructionLength        = VmxRead(VM_EXIT_INSTRUCTION_LEN);
-  context.ExitContext.ExitInstructionInformation   = VmxRead(VMX_INSTRUCTION_INFO);
+  vmxcontext.ExitReason                   = VmxRead(VM_EXIT_REASON);
+  vmxcontext.ExitQualification            = VmxRead(EXIT_QUALIFICATION);
+  vmxcontext.ExitInterruptionInformation  = VmxRead(VM_EXIT_INTR_INFO);
+  vmxcontext.ExitInterruptionErrorCode    = VmxRead(VM_EXIT_INTR_ERROR_CODE);
+  vmxcontext.IDTVectoringInformationField = VmxRead(IDT_VECTORING_INFO_FIELD);
+  vmxcontext.IDTVectoringErrorCode        = VmxRead(IDT_VECTORING_ERROR_CODE);
+  vmxcontext.ExitInstructionLength        = VmxRead(VM_EXIT_INSTRUCTION_LEN);
+  vmxcontext.ExitInstructionInformation   = VmxRead(VMX_INSTRUCTION_INFO);
 
   /* Read guest state */
   context.GuestContext.RIP    = VmxRead(GUEST_RIP);
@@ -798,7 +837,7 @@ static void VmxReadGuestContext(void)
 
   /* Writing the Guest VMCS RIP uses general registers. Must complete this
      before setting general registers for guest return state */
-  context.GuestContext.ResumeRIP = context.GuestContext.RIP + context.ExitContext.ExitInstructionLength;
+  context.GuestContext.ResumeRIP = context.GuestContext.RIP + vmxcontext.ExitInstructionLength;
 }
 
 static hvm_status VmxHvmUpdateEvents(void)
@@ -817,24 +856,26 @@ static hvm_status VmxHvmUpdateEvents(void)
   return HVM_STATUS_SUCCESS;
 }
 
-static void VmxHvmInjectException(Bit32u trap, Bit32u type)
+static void VmxInternalHvmInjectException(Bit32u type, Bit32u trap, Bit32u error_code)
 {
   Bit32u v;
-
-  /* Read the page-fault error code and write it into the VM-entry exception error code field */
-  VmxVmcsWrite(VM_ENTRY_EXCEPTION_ERROR_CODE, context.ExitContext.ExitInterruptionErrorCode);
 
   /* Write the VM-entry interruption-information field */
   v = (INTR_INFO_VALID_MASK | trap | type);
 
   /* Check if bits 11 (deliver code) and 31 (valid) are set. In this
      case, error code has to be delivered to guest OS */
-  if ((context.ExitContext.ExitInterruptionInformation & INTR_INFO_DELIVER_CODE_MASK) &&
-      (context.ExitContext.ExitInterruptionInformation & INTR_INFO_VALID_MASK)) {
+  if (error_code != HVM_DELIVER_NO_ERROR_CODE) {
+    VmxVmcsWrite(VM_ENTRY_EXCEPTION_ERROR_CODE, error_code);
     v |= INTR_INFO_DELIVER_CODE_MASK;
   }
 
   VmxVmcsWrite(VM_ENTRY_INTR_INFO_FIELD, v);
+}
+
+static void VmxHvmInjectHwException(Bit32u trap, Bit32u error_code)
+{
+  VmxInternalHvmInjectException(INTR_TYPE_HW_EXCEPTION, trap, error_code);
 }
 
 static hvm_status VmxHvmSwitchOff(void)
@@ -905,10 +946,10 @@ static void VmxInternalHandleCR(void)
   VtCrAccessType accesstype;
   VtRegister gpr;
 
-  movcrControlRegister = (Bit8u) (context.ExitContext.ExitQualification & 0x0000000F);
-  movcrAccessType      = ((context.ExitContext.ExitQualification & 0x00000030) >> 4);
-  movcrOperandType     = ((context.ExitContext.ExitQualification & 0x00000040) >> 6);
-  movcrGeneralPurposeRegister = ((context.ExitContext.ExitQualification & 0x00000F00) >> 8);
+  movcrControlRegister = (Bit8u) (vmxcontext.ExitQualification & 0x0000000F);
+  movcrAccessType      = ((vmxcontext.ExitQualification & 0x00000030) >> 4);
+  movcrOperandType     = ((vmxcontext.ExitQualification & 0x00000040) >> 6);
+  movcrGeneralPurposeRegister = ((vmxcontext.ExitQualification & 0x00000F00) >> 8);
 
   /* Read access type */
   switch (movcrAccessType) {
@@ -963,26 +1004,43 @@ static void VmxInternalHandleCR(void)
 
 static void VmxInternalHandleIO(void)
 {
+  Bit8u    size;
   Bit16u   port;
-  hvm_bool isoutput;
+  hvm_bool isoutput, isstring, isrep;
 
-  port     = (Bit16u) ((context.ExitContext.ExitQualification & 0xffff0000) >> 16);
-  isoutput = !(context.ExitContext.ExitQualification & (1 << 3));
+  port     = (Bit16u) ((vmxcontext.ExitQualification & 0xffff0000) >> 16);
+  size     = (vmxcontext.ExitQualification & 7) + 1;
+  isoutput = !(vmxcontext.ExitQualification & (1 << 3));
+  isstring = (vmxcontext.ExitQualification & (1 << 4)) != 0;
+  isrep    = (vmxcontext.ExitQualification & (1 << 5)) != 0;
 
   HandleIO(port,		/* I/O port */
-	   isoutput		/* Direction */
+	   isoutput,		/* Direction */
+	   size,		/* I/O operation size */
+	   isstring,		/* Is this a string operation? */
+	   isrep		/* Does this instruction have a REP prefix? */
 	   );
 }
 
 static void VmxInternalHandleNMI(void)
 {
-  Bit32u trap;
+  Bit32u trap, error_code;
 
-  trap = context.ExitContext.ExitInterruptionInformation & INTR_INFO_VECTOR_MASK;
+  trap = vmxcontext.ExitInterruptionInformation & INTR_INFO_VECTOR_MASK;
 
-  HandleNMI(trap, 		                  /* Trap number */
-	    context.ExitContext.ExitQualification /* Exit qualification 
-						     (should be meaningful only for #PF and #DB) */
+  /* Check if bits 11 (deliver code) and 31 (valid) are set. In this
+     case, error code has to be delivered to guest OS */
+  if ((vmxcontext.ExitInterruptionInformation & INTR_INFO_DELIVER_CODE_MASK) &&
+      (vmxcontext.ExitInterruptionInformation & INTR_INFO_VALID_MASK)) {
+    error_code = vmxcontext.ExitInterruptionErrorCode;
+  } else {
+    error_code = HVM_DELIVER_NO_ERROR_CODE;
+  }
+
+  HandleNMI(trap, 		         /* Trap number */
+	    error_code,			 /* Exception error code */
+	    vmxcontext.ExitQualification /* Exit qualification 
+					    (should be meaningful only for #PF and #DB) */
 	    );
 }
 
@@ -1013,7 +1071,7 @@ __declspec(naked) void VmxHvmHandleExit()
   RegSetIdtr((void*) VmxRead(HOST_IDTR_BASE), 0x7ff);
 
   /* Enable logging only for particular VM-exit events */
-  if( context.ExitContext.ExitReason == EXIT_REASON_VMCALL ) {
+  if( vmxcontext.ExitReason == EXIT_REASON_VMCALL ) {
     HandlerLogging = TRUE;
   } else {
     HandlerLogging = FALSE;
@@ -1028,14 +1086,14 @@ __declspec(naked) void VmxHvmHandleExit()
     Log("Guest RDI: %.8x", context.GuestContext.RDI);
     Log("Guest RSI: %.8x", context.GuestContext.RSI);
     Log("Guest RBP: %.8x", context.GuestContext.RBP);
-    Log("Exit Reason:        %.8x", context.ExitContext.ExitReason);
-    Log("Exit Qualification: %.8x", context.ExitContext.ExitQualification);
-    Log("Exit Interruption Information:   %.8x", context.ExitContext.ExitInterruptionInformation);
-    Log("Exit Interruption Error Code:    %.8x", context.ExitContext.ExitInterruptionErrorCode);
-    Log("IDT-Vectoring Information Field: %.8x", context.ExitContext.IDTVectoringInformationField);
-    Log("IDT-Vectoring Error Code:        %.8x", context.ExitContext.IDTVectoringErrorCode);
-    Log("VM-Exit Instruction Length:      %.8x", context.ExitContext.ExitInstructionLength);
-    Log("VM-Exit Instruction Information: %.8x", context.ExitContext.ExitInstructionInformation);
+    Log("Exit Reason:        %.8x", vmxcontext.ExitReason);
+    Log("Exit Qualification: %.8x", vmxcontext.ExitQualification);
+    Log("Exit Interruption Information:   %.8x", vmxcontext.ExitInterruptionInformation);
+    Log("Exit Interruption Error Code:    %.8x", vmxcontext.ExitInterruptionErrorCode);
+    Log("IDT-Vectoring Information Field: %.8x", vmxcontext.IDTVectoringInformationField);
+    Log("IDT-Vectoring Error Code:        %.8x", vmxcontext.IDTVectoringErrorCode);
+    Log("VM-Exit Instruction Length:      %.8x", vmxcontext.ExitInstructionLength);
+    Log("VM-Exit Instruction Information: %.8x", vmxcontext.ExitInstructionInformation);
     Log("VM Exit RIP: %.8x", context.GuestContext.RIP);
     Log("VM Exit RSP: %.8x", context.GuestContext.RSP);
     Log("VM Exit CS:  %.4x", context.GuestContext.CS);
@@ -1049,7 +1107,7 @@ __declspec(naked) void VmxHvmHandleExit()
   //  *** EXIT REASON CHECKS START HERE ***  //
   /////////////////////////////////////////////
 
-  switch(context.ExitContext.ExitReason) {
+  switch(vmxcontext.ExitReason) {
     /////////////////////////////////////////////////////////////////////////////////////
     //  VMCLEAR, VMLAUNCH, VMPTRLD, VMPTRST, VMREAD, VMWRITE, VMRESUME, VMXOFF, VMXON  //
     /////////////////////////////////////////////////////////////////////////////////////
@@ -1062,7 +1120,7 @@ __declspec(naked) void VmxHvmHandleExit()
   case EXIT_REASON_VMWRITE:
   case EXIT_REASON_VMXOFF:
   case EXIT_REASON_VMXON:
-    Log("Request has been denied (reason: %.8x)", context.ExitContext.ExitReason);
+    Log("Request has been denied (reason: %.8x)", vmxcontext.ExitReason);
 
     VmxUpdateGuestContext();
     goto Resume;
@@ -1224,7 +1282,7 @@ __declspec(naked) void VmxHvmHandleExit()
  Exit:
   // This label is reached when we are not able to handle the reason that
   // triggered this VM exit. In this case, we simply switch off VMX mode.
-  HypercallSwitchOff();
+  HypercallSwitchOff(NULL);
 	
  Resume:
   // Exit reason handled. Need to execute the VMRESUME without having

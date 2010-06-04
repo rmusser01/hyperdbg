@@ -60,7 +60,6 @@
 /* #################### */
 
 static void       StartVT();
-static int        EnableVMX(void);
 static void       InitVMMIDT(PIDT_ENTRY pidt);
 static hvm_status RegisterEvents(void);
 
@@ -133,7 +132,7 @@ __declspec(naked) void StartVT()
   __asm	{ POP GuestReturn };
 
   WindowsLog("Guest Return EIP: %.8x", GuestReturn);
-  WindowsLog("Enabling VMX mode");
+  WindowsLog("Enabling VT mode");
 
   /* Set thread affinity */
   KeSetSystemAffinityThread((KAFFINITY) 0x00000001);
@@ -144,10 +143,10 @@ __declspec(naked) void StartVT()
     goto Abort;
   }
 
-  /* ***************************************************** */
-  /* **** The processor is now in VMX root operation! **** */
-  /* ****      No more APIs after this point!         **** */
-  /* ***************************************************** */
+  /* ************************************************* */
+  /* **** The processor is now in root operation! **** */
+  /* ****    No more APIs after this point!       **** */
+  /* ************************************************* */
 
   /* Initialize the VMCS */
   if (!HVM_SUCCESS(hvm_x86_ops.vt_vmcs_initialize(GuestStack, GuestReturn)))
@@ -178,7 +177,7 @@ __declspec(naked) void StartVT()
 VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
 {
   WindowsLog("[vmm-unload] Active processor bitmap: %.8x", (ULONG) KeQueryActiveProcessors());
-  WindowsLog("[vmm-unload] Disabling VMX mode");
+  WindowsLog("[vmm-unload] Disabling VT mode");
 
   KeSetSystemAffinityThread((KAFFINITY) 0x00000001);
 
