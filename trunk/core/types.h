@@ -48,6 +48,8 @@ typedef Bit64u hvm_address;
 typedef Bit32u hvm_address;
 #endif
 
+typedef Bit64u hvm_phy_address;
+
 typedef Bit32u hvm_bool;
 #define TRUE  1
 #define FALSE 0
