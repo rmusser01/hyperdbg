@@ -27,6 +27,7 @@
 #include "idt.h"
 #include "x86.h"
 #include "msr.h"
+#include "mmu.h"
 #include "vmx.h"
 #include "config.h"
 #include "common.h"
@@ -131,18 +132,18 @@ static void    VmxReadGuestContext(void);
    are wrapped together in order to be exposed to the plugins. */
 typedef struct {
   Bit32u*           pVMXONRegion;	    /* VMA of VMXON region */
-  PHYSICAL_ADDRESS  PhysicalVMXONRegionPtr; /* PMA of VMXON region */
+  hvm_phy_address   PhysicalVMXONRegionPtr; /* PMA of VMXON region */
 
   Bit32u*           pVMCSRegion;	    /* VMA of VMCS region */
-  PHYSICAL_ADDRESS  PhysicalVMCSRegionPtr;  /* PMA of VMCS region */
+  hvm_phy_address   PhysicalVMCSRegionPtr;  /* PMA of VMCS region */
 
   void*             VMMStack;               /* VMM stack area */
 
   Bit32u*           pIOBitmapA;	            /* VMA of I/O bitmap A */
-  PHYSICAL_ADDRESS  PhysicalIOBitmapA;      /* PMA of I/O bitmap A */
+  hvm_phy_address   PhysicalIOBitmapA;      /* PMA of I/O bitmap A */
 
   Bit32u*           pIOBitmapB;	            /* VMA of I/O bitmap B */
-  PHYSICAL_ADDRESS  PhysicalIOBitmapB;      /* PMA of I/O bitmap B */
+  hvm_phy_address   PhysicalIOBitmapB;      /* PMA of I/O bitmap B */
 
   PIDT_ENTRY        VMMIDT;                 /* VMM interrupt descriptor table */
 } VMX_INIT_STATE, *PVMX_INIT_STATE;
@@ -237,7 +238,7 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
   //	 working-VMCS pointer register to FFFFFFFF_FFFFFFFFH. Software should
   //	 verify successful execution of VMCLEAR by checking if RFLAGS.CF = 0
   //	 and RFLAGS.ZF = 0.
-  FLAGS_TO_ULONG(rflags) = VmxClear(0, vmxInitState.PhysicalVMCSRegionPtr.LowPart);
+  FLAGS_TO_ULONG(rflags) = VmxClear(GET32H(vmxInitState.PhysicalVMCSRegionPtr), GET32L(vmxInitState.PhysicalVMCSRegionPtr));
 
   if(rflags.CF != 0 || rflags.ZF != 0) {
     Log("ERROR: VMCLEAR operation failed");
@@ -249,7 +250,7 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
   // (4) Execute the VMPTRLD instruction by supplying the guest-VMCS address.
   //	 This initializes the working-VMCS pointer with the new VMCS region's
   //	 physical address.
-  VmxPtrld(0, vmxInitState.PhysicalVMCSRegionPtr.LowPart);
+  VmxPtrld(GET32H(vmxInitState.PhysicalVMCSRegionPtr), GET32L(vmxInitState.PhysicalVMCSRegionPtr));
 
   //
   //  ***********************************
@@ -307,10 +308,10 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
   VmxVmcsWrite(CPU_BASED_VM_EXEC_CONTROL, temp32);
 
   /* I/O bitmap */
-  VmxVmcsWrite(IO_BITMAP_A_HIGH, vmxInitState.PhysicalIOBitmapA.HighPart);  
-  VmxVmcsWrite(IO_BITMAP_A,      vmxInitState.PhysicalIOBitmapA.LowPart); 
-  VmxVmcsWrite(IO_BITMAP_B_HIGH, vmxInitState.PhysicalIOBitmapB.HighPart);  
-  VmxVmcsWrite(IO_BITMAP_B,      vmxInitState.PhysicalIOBitmapB.LowPart); 
+  VmxVmcsWrite(IO_BITMAP_A_HIGH, GET32H(vmxInitState.PhysicalIOBitmapA));  
+  VmxVmcsWrite(IO_BITMAP_A,      GET32L(vmxInitState.PhysicalIOBitmapA)); 
+  VmxVmcsWrite(IO_BITMAP_B_HIGH, GET32H(vmxInitState.PhysicalIOBitmapB));  
+  VmxVmcsWrite(IO_BITMAP_B,      GET32L(vmxInitState.PhysicalIOBitmapB)); 
 
   /* Time-stamp counter offset */
   VmxVmcsWrite(TSC_OFFSET, 0);
@@ -494,16 +495,24 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
 
 static hvm_status VmxInitialize(void (*idt_initializer)(PIDT_ENTRY pidt))
 {
+  hvm_status r;
+  hvm_address cr3;
+
+  cr3 = RegGetCr3();
+
   /* Allocate the VMXON region memory */
   vmxInitState.pVMXONRegion = MmAllocateNonCachedMemory(4096);
   if(vmxInitState.pVMXONRegion == NULL) {
     WindowsLog("ERROR: Allocating VMXON region memory");
     return HVM_STATUS_UNSUCCESSFUL;
   }
-  WindowsLog("VMXONRegion virtual address:  %.8x", vmxInitState.pVMXONRegion);
   RtlZeroMemory(vmxInitState.pVMXONRegion, 4096);
-  vmxInitState.PhysicalVMXONRegionPtr = MmGetPhysicalAddress(vmxInitState.pVMXONRegion);
-  WindowsLog("VMXONRegion physical address: %.8x", vmxInitState.PhysicalVMXONRegionPtr.LowPart);
+  
+  r = MmuGetPhysicalAddress(cr3, (hvm_address) vmxInitState.pVMXONRegion, &vmxInitState.PhysicalVMXONRegionPtr);
+  if (r != HVM_STATUS_SUCCESS) {
+    WindowsLog("ERROR: Can't determine physical address for VMXON region");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
 
   /* Allocate the VMCS region memory */
   vmxInitState.pVMCSRegion = MmAllocateNonCachedMemory(4096);
@@ -511,10 +520,13 @@ static hvm_status VmxInitialize(void (*idt_initializer)(PIDT_ENTRY pidt))
     WindowsLog("ERROR: Allocating VMCS region memory");
     return HVM_STATUS_UNSUCCESSFUL;
   }
-  WindowsLog("VMCSRegion virtual address:  %.8x", vmxInitState.pVMCSRegion);
   RtlZeroMemory(vmxInitState.pVMCSRegion, 4096);
-  vmxInitState.PhysicalVMCSRegionPtr = MmGetPhysicalAddress(vmxInitState.pVMCSRegion);
-  WindowsLog("VMCSRegion physical address: %.8x", vmxInitState.PhysicalVMCSRegionPtr.LowPart);
+
+  r = MmuGetPhysicalAddress(cr3, (hvm_address) vmxInitState.pVMCSRegion, &vmxInitState.PhysicalVMCSRegionPtr);
+  if (r != HVM_STATUS_SUCCESS) {
+    WindowsLog("ERROR: Can't determine physical address for VMCS region");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
 	
   /* Allocate stack for the VM exit handler */
   vmxInitState.VMMStack = ExAllocatePoolWithTag(NonPagedPool, VMM_STACK_SIZE, 'kSkF');
@@ -523,7 +535,6 @@ static hvm_status VmxInitialize(void (*idt_initializer)(PIDT_ENTRY pidt))
     return HVM_STATUS_UNSUCCESSFUL;
   }
   RtlZeroMemory(vmxInitState.VMMStack, VMM_STACK_SIZE);
-  WindowsLog("VMMStack: %.8x", vmxInitState.VMMStack);
 
   /* Allocate a memory page for the I/O bitmap A */
   vmxInitState.pIOBitmapA = MmAllocateNonCachedMemory(4096);
@@ -531,10 +542,13 @@ static hvm_status VmxInitialize(void (*idt_initializer)(PIDT_ENTRY pidt))
     WindowsLog("ERROR: Allocating I/O bitmap A memory");
     return HVM_STATUS_UNSUCCESSFUL;
   }
-  WindowsLog("I/O bitmap A virtual address:  %.8x", vmxInitState.pIOBitmapA);
   RtlZeroMemory(vmxInitState.pIOBitmapA, 4096);
-  vmxInitState.PhysicalIOBitmapA = MmGetPhysicalAddress(vmxInitState.pIOBitmapA);
-  WindowsLog("I/O bitmap A physical address: %.8x", vmxInitState.PhysicalIOBitmapA.LowPart);
+
+  r = MmuGetPhysicalAddress(cr3, (hvm_address) vmxInitState.pIOBitmapA, &vmxInitState.PhysicalIOBitmapA);
+  if (r != HVM_STATUS_SUCCESS) {
+    WindowsLog("ERROR: Can't determine physical address for I/O bitmap A");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
 
   /* Allocate a memory page for the I/O bitmap A */
   vmxInitState.pIOBitmapB = MmAllocateNonCachedMemory(4096);
@@ -542,10 +556,13 @@ static hvm_status VmxInitialize(void (*idt_initializer)(PIDT_ENTRY pidt))
     WindowsLog("ERROR: Allocating I/O bitmap A memory");
     return HVM_STATUS_UNSUCCESSFUL;
   }
-  WindowsLog("I/O bitmap A virtual address:  %.8x", vmxInitState.pIOBitmapB);
   RtlZeroMemory(vmxInitState.pIOBitmapB, 4096);
-  vmxInitState.PhysicalIOBitmapB = MmGetPhysicalAddress(vmxInitState.pIOBitmapB);
-  WindowsLog("I/O bitmap A physical address: %.8x", vmxInitState.PhysicalIOBitmapB.LowPart);
+
+  r = MmuGetPhysicalAddress(cr3, (hvm_address) vmxInitState.pIOBitmapB, &vmxInitState.PhysicalIOBitmapB);
+  if (r != HVM_STATUS_SUCCESS) {
+    WindowsLog("ERROR: Can't determine physical address for I/O bitmap B");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
 
   /* Allocate & initialize the IDT for the VMM */
   vmxInitState.VMMIDT = MmAllocateNonCachedMemory(sizeof(IDT_ENTRY)*256);
@@ -554,7 +571,6 @@ static hvm_status VmxInitialize(void (*idt_initializer)(PIDT_ENTRY pidt))
     return HVM_STATUS_UNSUCCESSFUL;
   }
   idt_initializer(vmxInitState.VMMIDT);
-  WindowsLog("VMMIDT is at %.8x", vmxInitState.VMMIDT);
 
   return HVM_STATUS_SUCCESS;
 }
@@ -710,7 +726,7 @@ static hvm_status VmxHardwareEnable(void)
   // (8) Execute VMXON with the physical address of the VMXON region as the
   //	 operand. Check successful execution of VMXON by checking if
   //	 RFLAGS.CF=0.
-  FLAGS_TO_ULONG(rflags) = VmxTurnOn(0, vmxInitState.PhysicalVMXONRegionPtr.LowPart);
+  FLAGS_TO_ULONG(rflags) = VmxTurnOn(GET32H(vmxInitState.PhysicalVMXONRegionPtr), GET32L(vmxInitState.PhysicalVMXONRegionPtr));
 
   if(rflags.CF == 1) {
     WindowsLog("ERROR: VMXON operation failed");

@@ -40,7 +40,7 @@
 #define PTE_TO_VA(a)   (((a) << 12) & 0x003ff000)
 
 #define PHY_TO_VA(a)   ((hvm_address) (a) + 0x80000000)
-#define PHY_TO_FRAME(a) ((a) >> 12)
+#define PHY_TO_FRAME(a) ((Bit32u) (((a) >> 12) & 0xfffff))
 #define FRAME_TO_PHY(a) ((a) << 12)
 #define PHY_TO_LARGEFRAME(a) ((a) >> 22)
 #define LARGEFRAME_TO_PHY(a) ((a) << 22)
@@ -56,7 +56,7 @@
 #define PAGE_OFFSET(a) ((hvm_address) (a) - (hvm_address) PAGE_ALIGN(a))
 #define LARGEPAGE_OFFSET(a) ((hvm_address) (a) - (hvm_address) LARGEPAGE_ALIGN(a))
 
-hvm_status MmuMapPhysicalPage(hvm_address phy, hvm_address* pva, PPTE poriginal);
+hvm_status MmuMapPhysicalPage(hvm_phy_address phy, hvm_address* pva, PPTE poriginal);
 hvm_status MmuUnmapPhysicalPage(hvm_address va, PTE original);
 
 #define MmuWriteVirtualRegion(cr3, va, buffer, size) MmuReadWriteVirtualRegion(cr3, va, buffer, size, TRUE)
@@ -67,10 +67,10 @@ hvm_status MmuReadWriteVirtualRegion(hvm_address cr3, hvm_address va, void* buff
 #define MmuWritePhysicalRegion(phy, buffer, size) MmuReadWritePhysicalRegion(phy, buffer, size, TRUE)
 #define MmuReadPhysicalRegion(phy, buffer, size)  MmuReadWritePhysicalRegion(phy, buffer, size, FALSE)
 
-hvm_status MmuReadWritePhysicalRegion(hvm_address phy, void* buffer, Bit32u size, hvm_bool isWrite);
+hvm_status MmuReadWritePhysicalRegion(hvm_phy_address phy, void* buffer, Bit32u size, hvm_bool isWrite);
 
-hvm_status MmuGetPhysicalAddress(hvm_address cr3, hvm_address va, hvm_address* pphy);
-hvm_bool  MmuIsAddressValid(hvm_address cr3, hvm_address va);
-hvm_bool  MmuIsAddressWritable(hvm_address cr3, hvm_address va);
+hvm_status MmuGetPhysicalAddress(hvm_address cr3, hvm_address va, hvm_phy_address* pphy);
+hvm_bool   MmuIsAddressValid(hvm_address cr3, hvm_address va);
+hvm_bool   MmuIsAddressWritable(hvm_address cr3, hvm_address va);
 
 #endif	/* _MMU_H */

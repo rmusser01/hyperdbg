@@ -91,7 +91,7 @@ hvm_bool MmuIsAddressValid(hvm_address cr3, hvm_address va)
   return (r == HVM_STATUS_SUCCESS);
 }
 
-hvm_status MmuGetPhysicalAddress(hvm_address cr3, hvm_address va, hvm_address* pphy)
+hvm_status MmuGetPhysicalAddress(hvm_address cr3, hvm_address va, hvm_phy_address* pphy)
 {
   hvm_status r;
   PTE pte;
@@ -114,7 +114,7 @@ hvm_status MmuGetPhysicalAddress(hvm_address cr3, hvm_address va, hvm_address* p
   return HVM_STATUS_SUCCESS;
 }
 
-hvm_status MmuMapPhysicalPage(hvm_address phy, hvm_address* pva, PPTE pentryOriginal)
+hvm_status MmuMapPhysicalPage(hvm_phy_address phy, hvm_address* pva, PPTE pentryOriginal)
 {
   hvm_status r;
   hvm_address dwEntryAddress, dwLogicalAddress;
@@ -167,7 +167,7 @@ hvm_status MmuUnmapPhysicalPage(hvm_address va, PTE entryOriginal)
   return HVM_STATUS_SUCCESS;
 }
 
-hvm_status MmuReadWritePhysicalRegion(hvm_address phy, void* buffer, Bit32u size, hvm_bool isWrite)
+hvm_status MmuReadWritePhysicalRegion(hvm_phy_address phy, void* buffer, Bit32u size, hvm_bool isWrite)
 {
   hvm_status r;
   hvm_address dwLogicalAddress;
@@ -205,7 +205,7 @@ hvm_status MmuReadWriteVirtualRegion(hvm_address cr3, hvm_address va, void* buff
 				     Bit32u size, hvm_bool isWrite)
 {
   hvm_status r;
-  hvm_address phy;
+  hvm_phy_address phy;
   Bit32u i, n;
 
   i = 0;
@@ -243,7 +243,7 @@ static hvm_status MmuGetPageEntry(hvm_address cr3, hvm_address va, PPTE ppte,
 				  hvm_bool* pisLargePage)
 {
   hvm_status r;
-  hvm_address addr;
+  hvm_phy_address addr;
   PTE p;
 
   MmuPrint("[MMU] MmuGetPageEntry() cr3: %.8x va: %.8x\n", CR3_TO_PDBASE(cr3), va);
