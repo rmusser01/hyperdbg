@@ -4,7 +4,7 @@ set CUSTOM_CORE_CFLAGS=
 set CUSTOM_CORE_INCLUDES=
 set CUSTOM_CORE_LIBS=
 
-set CUSTOM_PLUGIN_CFLAGS=/DHVM_ARCH_BITS=32 /DGUEST_WINDOWS=1 /DXPVIDEO
+set CUSTOM_PLUGIN_CFLAGS=/DHVM_ARCH_BITS=32 /DGUEST_WINDOWS=1
 set CUSTOM_CORE_CFLAGS=/DHVM_ARCH_BITS=32 /DGUEST_WINDOWS=1
 
 if "%1"=="" goto NoTarget
@@ -25,11 +25,23 @@ set CUSTOM_CORE_CFLAGS=/DENABLE_PAE=1 %CUSTOM_CORE_CFLAGS%
 
 :hyperdbg
 
+if "%2"=="xpauto" goto SetupAutoXPVideo
+
 if "%2"=="" goto ErrorParameter
 if "%3"=="" goto ErrorParameter
 
+goto NoAuto
+
+:SetupAutoXPVideo
+set CUSTOM_PLUGIN_CFLAGS=/DXPVIDEO %CUSTOM_PLUGIN_CFLAGS% 
+goto hyperdbg-continue
+
+:NoAuto
+
 set CUSTOM_PLUGIN_CFLAGS=/DVIDEO_DEFAULT_RESOLUTION_X=%2 %CUSTOM_PLUGIN_CFLAGS%
 set CUSTOM_PLUGIN_CFLAGS=/DVIDEO_DEFAULT_RESOLUTION_Y=%3 %CUSTOM_PLUGIN_CFLAGS%
+
+:hyperdbg-continue
 
 set CUSTOM_CORE_CFLAGS=/DENABLE_HYPERDBG=1 %CUSTOM_CORE_CFLAGS%
 set CUSTOM_CORE_INCLUDES=..\hyperdbg
@@ -50,7 +62,7 @@ echo [!] You must specify a module name
 goto End
 
 :ErrorParameter
-echo [!] You must specify a screen resolution
+echo [!] You must specify a screen resolution *OR* xpauto
 goto End
 
 :End
