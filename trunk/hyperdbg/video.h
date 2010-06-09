@@ -24,13 +24,17 @@
 #ifndef _VIDEO_H
 #define _VIDEO_H
 
-/* Frame buffer resolutions must be defined */
+/* Frame buffer resolutions must be defined UNLESS we are using xp automatic resolution detection */
+#ifndef XPVIDEO
 #ifndef VIDEO_DEFAULT_RESOLUTION_X
 #error VIDEO_DEFAULT_RESOLUTION_X must be defined! 
 #endif
+#endif
 
+#ifndef XPVIDEO
 #ifndef VIDEO_DEFAULT_RESOLUTION_Y
 #error VIDEO_DEFAULT_RESOLUTION_Y must be defined! 
+#endif
 #endif
 
 #define SHELL_SIZE_X 100
