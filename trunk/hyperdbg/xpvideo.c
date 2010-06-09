@@ -61,7 +61,7 @@ NTSTATUS XpVideoGetVideoMemoryAddress(PDEVICE_OBJECT device, PHYSICAL_ADDRESS *v
 NTSTATUS XpVideoGetVideoModeInformation(PDEVICE_OBJECT device, VIDEO_MODE_INFORMATION *vidModeinfo); /* FIXME: Unused */
 NTSTATUS XpVideoDoDeviceIoControl(PDEVICE_OBJECT device, ULONG ioctl, PVOID input, ULONG inputlen, PVOID output, ULONG outputlen);
 ULONG    XpVideoGetRealStride(ULONG width, ULONG stride);
-int      XpVideoIsDriverVgaSave(PUNICODE_STRING driverName);
+hvm_bool XpVideoIsDriverVgaSave(PUNICODE_STRING driverName);
 
 hvm_status XpVideoGetWindowsXPDisplayData(hvm_address *addr, Bit32u *framebuffer_size, Bit32u *width, Bit32u *height, Bit32u *stride) {
   UNICODE_STRING driverName;
@@ -71,7 +71,7 @@ hvm_status XpVideoGetWindowsXPDisplayData(hvm_address *addr, Bit32u *framebuffer
   PDEVICE_OBJECT deviceObject;
   PHYSICAL_ADDRESS physAddr;
   ULONG length;
-  int is_vgasave;
+  hvm_bool is_vgasave;
 
   /* Allocate some space for the name of our driver. this is a bit overkill... */
   stringBuf = ExAllocatePoolWithTag(NonPagedPool, 1024, 'lnoj');
@@ -366,7 +366,7 @@ ULONG XpVideoGetRealStride(ULONG width, ULONG stride) {
 }
 
 /* Return 1 if this driver is the VgaSave driver */
-int XpVideoIsDriverVgaSave(PUNICODE_STRING driverName) {
+hvm_bool XpVideoIsDriverVgaSave(PUNICODE_STRING driverName) {
   UNICODE_STRING vgaSave;
   LONG ret;
 
@@ -374,9 +374,9 @@ int XpVideoIsDriverVgaSave(PUNICODE_STRING driverName) {
   ret = RtlCompareUnicodeString(driverName, &vgaSave, TRUE);
 
   if(ret == 0) {
-    return 1;
+    return TRUE;
   } else {
-    return 0;
+    return FALSE;
   }
 }
 
