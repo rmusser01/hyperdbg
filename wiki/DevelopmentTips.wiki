@@ -16,7 +16,7 @@ This is the minimal driver containing HyperDbg itself and the loader.
 
 = Testing =
 
-The testing environment is a little bit more complex. Although a physical machine can be used for the testing we suggest to use [http://bochs.sourceforge.net/ Bochs]. You need to create a Windows XP image for BOCHS. The fastest way to share a file (e.g., pill.sys) between your host and the guest running in BOCHS is to create a ISO image and then to bind the image to cdrom simulated by BOCHS. Alternatively, a floppy image can be used. You can use `mkisofs` to create the ISO image:
+The testing environment is a little bit more complex. Although a physical machine can be used for the testing we suggest to use [http://bochs.sourceforge.net/ Bochs](2.4.5). You need to create a Windows XP image for BOCHS. The fastest way to share a file (e.g., pill.sys) between your host and the guest running in BOCHS is to create a ISO image and then to bind the image to cdrom simulated by BOCHS. Alternatively, a floppy image can be used. You can use `mkisofs` to create the ISO image:
 {{{
 $ mkisofs -o cd.iso pill.sys
 }}}
