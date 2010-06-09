@@ -73,7 +73,6 @@ hvm_status VideoInit(void)
   hvm_status r;
 
 #ifdef XPVIDEO
-  WindowsLog("cacca\n");
   XpVideoGetWindowsXPDisplayData(&video_address, &framebuffer_size, &video_sizex, &video_sizey, &video_stride);
 #else
 #ifndef VIDEO_ADDRESS_MANUAL
