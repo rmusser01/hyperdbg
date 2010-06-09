@@ -29,6 +29,10 @@
 #include "pci.h"
 #include "debug.h"
 
+#ifdef XPVIDEO
+#include "xpvideo.h"
+#endif // XPVIDEO
+
 /* ################ */
 /* #### MACROS #### */
 /* ################ */
@@ -41,7 +45,7 @@
 #define FONT_BPP 8
 #define BYTE_PER_PIXEL FONT_BPP>>3
 
-#define FRAME_BUFFER_SIZE (video_sizex*video_sizey*FRAME_BUFFER_RESOLUTION_DEPTH)
+//#define FRAME_BUFFER_SIZE (video_sizey*video_stride*FRAME_BUFFER_RESOLUTION_DEPTH)
 #define FRAME_BUFFER_RESOLUTION_DEPTH 4
 
 /* Various video memory addresses */
@@ -49,7 +53,7 @@
 #define DEFAULT_VIDEO_ADDRESS VIDEO_ADDRESS_BOCHS 
 
 /* Uncomment this line to disable video autodetect */
-#define VIDEO_ADDRESS_MANUAL
+//#define VIDEO_ADDRESS_MANUAL
 
 /* ################# */
 /* #### GLOBALS #### */
@@ -58,7 +62,7 @@
 static Bit32u     *video_mem = NULL;
 static hvm_address video_address = 0;
 static Bit32u    **video_backup;
-static Bit32u      video_sizex, video_sizey;
+static Bit32u      video_sizex, video_sizey, video_stride, framebuffer_size;
 
 /* ################ */
 /* #### BODIES #### */
@@ -68,6 +72,9 @@ hvm_status VideoInit(void)
 {
   hvm_status r;
 
+#ifdef XPVIDEO
+  XpVideoGetWindowsXPDisplayData(&video_address, &framebuffer_size, &video_sizex, &video_sizey, &video_stride);
+#else
 #ifndef VIDEO_ADDRESS_MANUAL
   PCIInit();
   r = PCIDetectDisplay(&video_address);
@@ -77,13 +84,19 @@ hvm_status VideoInit(void)
   }
 #else
   video_address = (hvm_address) DEFAULT_VIDEO_ADDRESS;
-#endif
-  
-  WindowsLog("[*] Found PCI display region at physical address %.8x\n", video_address);
+#endif 
 
   /* Set default screen resolution */
   video_sizex = VIDEO_DEFAULT_RESOLUTION_X;
+  video_stride = VIDEO_DEFAULT_RESOLUTION_X;
   video_sizey = VIDEO_DEFAULT_RESOLUTION_Y;
+  framebuffer_size = video_sizey*video_stride*FRAME_BUFFER_RESOLUTION_DEPTH;
+
+#endif // XPVIDEO
+  
+  WindowsLog("[*] Found PCI display region at physical address %.8x\n", video_address);
+  WindowsLog("[*] Using resolution of %d x %d, stride %d\n", video_sizex, video_sizey, video_stride);
+
 
   return HVM_STATUS_SUCCESS;
 }
@@ -96,6 +109,7 @@ hvm_status VideoFini(void)
 void VideoSetResolution(Bit32u x, Bit32u y)
 {
   video_sizex = x;
+  video_stride = x;
   video_sizey = y;
 }
 
@@ -103,8 +117,10 @@ hvm_status VideoAlloc(void)
 {
   PHYSICAL_ADDRESS pa;
   Bit32u i;
+    int x, y;
   pa.u.HighPart = 0;
   pa.u.LowPart  = video_address;
+
 
   /* Allocate memory to save current pixels */
   video_backup = MmAllocateNonCachedMemory(FONT_Y * SHELL_SIZE_Y * sizeof(Bit32u));
@@ -116,9 +132,20 @@ hvm_status VideoAlloc(void)
   }
 
   /* Map video memory */
-  video_mem = (Bit32u*) MmMapIoSpace(pa, FRAME_BUFFER_SIZE, MmWriteCombined);
+  video_mem = (Bit32u*) MmMapIoSpace(pa, framebuffer_size, MmWriteCombined);
   if (!video_mem)
     return HVM_STATUS_UNSUCCESSFUL;
+
+
+#if 0
+  // debug code to draw a 100x100 white square at the top left of the screen. this can be used
+  // to test the video settings without actually breaking into hyperdbg -jon
+  for(x=0; x<100; x++) {
+    for(y=0; y<100; y++) {
+      *(video_mem + y * video_stride + x) = 0xFFFFFFFF;
+    }
+  }
+#endif
 
   return HVM_STATUS_SUCCESS;
 }
@@ -133,7 +160,7 @@ hvm_status VideoDealloc(void)
   MmFreeNonCachedMemory(video_backup, FONT_Y * SHELL_SIZE_Y * sizeof(Bit32u));
 
   if (video_mem) {
-    MmUnmapIoSpace(video_mem, FRAME_BUFFER_SIZE);
+    MmUnmapIoSpace(video_mem, framebuffer_size);
     video_mem = NULL;
   }
 
@@ -192,7 +219,7 @@ void VideoWriteChar(Bit8u c, unsigned int color, unsigned int x, unsigned int y)
   offset_font_base = (int) c * FONT_X; 
 
   /* Real offset in the FB */
-  offset_screen_base = x * FONT_X + y * FONT_Y * video_sizex; 
+  offset_screen_base = x * FONT_X + y * FONT_Y * video_stride; 
 
   /* For each pixel both in width and in height of a font char */
   for(x_pix = 0; x_pix < FONT_X; x_pix++) {
@@ -202,7 +229,7 @@ void VideoWriteChar(Bit8u c, unsigned int color, unsigned int x, unsigned int y)
 
     for(y_pix = 0; y_pix < FONT_Y; y_pix++) {
       /* Get current y offset in */
-      offset_screen_y = (FONT_Y - y_pix - 1) * video_sizex;
+      offset_screen_y = (FONT_Y - y_pix - 1) * video_stride;
 
       /* Check in the font map if we have to draw the current pixel */
       is_pixel_set = (font_data[(offset_font_x + y_pix*FONT_NEXT_LINE)*BYTE_PER_PIXEL]>>3);
@@ -224,7 +251,7 @@ void VideoClear(Bit32u color)
 
   for(j = 0; j < FONT_Y * SHELL_SIZE_Y; j++) {
     for(i = 0; i < FONT_X * SHELL_SIZE_X; i++) {
-      video_mem[(j*video_sizex)+i] = color;
+      video_mem[(j*video_stride)+i] = color;
     }
   }
 }
@@ -235,7 +262,7 @@ void VideoSave(void)
 
   for(j = 0; j < FONT_Y * SHELL_SIZE_Y; j++) {
     for(i = 0; i < FONT_X * SHELL_SIZE_X; i++) {
-      video_backup[j][i] = video_mem[(j*video_sizex)+i];
+      video_backup[j][i] = video_mem[(j*video_stride)+i];
     }
   }
 }
@@ -246,7 +273,7 @@ void VideoRestore(void)
 
   for(j = 0; j < FONT_Y * SHELL_SIZE_Y; j++) {
     for(i = 0; i < FONT_X * SHELL_SIZE_X; i++) {
-      video_mem[(j*video_sizex)+i] = video_backup[j][i];
+      video_mem[(j*video_stride)+i] = video_backup[j][i];
     }
   }
 }
