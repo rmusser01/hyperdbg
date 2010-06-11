@@ -1,7 +1,7 @@
 #labels Featured
 <wiki:toc max_depth="1" />
 
-*WARNING: the following instructions refer to the current stable version (i.e.:[http://code.google.com/p/hyperdbg/downloads/detail?name=hyperdbg_20100325.zip&can=2&q= hyperdbg_20100325.zip]) be aware that if you are using the current svn version something may differ*
+*WARNING: the following instructions refer to the current stable version (i.e.:[http://code.google.com/p/hyperdbg/downloads/detail?name=hyperdbg_20100325.zip&can=2&q= hyperdbg_20100325.zip]) be aware that, if you are using the current svn version, something may differ.*
 
 = Compilation =
 To compile HyperDbg and the analysis infrastructure you need the Microsoft
