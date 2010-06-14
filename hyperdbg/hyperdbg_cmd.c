@@ -104,7 +104,7 @@ static void CmdShowInfo(PHYPERDBG_CMD pcmd);
 static void CmdUnknown(PHYPERDBG_CMD pcmd);
 
 static void ParseCommand(Bit8u *buffer, PHYPERDBG_CMD pcmd);
-static hvm_address GetRegFromStr(Bit8u *name);
+static hvm_bool GetRegFromStr(Bit8u *name, hvm_address *value);
 
 /* ################ */
 /* #### BODIES #### */
@@ -245,7 +245,12 @@ static void CmdDumpMemory(PHYPERDBG_CMD pcmd)
 
   /* This means we want to dump memory starting from a CPU register */
   if(pcmd->args[0][0] == '$') {
-    base = GetRegFromStr(&pcmd->args[0][1]);
+    if(!GetRegFromStr(&pcmd->args[0][1], &base)) {
+      vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid register!");
+      VideoRefreshOutArea(RED);
+      return;
+
+    }
   }
   else {
     if(!vmm_strtoul(pcmd->args[0], &base)) {
@@ -623,21 +628,22 @@ static void CmdUnknown(PHYPERDBG_CMD pcmd)
   VideoRefreshOutArea(RED);
 }
 
-static hvm_address GetRegFromStr(Bit8u *name)
+static hvm_bool GetRegFromStr(Bit8u *name, hvm_address *value)
 {
-  if(vmm_strncmpi(name, "RAX", 3) == 0) return context.GuestContext.RAX;
-  if(vmm_strncmpi(name, "RBX", 3) == 0) return context.GuestContext.RBX;
-  if(vmm_strncmpi(name, "RCX", 3) == 0) return context.GuestContext.RCX;
-  if(vmm_strncmpi(name, "RDX", 3) == 0) return context.GuestContext.RDX;
-  if(vmm_strncmpi(name, "RSP", 3) == 0) return context.GuestContext.RSP;
-  if(vmm_strncmpi(name, "RBP", 3) == 0) return context.GuestContext.RBP;
-  if(vmm_strncmpi(name, "RSI", 3) == 0) return context.GuestContext.RSI;
-  if(vmm_strncmpi(name, "RIP", 3) == 0) return context.GuestContext.RIP;
-  if(vmm_strncmpi(name, "CR0", 3) == 0) return context.GuestContext.CR0;
-  if(vmm_strncmpi(name, "CR3", 3) == 0) return context.GuestContext.CR3;
-  if(vmm_strncmpi(name, "CR4", 3) == 0) return context.GuestContext.CR4;
+  if(vmm_strncmpi(name, "RAX", 3) == 0) { *value = context.GuestContext.RAX; return TRUE; }
+  if(vmm_strncmpi(name, "RBX", 3) == 0) { *value = context.GuestContext.RBX; return TRUE; }
+  if(vmm_strncmpi(name, "RCX", 3) == 0) { *value = context.GuestContext.RCX; return TRUE; }
+  if(vmm_strncmpi(name, "RDX", 3) == 0) { *value = context.GuestContext.RDX; return TRUE; }
+  if(vmm_strncmpi(name, "RSP", 3) == 0) { *value = context.GuestContext.RSP; return TRUE; }
+  if(vmm_strncmpi(name, "RBP", 3) == 0) { *value = context.GuestContext.RBP; return TRUE; }
+  if(vmm_strncmpi(name, "RSI", 3) == 0) { *value = context.GuestContext.RSI; return TRUE; }
+  if(vmm_strncmpi(name, "RDI", 3) == 0) { *value = context.GuestContext.RSI; return TRUE; }
+  if(vmm_strncmpi(name, "RIP", 3) == 0) { *value = context.GuestContext.RIP; return TRUE; }
+  if(vmm_strncmpi(name, "CR0", 3) == 0) { *value = context.GuestContext.CR0; return TRUE; }
+  if(vmm_strncmpi(name, "CR3", 3) == 0) { *value = context.GuestContext.CR3; return TRUE; }
+  if(vmm_strncmpi(name, "CR4", 3) == 0) { *value = context.GuestContext.CR4; return TRUE; }
   
-  return 0;
+  return FALSE;
 }
 
 static void ParseCommand(Bit8u *buffer, PHYPERDBG_CMD pcmd)
