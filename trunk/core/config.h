@@ -30,4 +30,4 @@
 /* Stack area reserved to the HVM */
 #define VMM_STACK_SIZE      0x8000
 
-#endif _CONFIG_H
+#endif /* _CONFIG_H */
