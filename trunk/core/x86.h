@@ -222,22 +222,32 @@ typedef union
 } SEGMENT_ATTRIBUTES;
 
 /* Page table entry */
+#ifdef ENABLE_PAE
+#define PTE_DATA_FIELD Bit64u
+#else
+#define PTE_DATA_FIELD Bit32u
+#endif
 typedef struct _PTE
 {
-  unsigned Present      :1;
-  unsigned Writable     :1;
-  unsigned Owner        :1;
-  unsigned WriteThrough :1;
-  unsigned CacheDisable :1;
-  unsigned Accessed     :1;
-  unsigned Dirty        :1;
-  unsigned LargePage    :1;
-  unsigned Global       :1;
-  unsigned ForUse1      :1;
-  unsigned ForUse2      :1;
-  unsigned ForUse3      :1;
-  unsigned PageBaseAddr :20;
+  PTE_DATA_FIELD Present      :1;
+  PTE_DATA_FIELD Writable     :1;
+  PTE_DATA_FIELD Owner        :1;
+  PTE_DATA_FIELD WriteThrough :1;
+  PTE_DATA_FIELD CacheDisable :1;
+  PTE_DATA_FIELD Accessed     :1;
+  PTE_DATA_FIELD Dirty        :1;
+  PTE_DATA_FIELD LargePage    :1;
+  PTE_DATA_FIELD Global       :1;
+  PTE_DATA_FIELD ForUse1      :1;
+  PTE_DATA_FIELD ForUse2      :1;
+  PTE_DATA_FIELD ForUse3      :1;
+#ifdef ENABLE_PAE
+  PTE_DATA_FIELD PageBaseAddr :52;
+#else
+  PTE_DATA_FIELD PageBaseAddr :20;
+#endif
 } PTE, *PPTE;
+#undef PTE_DATA_FIELD
 
 typedef struct
 {
