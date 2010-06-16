@@ -57,7 +57,7 @@ typedef enum {
   VT_REGISTER_R15,
 } VtRegister;
 
-typedef struct CPU_CONTEXT {
+struct CPU_CONTEXT {
   struct {
     hvm_address RIP;
     hvm_address ResumeRIP;
@@ -78,7 +78,7 @@ typedef struct CPU_CONTEXT {
   } GuestContext;
 };
 
-typedef struct HVM_X86_OPS {
+struct HVM_X86_OPS {
   /* VT-related */
   hvm_bool    (*vt_cpu_has_support)(void);
   hvm_bool    (*vt_disabled_by_bios)(void);
@@ -91,7 +91,7 @@ typedef struct HVM_X86_OPS {
   void        (*vt_hypercall)(Bit32u num);
 
   /* These will be removed in a near future... */
-  hvm_status  (*vt_vmcs_initialize)(hvm_address guest_stack, hvm_address guest_return);
+  hvm_status  (*vt_vmcs_initialize)(hvm_address guest_stack, hvm_address guest_return, hvm_address host_cr3);
   Bit32u      (*vt_vmcs_read)(Bit32u encoding);
   void        (*vt_vmcs_write)(Bit32u encoding, Bit32u value);
 

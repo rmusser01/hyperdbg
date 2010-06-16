@@ -28,6 +28,7 @@
 #include "config.h"
 #include "debug.h"
 #include "pill.h"
+#include "mmu.h"
 #include "vt.h"
 #include "events.h"
 #include "x86.h"
@@ -74,9 +75,10 @@ static hvm_status FiniPlugin(void);
 /* ################# */
 
 /* Static variables, that are not directly accessed by other modules or plugins. */
-static hvm_bool			ScrubTheLaunch		= FALSE;
-static hvm_address		GuestReturn;
-static hvm_address		GuestStack;
+static hvm_bool	   ScrubTheLaunch = FALSE;
+static hvm_address GuestReturn;
+static hvm_address GuestStack;
+static hvm_address HostCR3;
 
 /* ################ */
 /* #### BODIES #### */
@@ -149,7 +151,7 @@ __declspec(naked) void StartVT()
   /* ************************************************* */
 
   /* Initialize the VMCS */
-  if (!HVM_SUCCESS(hvm_x86_ops.vt_vmcs_initialize(GuestStack, GuestReturn)))
+  if (!HVM_SUCCESS(hvm_x86_ops.vt_vmcs_initialize(GuestStack, GuestReturn, HostCR3)))
     goto Abort;
 
   /* Update the events that must be handled by the HVM */
@@ -161,9 +163,6 @@ __declspec(naked) void StartVT()
 
   Log("VMLAUNCH Failure");
 	
-  /* Get the error number from VMCS */
-  Log("VM instruction error: %.8x", hvm_x86_ops.vt_vmcs_read(VM_INSTRUCTION_ERROR));
-
  Abort:
 
   ScrubTheLaunch = TRUE;
@@ -181,8 +180,9 @@ VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
 
   KeSetSystemAffinityThread((KAFFINITY) 0x00000001);
 
-  FiniPlugin();
-  FiniGuest();
+  MmuFini();			/* Finalize the MMU (e.g., deallocate the host's PT) */
+  FiniPlugin();			/* Finalize plugins */
+  FiniGuest();			/* Finalize guest-specific structures */
 
   if(hvm_x86_ops.vt_enabled()) {
     hvm_x86_ops.vt_hypercall(HYPERCALL_SWITCHOFF);
@@ -246,6 +246,10 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 
   /* Initialize VT */
   if (!HVM_SUCCESS(hvm_x86_ops.vt_initialize(InitVMMIDT)))
+    goto error;
+
+  /* Initialize the MMU */
+  if (!HVM_SUCCESS(MmuInit(&HostCR3)))
     goto error;
 
   /* Initialize guest-specific stuff */

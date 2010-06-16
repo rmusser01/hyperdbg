@@ -68,7 +68,7 @@ static void       VmxSetCr4(hvm_address cr4);
 static void       VmxTrapIO(hvm_bool enabled);
 static Bit32u     VmxGetExitInstructionLength(void);
 
-static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_return);
+static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_return, hvm_address host_cr3);
 static Bit32u     VmxVmcsRead(Bit32u encoding);
 static void       VmxVmcsWrite(Bit32u encoding, Bit32u value);
 
@@ -185,7 +185,7 @@ static hvm_bool VmxIsEnabled(void)
   return vmxIsActive;
 }
 
-static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_return)
+static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_return, hvm_address host_cr3)
 {
   IA32_VMX_BASIC_MSR vmxBasicMsr;
   RFLAGS rflags;
@@ -427,7 +427,8 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
 
   /* Host CR0, CR3 and CR4 */
   VmxVmcsWrite(HOST_CR0, RegGetCr0() & ~(1 << 16)); /* Disable WP */
-  VmxVmcsWrite(HOST_CR3, RegGetCr3());
+  Log("Setting Host CR3 to %.8x%.8x", GET32H(host_cr3), GET32L(host_cr3));
+  VmxVmcsWrite(HOST_CR3, host_cr3);
   VmxVmcsWrite(HOST_CR4, RegGetCr4());
 
   /* Host FS, GS and TR base */
@@ -529,7 +530,7 @@ static hvm_status VmxInitialize(void (*idt_initializer)(PIDT_ENTRY pidt))
   }
 	
   /* Allocate stack for the VM exit handler */
-  vmxInitState.VMMStack = ExAllocatePoolWithTag(NonPagedPool, VMM_STACK_SIZE, 'kSkF');
+  vmxInitState.VMMStack = ExAllocatePoolWithTag(NonPagedPool, VMM_STACK_SIZE, 'gbdh');
   if(vmxInitState.VMMStack == NULL) {
     WindowsLog("ERROR: Allocating VM exit handler stack memory");
     return HVM_STATUS_UNSUCCESSFUL;
@@ -583,7 +584,7 @@ static hvm_status VmxFinalize(void)
   if (vmxInitState.pVMCSRegion)
     MmFreeNonCachedMemory(vmxInitState.pVMCSRegion , 4096);
   if (vmxInitState.VMMStack)
-    ExFreePoolWithTag(vmxInitState.VMMStack, 'kSkF');
+    ExFreePoolWithTag(vmxInitState.VMMStack, 'gbdh');
   if (vmxInitState.pIOBitmapA)
     MmFreeNonCachedMemory(vmxInitState.pIOBitmapA , 4096);
   if (vmxInitState.pIOBitmapB)
