@@ -43,6 +43,8 @@
 /* Common to both PAE and non-PAE systems */
 #define VIRTUAL_PT_BASE     0xC0000000 
 
+static void *hostpt = NULL;
+
 /* ########################## */
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
@@ -57,6 +59,50 @@ static void       MmuPrintPTEntry(PPTE pte);
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
+
+/* Initialize the MMU. Allocate the page table for the host, and define the CR3
+   value that will be used when the CPU is executing in root mode */
+hvm_status MmuInit(hvm_address *pcr3)
+{
+  hvm_status r;
+  hvm_phy_address phy;
+
+  hostpt = ExAllocatePoolWithTag(NonPagedPool, PAGE_SIZE, 'gbdh');
+  if (!hostpt)
+    return HVM_STATUS_UNSUCCESSFUL;
+
+  r = MmuGetPhysicalAddress(RegGetCr3(), (hvm_address) hostpt, &phy);
+  if(!HVM_SUCCESS(r))
+    goto error;
+
+  *pcr3 = (hvm_address) phy;
+
+  /* Initialize the page table */
+  r = MmuReadPhysicalRegion(CR3_ALIGN(RegGetCr3()), hostpt, PAGE_SIZE);
+  if (!HVM_SUCCESS(r))
+    goto error;
+
+  return HVM_STATUS_SUCCESS;
+
+ error:
+  if (hostpt) {
+    ExFreePoolWithTag(hostpt, 'gbdh');
+    hostpt = NULL;
+  }
+  return HVM_STATUS_UNSUCCESSFUL;
+}
+
+/* Finalize the MMU. Deallocates the page table used by the CPU when running in
+   root mode. */
+hvm_status MmuFini(void)
+{
+  if (hostpt) {
+    ExFreePoolWithTag(hostpt, 'gbdh');
+    hostpt = NULL;
+  }
+
+  return HVM_STATUS_SUCCESS;
+}
 
 hvm_bool MmuIsAddressWritable(hvm_address cr3, hvm_address va)
 {

@@ -86,6 +86,9 @@
 
 #endif	/* ENABLE_PAE */
 
+hvm_status MmuInit(hvm_address *pcr3);
+hvm_status MmuFini(void);
+
 hvm_status MmuMapPhysicalPage(hvm_phy_address phy, hvm_address* pva, PPTE poriginal);
 hvm_status MmuUnmapPhysicalPage(hvm_address va, PTE original);
 
