@@ -45,7 +45,7 @@ void HandleCR(Bit8u crno, VtCrAccessType accesstype, hvm_bool ismemory, VtRegist
   EVENT_CONDITION_CR cr;
   EVENT_PUBLISH_STATUS s;
 
-  Log("HandleCR(%d, %d, %d, %d)", crno, accesstype, ismemory, gpr);
+/*   Log("HandleCR(%d, %d, %d, %d)", crno, accesstype, ismemory, gpr); */
 
   /* Notify to plugins */
   cr.crno    = crno;
