@@ -40,6 +40,7 @@
 /* ################ */
 
 #define HYPERDBG_HYPERCALL_SETRES    0xdead0001
+#define HYPERDBG_HYPERCALL_USER      0xdead0002
 
 /* ########################## */
 /* #### LOCAL PROTOTYPES #### */
@@ -48,10 +49,13 @@
 static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(PEVENT_ARGUMENTS args);
 static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(PEVENT_ARGUMENTS args);
 static EVENT_PUBLISH_STATUS HyperDbgIOHandler(PEVENT_ARGUMENTS args);
+static EVENT_PUBLISH_STATUS HyperDbgVMCallHandler(PEVENT_ARGUMENTS args);
 
 /* This hypercall is invoked when we want to change the resolution of the GUI
    dynamically */
 static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(PEVENT_ARGUMENTS args);
+
+static EVENT_PUBLISH_STATUS HyperDbgHypercallUser(PEVENT_ARGUMENTS args);
 
 static void HyperDbgEnter(void);
 static void HyperDbgCommandLoop(void);
@@ -59,6 +63,28 @@ static void HyperDbgCommandLoop(void);
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
+
+/* This hypercall will handle VMCALL #HYPERDBG_HYPERCALL_USER, it expects a
+   number in RBX identifying the requested action. Depending on the action,
+   further parameters can be specified in other registers or on the stack */
+static EVENT_PUBLISH_STATUS HyperDbgHypercallUser(PEVENT_ARGUMENTS args)
+{
+  hvm_address request_number;
+  request_number = context.GuestContext.RBX;
+
+  Log("[HyperDbg] Request from non-root mode 0x%x", request_number);
+  
+  switch(request_number) {
+  case 0x00:
+    /* Do some stuff */
+    break;
+  default:
+    Log("[HyperDbg] Unknown call request 0x%x!", request_number);
+    break;
+  }
+  
+  return EventPublishHandled;
+}
 
 static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(PEVENT_ARGUMENTS args)
 {
@@ -305,14 +331,22 @@ hvm_status HyperDbgHostInit(void)
     return HVM_STATUS_UNSUCCESSFUL;
   }
 
+  /* JOY: I commented this as for now we are not using it and we do not want
+     random userspace process to mess up with our resolution :) */
   /* Register a hypercall to update screen resolution */
-  hypercall.hypernum = HYPERDBG_HYPERCALL_SETRES;
+/*   hypercall.hypernum = HYPERDBG_HYPERCALL_SETRES; */
+/*   if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HyperDbgHypercallSetResolution)) { */
+/*     WindowsLog("ERROR: Unable to register screen resolution hypercall handler"); */
+/*     return HVM_STATUS_UNSUCCESSFUL; */
+/*   } */
 
-  if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HyperDbgHypercallSetResolution)) {
-    WindowsLog("ERROR: Unable to register screen resolution hypercall handler");
+  /* Register a hypercall to handle non-root -> root requests */
+  hypercall.hypernum = HYPERDBG_HYPERCALL_USER;
+  if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HyperDbgHypercallUser)) {
+    WindowsLog("ERROR: Unable to register non-root -> root hypercall handler");
     return HVM_STATUS_UNSUCCESSFUL;
   }
-
+  
   /* Trap keyboard-related I/O instructions */
   io.direction = EventIODirectionIn;
   io.portnum = (Bit32u) KEYB_REGISTER_OUTPUT;
