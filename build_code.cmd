@@ -12,6 +12,7 @@ if "%1"=="" goto NoTarget
 
 if "%1"=="hyperdbg"      goto hyperdbg
 if "%1"=="hyperdbg-pae"  goto hyperdbg-pae
+if "%1"=="naked"	 goto naked
 
 echo [!] Unknown module: %1
 echo     Available modules: hyperdbg hyperdbg-pae naked
