@@ -28,7 +28,7 @@ option casemap:none
 CmInitSpinLock PROC StdCall lck
 	mov	eax, lck
 	and	dword ptr [eax], 0
-
+	
 	ret
 CmInitSpinLock ENDP
 

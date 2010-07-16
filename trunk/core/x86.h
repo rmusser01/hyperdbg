@@ -242,7 +242,7 @@ typedef struct _PTE
   PTE_DATA_FIELD ForUse2      :1;
   PTE_DATA_FIELD ForUse3      :1;
 #ifdef ENABLE_PAE
-  PTE_DATA_FIELD PageBaseAddr :52;
+  PTE_DATA_FIELD PageBaseAddr :36;
 #else
   PTE_DATA_FIELD PageBaseAddr :20;
 #endif
