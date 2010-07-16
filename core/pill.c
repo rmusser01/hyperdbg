@@ -241,24 +241,34 @@ NTSTATUS DriverEntry(IN PDRIVER_OBJECT DriverObject, IN PUNICODE_STRING Registry
 #endif
 
   /* Register event handlers */
-  if (!HVM_SUCCESS(RegisterEvents()))
+  if (!HVM_SUCCESS(RegisterEvents())) {
+    WindowsLog("Failed to register events");
     goto error;
+  }
 
   /* Initialize VT */
-  if (!HVM_SUCCESS(hvm_x86_ops.vt_initialize(InitVMMIDT)))
+  if (!HVM_SUCCESS(hvm_x86_ops.vt_initialize(InitVMMIDT))) {
+    WindowsLog("Failed to initialize VT");
     goto error;
+  }
 
   /* Initialize the MMU */
-  if (!HVM_SUCCESS(MmuInit(&HostCR3)))
+  if (!HVM_SUCCESS(MmuInit(&HostCR3))) {
+  	WindowsLog("Failed to initialize MMU");
     goto error;
+  }
 
   /* Initialize guest-specific stuff */
-  if (!HVM_SUCCESS(InitGuest(DriverObject)))
+  if (!HVM_SUCCESS(InitGuest(DriverObject))) {
+  	WindowsLog("Failed to initialize guest-specific stuff");
     goto error;
+  }
 
   /* Initialize plugins */
-  if (!HVM_SUCCESS(InitPlugin()))
+  if (!HVM_SUCCESS(InitPlugin())) {
+  	WindowsLog("Failed to initialize plugin");
     goto error;
+  }
 
   __asm {
     CLI;

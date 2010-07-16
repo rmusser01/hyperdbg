@@ -142,6 +142,9 @@ hvm_status XpVideoGetWindowsXPDisplayData(hvm_address *addr, Bit32u *framebuffer
   }
 
   WindowsLog("[xpvideo] using resolution %d x %d, stride %d", *width, *height, *stride);
+  
+  /* Ignore the framebuffer size passed to us by the driver and just use the amount we need */
+  *framebuffer_size = *height * *stride * (vidModeInfo.BitsPerPlane / 8);
 
   return HVM_STATUS_SUCCESS;
 }
@@ -319,7 +322,7 @@ NTSTATUS XpVideoGetVideoMemoryAddress(PDEVICE_OBJECT device, PHYSICAL_ADDRESS *v
   if(NT_SUCCESS(status)) {
     *vidMemPhys = MmGetPhysicalAddress(vidMemInfo.FrameBufferBase);
     *size = vidMemInfo.FrameBufferLength;
-    WindowsLog("[xpvideo] Framebuffer physical address 0x%.8x, size %d", vidMemPhys, size);
+    WindowsLog("[xpvideo] Framebuffer physical address 0x%.8x, size %x", vidMemPhys, *size);
   }
 
   /* Now ask driver to unmap - we don't need it anymore */

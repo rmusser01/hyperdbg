@@ -66,21 +66,35 @@ hvm_status MmuInit(hvm_address *pcr3)
 {
   hvm_status r;
   hvm_phy_address phy;
+  hvm_address cr3;
+
+  cr3 = RegGetCr3();
 
   hostpt = ExAllocatePoolWithTag(NonPagedPool, PAGE_SIZE, 'gbdh');
-  if (!hostpt)
+  if (!hostpt) {
+    WindowsLog("[mmu-init] Failed to allocate non-paged pool for page table");
     return HVM_STATUS_UNSUCCESSFUL;
+  }
 
-  r = MmuGetPhysicalAddress(RegGetCr3(), (hvm_address) hostpt, &phy);
-  if(!HVM_SUCCESS(r))
+  r = MmuGetPhysicalAddress(cr3, (hvm_address) hostpt, &phy);
+  if(!HVM_SUCCESS(r)) {
+    WindowsLog("[mmu-init] Failed to get physical address for page table at 0x%X (CR3: 0x%X))", hostpt, cr3);
     goto error;
+  }
 
   *pcr3 = (hvm_address) phy;
 
   /* Initialize the page table */
-  r = MmuReadPhysicalRegion(CR3_ALIGN(RegGetCr3()), hostpt, PAGE_SIZE);
-  if (!HVM_SUCCESS(r))
+#if ENABLE_PAE
+  /* In PAE mode, CR3 points to a set of 4 64 bit PDPTE's */
+  r = MmuReadPhysicalRegion(CR3_ALIGN(cr3), hostpt, 4 * 16);
+#else
+  r = MmuReadPhysicalRegion(CR3_ALIGN(cr3), hostpt, PAGE_SIZE);
+#endif /* ENABLE_PAE */
+  if (!HVM_SUCCESS(r)) {
+  	WindowsLog("[mmu-init] Failed to read page table at 0x%X (CR3: 0x%X)", hostpt, cr3);
     goto error;
+  }
 
   return HVM_STATUS_SUCCESS;
 
