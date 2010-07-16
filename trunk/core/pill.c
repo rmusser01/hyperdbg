@@ -180,7 +180,6 @@ VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
 
   KeSetSystemAffinityThread((KAFFINITY) 0x00000001);
 
-  MmuFini();			/* Finalize the MMU (e.g., deallocate the host's PT) */
   FiniPlugin();			/* Finalize plugins */
   FiniGuest();			/* Finalize guest-specific structures */
 
@@ -191,7 +190,7 @@ VOID DriverUnload(IN PDRIVER_OBJECT DriverObject)
   WindowsLog("[vmm-unload] Freeing memory regions");
 
   hvm_x86_ops.vt_finalize();
-
+  MmuFini();			/* Finalize the MMU (e.g., deallocate the host's PT) */
   WindowsLog("[vmm-unload] Driver unloaded");
 }
 
