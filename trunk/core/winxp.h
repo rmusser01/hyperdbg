@@ -25,6 +25,7 @@
 #define _PILL_WINXP_H
 
 #include <ntddk.h>
+#include "types.h"
 
 /* Default segment selectors */
 #define WINDOWS_DEFAULT_DS 0x23
@@ -42,9 +43,14 @@
 
 #define OFFSET_KPROCESS_STATE          0x065
 
+#define OFFSET_ETHREAD_CID             0x1ec
+
+#define OFFSET_KTHREAD_STATE           0x02d
 #define OFFSET_KTHREAD_WAITLISTENTRY   0x060
 #define OFFSET_KTHREAD_QUEUELISTENTRY  0x118
 #define OFFSET_KTHREAD_THREADLISTENTRY 0x1b0
+
+#define KTHREAD_STATE_RUNNING          0x02
 
 #define OFFSET_EPROCESS_ACTIVELINKS    0x088
 #define OFFSET_EPROCESS_PEB            0x1b0
@@ -210,13 +216,17 @@ typedef struct _PEB_LDR_DATA {
   PVOID EntryInProgress;
 } PEB_LDR_DATA, *PPEB_LDR_DATA;
 
+hvm_status WindowsInit(PDRIVER_OBJECT DriverObject);
+hvm_status WindowsGetKeyboardVector(unsigned char*);
+hvm_status WindowsGetKernelBase(hvm_address*);
+hvm_status WindowsFindModule(hvm_address cr3, hvm_address rip, PWCHAR name, Bit32u namesz);
+Bit32u     WindowsGuessFrames(void);
+hvm_bool   WindowsProcessIsTerminating(hvm_address cr3);
 
-NTSTATUS WindowsInit(PDRIVER_OBJECT DriverObject);
-NTSTATUS WindowsGetKeyboardVector(PUCHAR);
-NTSTATUS WindowsGetKernelBase(PULONG);
-NTSTATUS WindowsFindProcess(ULONG cr3, PULONG ppep);
-NTSTATUS WindowsFindModule(ULONG cr3, ULONG eip, PWCHAR name, ULONG namesz);
-ULONG    WindowsGuessFrames(VOID);
-BOOLEAN  WindowsProcessIsTerminating(ULONG cr3);
+/* Process-related functions */
+hvm_status WindowsFindProcess(hvm_address cr3, hvm_address* ppep);
+hvm_status WindowsFindProcessPid(hvm_address cr3, hvm_address* ppid);
+hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid);
+hvm_status WindowsFindProcessName(hvm_address cr3, char* name);
 
 #endif	/* _PILL_WINXP_H */

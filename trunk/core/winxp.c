@@ -47,79 +47,41 @@ static struct {
   ULONG PsLoadedModuleList;
 } WindowsSymbols;
 
-static ULONG WindowsFindPsLoadedModuleList(PDRIVER_OBJECT DriverObject);
+static hvm_address WindowsFindPsLoadedModuleList(PDRIVER_OBJECT DriverObject);
 
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
 
 /* NOTE: To be invoked in non-root mode! */
-NTSTATUS WindowsInit(PDRIVER_OBJECT DriverObject)
+hvm_status WindowsInit(PDRIVER_OBJECT DriverObject)
 {
   UNICODE_STRING u;
 
   RtlInitUnicodeString(&u, L"NtQuerySystemInformation");
   WindowsSymbols.NtQuerySystemInformation = (NTQUERYSYSTEMINFORMATION) MmGetSystemRoutineAddress(&u);  
-  if (!WindowsSymbols.NtQuerySystemInformation) return STATUS_UNSUCCESSFUL;
+  if (!WindowsSymbols.NtQuerySystemInformation) return HVM_STATUS_UNSUCCESSFUL;
 
   WindowsSymbols.PsLoadedModuleList = WindowsFindPsLoadedModuleList(DriverObject);
-  if (WindowsSymbols.PsLoadedModuleList == 0) return STATUS_UNSUCCESSFUL;
+  if (WindowsSymbols.PsLoadedModuleList == 0) return HVM_STATUS_UNSUCCESSFUL;
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
-static ULONG WindowsFindPsLoadedModuleList(PDRIVER_OBJECT DriverObject)
+static hvm_address WindowsFindPsLoadedModuleList(PDRIVER_OBJECT DriverObject)
 {
-  ULONG v;
+  hvm_address v;
 
   v = 0;
 
   if (!DriverObject) return 0;
 
-  v = *(PULONG) ((ULONG) DriverObject + FIELD_OFFSET(DRIVER_OBJECT, DriverSection));
+  v = *(hvm_address*) ((hvm_address) DriverObject + FIELD_OFFSET(DRIVER_OBJECT, DriverSection));
 
   return v;
 }
 
-/* FIXME: Hidden processes (e.g., unlinked from the EPROCESS list) pwn us
-   :-) See "Rootkit Detection in Windows Systems" (Rutskowa) */
-NTSTATUS WindowsFindProcess(ULONG cr3, PULONG ppep)
-{
-  ULONG      head, cur;
-  ULONG      cur_cr3;
-  LIST_ENTRY le;
-  NTSTATUS   r;
-  BOOLEAN    found;
-
-  /* Iterate over ("visible") system processes */
-  head = (ULONG) PsInitialSystemProcess;
-  cur = head;
-
-  found = FALSE;
-  do {
-    /* Read the CR3 of the current process */
-    r = MmuReadVirtualRegion(cr3, (ULONG) cur + FIELD_OFFSET(KPROCESS, DirectoryTableBase), &cur_cr3, sizeof(cur_cr3));
-    if (r == STATUS_SUCCESS && cur_cr3 == cr3) {
-      /* Found! */
-      found = TRUE;
-      *ppep = cur;
-      break;
-    }
-
-    /* Go on with the next process */
-    r = MmuReadVirtualRegion(cr3, (ULONG) cur + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le));
-    if (r != STATUS_SUCCESS) {
-      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", (ULONG) cur + OFFSET_EPROCESS_ACTIVELINKS);
-      break;
-    }
-
-    cur = (ULONG) (le.Flink) - OFFSET_EPROCESS_ACTIVELINKS;
-  } while (cur != head);
-
-  return found ? STATUS_SUCCESS : STATUS_UNSUCCESSFUL;
-}
-
-NTSTATUS WindowsGetKeyboardVector(PUCHAR pv)
+hvm_status WindowsGetKeyboardVector(unsigned char* pv)
 {
   NTSTATUS       r;
   PDEVICE_OBJECT pDeviceObject;
@@ -136,7 +98,7 @@ NTSTATUS WindowsGetKeyboardVector(PUCHAR pv)
   r = IoGetDeviceObjectPointer(&us, FILE_READ_ATTRIBUTES, &pFileObject, &pDeviceObject);
 
   if(r != STATUS_SUCCESS)
-    return r;
+    return HVM_STATUS_UNSUCCESSFUL;
 
   while(pDeviceObject->DeviceType != FILE_DEVICE_8042_PORT) {
     PR_DEVOBJ_EXTENSION pde;
@@ -146,93 +108,96 @@ NTSTATUS WindowsGetKeyboardVector(PUCHAR pv)
     if (pde->AttachedTo)
       pDeviceObject = pde->AttachedTo;
     else // We reached the lowest level
-      return STATUS_UNSUCCESSFUL;
+      return HVM_STATUS_UNSUCCESSFUL;
   }
 
   // pDeviceObject == i8042prt's DeviceObject
   pKInterrupt = (PKINTERRUPT) ((PPORT_KEYBOARD_EXTENSION) pDeviceObject->DeviceExtension)->InterruptObject;
 
-  *pv = (UCHAR) (pKInterrupt->Vector & 0xff);
+  *pv = (unsigned char) (pKInterrupt->Vector & 0xff);
 
-  return STATUS_SUCCESS;
+  return HVM_STATUS_SUCCESS;
 }
 
 /* NOTE: To be invoked in non-root mode! */
-NTSTATUS WindowsGetKernelBase(PULONG pbase)
+hvm_status WindowsGetKernelBase(hvm_address* pbase)
 {
-  ULONG i, Byte, ModuleCount;
-  PVOID pBuffer;
+  Bit32u i, Byte, ModuleCount;
+  hvm_address* pBuffer;
   PSYSTEM_MODULE_INFORMATION pSystemModuleInformation;
-  NTSTATUS r;
+  hvm_status r;
 
   WindowsSymbols.NtQuerySystemInformation(SystemModuleInformation, (PVOID) &Byte, 0, &Byte);
       
   pBuffer = MmAllocateNonCachedMemory(Byte);          
   if(!pBuffer)
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
                 
   if(WindowsSymbols.NtQuerySystemInformation(SystemModuleInformation, pBuffer, Byte, &Byte)) {
     MmFreeNonCachedMemory(pBuffer, Byte);
-    return STATUS_UNSUCCESSFUL;
+    return HVM_STATUS_UNSUCCESSFUL;
   }
 
-  ModuleCount = *(PULONG) pBuffer;
-  pSystemModuleInformation = (PSYSTEM_MODULE_INFORMATION)((PUCHAR) pBuffer + sizeof(ULONG));
+  ModuleCount = *(hvm_address*) pBuffer;
+  pSystemModuleInformation = (PSYSTEM_MODULE_INFORMATION)((unsigned char*) pBuffer + sizeof(Bit32u));
 
-  r = STATUS_UNSUCCESSFUL;
+  r = HVM_STATUS_UNSUCCESSFUL;
 
   for(i = 0; i < ModuleCount; i++) {
     if(strstr(pSystemModuleInformation->ImageName, "ntoskrnl.exe") ||
        strstr(pSystemModuleInformation->ImageName, "ntkrnlpa.exe")) {
-      r = STATUS_SUCCESS;
-      *pbase = (ULONG) pSystemModuleInformation->Base;
+      r = HVM_STATUS_SUCCESS;
+      *pbase = (hvm_address) pSystemModuleInformation->Base;
       break;
     }
     pSystemModuleInformation++;
   }
                 
   MmFreeNonCachedMemory(pBuffer, Byte);
+
   return r;
 }
 
-NTSTATUS WindowsFindModule(ULONG cr3, ULONG eip, PWSTR name, ULONG namesz)
+hvm_status WindowsFindModule(hvm_address cr3, hvm_address rip, PWSTR name, Bit32u namesz)
 {
-  ULONG      v, proc, pldr, module_current, module_head;
+  NTSTATUS    r;
+  hvm_address proc, v, pldr;
+  ULONG       module_current, module_head;
   LIST_ENTRY le;
-  NTSTATUS   r;
   PEB_LDR_DATA ldr;
   LDR_MODULE module;
   CHAR namec[64]; 
+
   /* Find the EPROCESS structure for the process with the specified cr3
      value */
   r = WindowsFindProcess(cr3, &proc);
-/*   ComPrint("[WinXP] proc %08hx name %s\n", proc, proc+OFFSET_EPROCESS_IMAGEFILENAME); */
-  if (r != STATUS_SUCCESS) return r;
+
+  if (r != HVM_STATUS_SUCCESS)
+    return r;
 
   /* Read the PEB address */
-  r = MmuReadVirtualRegion(cr3, (ULONG) proc + OFFSET_EPROCESS_PEB, &v, sizeof(v));
-  if (r != STATUS_SUCCESS ) {
-    ComPrint("[HyperDbg] Can't read PEB at offset %.8x\n", (ULONG) proc + OFFSET_EPROCESS_PEB);
-    return STATUS_UNSUCCESSFUL;
+  r = MmuReadVirtualRegion(cr3, proc + OFFSET_EPROCESS_PEB, &v, sizeof(v));
+  if (r != HVM_STATUS_SUCCESS ) {
+    ComPrint("[HyperDbg] Can't read PEB at offset %.8x\n", proc + OFFSET_EPROCESS_PEB);
+    return r;
   }
 
-/*   ComPrint("PEB @%.8x\n", v); */
   if (v == 0) {
     /* System process -- use PsLoadedModuleList as the head of the list of
        loaded modules  */
     module_current = module_head = WindowsSymbols.PsLoadedModuleList;
   } else {
     /* Read the PPEB_LDR_DATA from the process */
-    r = MmuReadVirtualRegion(cr3, (ULONG) v + OFFSET_PEB_LDRDATA, &pldr, sizeof(pldr));
-    if (r != STATUS_SUCCESS ) {
-      ComPrint("[HyperDbg] Can't read PPEB_LDR_DATA at offset %.8x\n", (ULONG) v + OFFSET_PEB_LDRDATA);
-      return STATUS_UNSUCCESSFUL;
+    r = MmuReadVirtualRegion(cr3, v + OFFSET_PEB_LDRDATA, &pldr, sizeof(pldr));
+    if (r != HVM_STATUS_SUCCESS ) {
+      ComPrint("[HyperDbg] Can't read PPEB_LDR_DATA at offset %.8x\n", v + OFFSET_PEB_LDRDATA);
+      return r;
     }
 
     r = MmuReadVirtualRegion(cr3, pldr, &ldr, sizeof(ldr));
-    if (r != STATUS_SUCCESS ) {
-      ComPrint("[HyperDbg] Can't read PEB_LDR_DATA at offset %.8x\n", (ULONG) pldr);
-      return STATUS_UNSUCCESSFUL;
+    if (r != HVM_STATUS_SUCCESS ) {
+      ComPrint("[HyperDbg] Can't read PEB_LDR_DATA at offset %.8x\n", pldr);
+      return r;
     }
 
     module_current = module_head = (ULONG) ldr.InLoadOrderModuleList.Flink;
@@ -240,47 +205,52 @@ NTSTATUS WindowsFindModule(ULONG cr3, ULONG eip, PWSTR name, ULONG namesz)
 
   /* Traverse the modules list */
   do {
-    r = MmuReadVirtualRegion(cr3, (ULONG) module_current - FIELD_OFFSET(LDR_MODULE, InLoadOrderModuleList), 
+    r = MmuReadVirtualRegion(cr3, (hvm_address) module_current - FIELD_OFFSET(LDR_MODULE, InLoadOrderModuleList), 
 			     &module, sizeof(module));
-    if (r != STATUS_SUCCESS ) break;
-    vmm_memset((PUCHAR)name, 0, namesz*2);
-    r = MmuReadVirtualRegion(cr3, (ULONG) module.BaseDllName.Buffer, name, 
+    if (r != HVM_STATUS_SUCCESS ) break;
+
+    vmm_memset((unsigned char*) name, 0, namesz*2);
+
+    r = MmuReadVirtualRegion(cr3, (hvm_address) module.BaseDllName.Buffer, name, 
 			     MIN(module.BaseDllName.MaximumLength, namesz));
-    if (r == STATUS_SUCCESS ) {
-      if(eip < (ULONG)module.BaseAddress+(ULONG)module.SizeOfImage && eip >= (ULONG)module.BaseAddress) {
-	return STATUS_SUCCESS; /* FOUND! */
-      }
+
+    if (r == HVM_STATUS_SUCCESS && \
+	rip < (ULONG) module.BaseAddress + (ULONG)module.SizeOfImage && \
+	rip >= (ULONG)module.BaseAddress) {
+      return HVM_STATUS_SUCCESS; /* FOUND! */
     }
+
     module_current = (ULONG) module.InLoadOrderModuleList.Flink;
   } while (module_current != module_head);
 
   /* TODO */
-  return STATUS_UNSUCCESSFUL;
+  return HVM_STATUS_UNSUCCESSFUL;
 }
 
-ULONG WindowsGuessFrames(VOID)
+Bit32u WindowsGuessFrames(void)
 {
-  ULONG dwPhyPages;
+  Bit32u dwPhyPages;
 
-  dwPhyPages = *(PULONG) (SHAREDUSERDATA + KUSER_SHARED_DATA_PHYPAGES_OFFSET);
+  dwPhyPages = *(Bit32u*) (SHAREDUSERDATA + KUSER_SHARED_DATA_PHYPAGES_OFFSET);
 
   return dwPhyPages;
 }
 
-BOOLEAN WindowsProcessIsTerminating(ULONG cr3)
+hvm_bool WindowsProcessIsTerminating(hvm_address cr3)
 {
-  ULONG pep, flags;
-  BOOLEAN b;
-  NTSTATUS r;
+  hvm_address pep;
+  Bit32u flags;
+  hvm_bool b;
+  hvm_status r;
 
   r = WindowsFindProcess(cr3, &pep);
   
   b = TRUE;
 
-  if (r == STATUS_SUCCESS) {
+  if (r == HVM_STATUS_SUCCESS) {
     /* Read the Flags field of the EPROCESS structure */
     r = MmuReadVirtualRegion(cr3, pep + OFFSET_EPROCESS_FLAGS, &flags, sizeof(flags));
-    if (r == STATUS_SUCCESS && (flags & EPROCESS_FLAGS_DELETE) == 0) {
+    if (r == HVM_STATUS_SUCCESS && (flags & EPROCESS_FLAGS_DELETE) == 0) {
       /* Still running */
       b = FALSE;
     }
@@ -289,3 +259,123 @@ BOOLEAN WindowsProcessIsTerminating(ULONG cr3)
   return b;
 }
 
+/* FIXME: Hidden processes (e.g., unlinked from the EPROCESS list) pwn us
+   :-) See "Rootkit Detection in Windows Systems" (Rutskowa) */
+hvm_status WindowsFindProcess(hvm_address cr3, hvm_address* ppep)
+{
+  hvm_address head, cur;
+  hvm_address cur_cr3;
+  LIST_ENTRY  le;
+  hvm_status  r;
+  hvm_bool    found;
+
+  /* Iterate over ("visible") system processes */
+  head = (hvm_address) PsInitialSystemProcess;
+  cur = head;
+
+  found = FALSE;
+  do {
+    /* Read the CR3 of the current process */
+    r = MmuReadVirtualRegion(cr3, cur + FIELD_OFFSET(KPROCESS, DirectoryTableBase), &cur_cr3, sizeof(cur_cr3));
+    if (r == HVM_STATUS_SUCCESS && cur_cr3 == cr3) {
+      /* Found! */
+      found = TRUE;
+      *ppep = cur;
+      break;
+    }
+
+    /* Go on with the next process */
+    r = MmuReadVirtualRegion(cr3, cur + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le));
+    if (r != HVM_STATUS_SUCCESS) {
+      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", cur + OFFSET_EPROCESS_ACTIVELINKS);
+      break;
+    }
+
+    cur = (hvm_address) (le.Flink) - OFFSET_EPROCESS_ACTIVELINKS;
+  } while (cur != head);
+
+  return found ? HVM_STATUS_SUCCESS : HVM_STATUS_UNSUCCESSFUL;
+}
+
+hvm_status WindowsFindProcessPid(hvm_address cr3, hvm_address* ppid)
+{
+  hvm_address pep;
+  hvm_status r;
+
+  r = WindowsFindProcess(cr3, &pep);
+  if (r != HVM_STATUS_SUCCESS) return r;
+
+  r = MmuReadVirtualRegion(cr3, pep + OFFSET_EPROCESS_UNIQUEPID, ppid, sizeof(hvm_address));
+  if (r != HVM_STATUS_SUCCESS) return r;
+
+  return HVM_STATUS_SUCCESS;
+}
+
+hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid)
+{
+  hvm_address pep, kthread_current, kthread_head;
+  hvm_status  r;
+  hvm_bool    found;
+  LIST_ENTRY  le;
+  Bit8u       c;
+
+  r = WindowsFindProcess(cr3, &pep);
+  if (r != HVM_STATUS_SUCCESS) return r;
+
+  /* Traverse the list of threads for the specified process in order to find
+     the one that is currently running */
+
+  /* Get a pointer to the KTHREAD structure of the first thread in the list */
+  r = MmuReadVirtualRegion(cr3, pep + FIELD_OFFSET(KPROCESS, ThreadListHead), &kthread_head, sizeof(kthread_head));
+  if (r != HVM_STATUS_SUCCESS) return r;
+
+  kthread_head = kthread_head - OFFSET_KTHREAD_THREADLISTENTRY;
+
+  kthread_current = kthread_head;
+  found = FALSE;
+
+  do {
+    /* Read the state of the current thread */
+    r = MmuReadVirtualRegion(cr3, kthread_current + OFFSET_KTHREAD_STATE, &c, sizeof(c));
+    if (r == HVM_STATUS_SUCCESS && c == KTHREAD_STATE_RUNNING) {
+      /* Found running thread */
+      found = TRUE;
+      break;
+    }
+
+    /* Go on with the next thread */
+    r = MmuReadVirtualRegion(cr3, kthread_current + OFFSET_KTHREAD_THREADLISTENTRY, &le, sizeof(le));
+    if (r != HVM_STATUS_SUCCESS) {
+      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", cur + OFFSET_KTHREAD_THREADLISTENTRY);
+      break;
+    }
+
+    kthread_current = (hvm_address) (le.Flink) - OFFSET_KTHREAD_THREADLISTENTRY;
+  } while (kthread_current != kthread_head);
+
+  if (found) {
+    /* Read the TID of the running thread */
+    CLIENT_ID cid;
+
+    r = MmuReadVirtualRegion(cr3, kthread_current + OFFSET_ETHREAD_CID, &cid, sizeof(cid));
+    if (r != HVM_STATUS_SUCCESS) return r;
+
+    *ptid = (hvm_address) cid.UniqueThread;
+  }
+
+  return found ? HVM_STATUS_SUCCESS : HVM_STATUS_UNSUCCESSFUL;
+}
+
+hvm_status WindowsFindProcessName(hvm_address cr3, char* name)
+{
+  hvm_address pep;
+  hvm_status r;
+
+  r = WindowsFindProcess(cr3, &pep);
+  if (r != HVM_STATUS_SUCCESS) return r;
+
+    r = MmuReadVirtualRegion(cr3, pep + OFFSET_EPROCESS_IMAGEFILENAME, name, 16);
+  if (r != HVM_STATUS_SUCCESS) return r;
+
+  return HVM_STATUS_SUCCESS;
+}
