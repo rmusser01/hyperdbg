@@ -263,36 +263,34 @@ hvm_bool WindowsProcessIsTerminating(hvm_address cr3)
    :-) See "Rootkit Detection in Windows Systems" (Rutskowa) */
 hvm_status WindowsFindProcess(hvm_address cr3, hvm_address* ppep)
 {
-  hvm_address head, cur;
-  hvm_address cur_cr3;
-  LIST_ENTRY  le;
-  hvm_status  r;
-  hvm_bool    found;
+  PROCESS_DATA prev, next;
+  hvm_status r;
+  hvm_bool found;
 
   /* Iterate over ("visible") system processes */
-  head = (hvm_address) PsInitialSystemProcess;
-  cur = head;
-
   found = FALSE;
-  do {
-    /* Read the CR3 of the current process */
-    r = MmuReadVirtualRegion(cr3, cur + FIELD_OFFSET(KPROCESS, DirectoryTableBase), &cur_cr3, sizeof(cur_cr3));
-    if (r == HVM_STATUS_SUCCESS && cur_cr3 == cr3) {
+  r = ProcessGetNextProcess(context.GuestContext.CR3, NULL, &next);
+
+  while (1) {
+    if (r == HVM_STATUS_END_OF_FILE) {
+      /* No more processes */
+      break;
+    } else if (r != HVM_STATUS_SUCCESS) {
+      Log("[WinXP] Can't read next process. Current process: %.8x", next.pobj);
+      break;
+    }
+
+    if (next.cr3 == cr3) {
       /* Found! */
       found = TRUE;
-      *ppep = cur;
+      *ppep = next.pobj;
       break;
     }
 
-    /* Go on with the next process */
-    r = MmuReadVirtualRegion(cr3, cur + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le));
-    if (r != HVM_STATUS_SUCCESS) {
-      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", cur + OFFSET_EPROCESS_ACTIVELINKS);
-      break;
-    }
-
-    cur = (hvm_address) (le.Flink) - OFFSET_EPROCESS_ACTIVELINKS;
-  } while (cur != head);
+    /* Go on with next process */
+    prev = next;
+    r = ProcessGetNextProcess(context.GuestContext.CR3, &prev, &next);
+  }
 
   return found ? HVM_STATUS_SUCCESS : HVM_STATUS_UNSUCCESSFUL;
 }
@@ -380,51 +378,45 @@ hvm_status WindowsFindProcessName(hvm_address cr3, char* name)
   return HVM_STATUS_SUCCESS;
 }
 
-hvm_status WindowsGetActiveProcesses(hvm_address cr3, PPROCESS_DATA pp, int sz, int* pn)
+hvm_status WindowsGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext)
 {
-  int i;
-  hvm_address  head, cur;
-  LIST_ENTRY   le;
   hvm_status   r;
 
-  /* Iterate over system processes, and invoke the callback for each of them */
-  head = (hvm_address) PsInitialSystemProcess;
-  cur = head;
-  i = 0;
+  if (!pnext) return HVM_STATUS_UNSUCCESSFUL;
 
-  do {
-    /* Read the CR3 of the current process */
-    r = MmuReadVirtualRegion(cr3, cur + FIELD_OFFSET(KPROCESS, DirectoryTableBase), &pp[i].cr3, sizeof(pp[i].cr3));
-    if (r != HVM_STATUS_SUCCESS) goto error;
+  if (!pprev) {
+    /* Start with the first process, i.e., System */
+    pnext->pobj = (hvm_address) PsInitialSystemProcess;
+  } else {
+    /* Go on with the next process in the linked-list of active ones */
+    LIST_ENTRY   le;
 
-    /* Read the PID of the process */
-    r = MmuReadVirtualRegion(cr3, cur + OFFSET_EPROCESS_UNIQUEPID, &pp[i].pid, sizeof(pp[i].pid));
-    if (r != HVM_STATUS_SUCCESS) goto error;
+    if (!pprev->pobj) return HVM_STATUS_UNSUCCESSFUL;
 
-    /* Read the name of the process */
-    r = MmuReadVirtualRegion(cr3, cur + OFFSET_EPROCESS_IMAGEFILENAME, pp[i].name, 16);
-    if (r != HVM_STATUS_SUCCESS) goto error;
-
-    /* Go on with the next process */
-    r = MmuReadVirtualRegion(cr3, cur + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le));
+    r = MmuReadVirtualRegion(cr3, pprev->pobj + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le));
     if (r != HVM_STATUS_SUCCESS) {
-      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", cur + OFFSET_EPROCESS_ACTIVELINKS);
-      goto error;
+      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", pprev->pobj + OFFSET_EPROCESS_ACTIVELINKS);
+      return HVM_STATUS_UNSUCCESSFUL;
     }
 
-    cur = (hvm_address) (le.Flink) - OFFSET_EPROCESS_ACTIVELINKS;
+    pnext->pobj = (hvm_address) (le.Flink) - OFFSET_EPROCESS_ACTIVELINKS;
 
-    /* HACK: I don't know why there is a "null" process (i.e., with "null" CR3
-       and no name) just before "System" in the linked list.. */
-    if (pp[i].cr3)
-      i++;
-  } while (cur != head && i<sz);
+    if (pnext->pobj == (hvm_address) PsInitialSystemProcess)
+      return HVM_STATUS_END_OF_FILE;
+  }
 
-  *pn = i;
+  /* Read the CR3 of the current process */
+  r = MmuReadVirtualRegion(cr3, pnext->pobj + FIELD_OFFSET(KPROCESS, DirectoryTableBase), &(pnext->cr3), sizeof(pnext->cr3));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  /* Read the PID of the process */
+  r = MmuReadVirtualRegion(cr3, pnext->pobj + OFFSET_EPROCESS_UNIQUEPID, &(pnext->pid), sizeof(pnext->pid));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  /* Read the name of the process */
+  r = MmuReadVirtualRegion(cr3, pnext->pobj + OFFSET_EPROCESS_IMAGEFILENAME, pnext->name, 16);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
 
   return HVM_STATUS_SUCCESS;
-
- error:
-  return HVM_STATUS_UNSUCCESSFUL;
 }
 

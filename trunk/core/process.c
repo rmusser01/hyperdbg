@@ -28,12 +28,12 @@
 #elif defined GUEST_LINUX
 #endif
 
-hvm_status ProcessGetActiveProcesses(hvm_address cr3, PPROCESS_DATA pp, int sz, int *pn)
+hvm_status ProcessGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext)
 {
   hvm_status r;
 
 #ifdef GUEST_WINDOWS
-  r = WindowsGetActiveProcesses(cr3, pp, sz, pn);
+  r = WindowsGetNextProcess(cr3, pprev, pnext);
 #elif defined GUEST_LINUX
 #error Unimplemented
 #endif

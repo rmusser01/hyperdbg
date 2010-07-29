@@ -226,22 +226,29 @@ static void CmdShowRegisters(PHYPERDBG_CMD pcmd)
 
 static void CmdShowProcesses(PHYPERDBG_CMD pcmd)
 {
-  PROCESS_DATA pp[24];
+  PROCESS_DATA prev, next;
   int i, n;
   hvm_status r;
 
   VideoResetOutMatrix();
 
-  r = ProcessGetActiveProcesses(context.GuestContext.CR3, pp, sizeof(pp)/sizeof(PROCESS_DATA), &n);
-  if (r != HVM_STATUS_SUCCESS) {
-    vmm_snprintf(out_matrix[0], OUT_SIZE_X, "error while retriving the list of active processes!");
-    VideoRefreshOutArea(RED);
-    return;
-  }
+  r = ProcessGetNextProcess(context.GuestContext.CR3, NULL, &next);
+  for (i=0; i<24; i++) {
+    if (r == HVM_STATUS_END_OF_FILE) {
+      /* No more processes */
+      break;
+    } else if (r != HVM_STATUS_SUCCESS) {
+      vmm_snprintf(out_matrix[i], OUT_SIZE_X, "error while retriving active processes!");
+      VideoRefreshOutArea(RED);
+      return;
+    }
 
-  for (i=0; i<n; i++) {
     vmm_snprintf(out_matrix[i], OUT_SIZE_X,  "%.2d. CR3: %.8x; PID: %.8x; name: %s",
-		 i, pp[i].cr3, pp[i].pid, pp[i].name);    
+		 i, next.cr3, next.pid, next.name);    
+
+    /* Get the next process */
+    prev = next;
+    r = ProcessGetNextProcess(context.GuestContext.CR3, &prev, &next);
   }
 
   VideoRefreshOutArea(LIGHT_GREEN);

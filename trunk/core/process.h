@@ -29,12 +29,13 @@
 typedef struct _PROCESS_DATA {
   hvm_address pid;
   hvm_address cr3;
+  hvm_address pobj;		/* Pointer to the process object (e.g., EPROCESS, on Windows)  */
   char        name[32];
 } PROCESS_DATA, *PPROCESS_DATA;
 
 typedef void (*hvm_process_callback)(PPROCESS_DATA);
 
 /* 'cr3' here is just a valid CR3 of the guest */
-hvm_status ProcessGetActiveProcesses(hvm_address cr3, PPROCESS_DATA pp, int sz, int *pn);
+hvm_status ProcessGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext);
 
 #endif	/* _PROCESS_H */
