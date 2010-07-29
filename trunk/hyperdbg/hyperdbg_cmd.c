@@ -37,6 +37,7 @@
 #include "symsearch.h"
 #include "syms.h"
 #include "common.h"
+#include "process.h"
 
 #ifdef GUEST_WINDOWS
 #include "winxp.h"
@@ -53,6 +54,7 @@
 #define HYPERDBG_CMD_CHAR_HELP           'h'
 #define HYPERDBG_CMD_CHAR_INFO           'i'
 #define HYPERDBG_CMD_CHAR_SYMBOL_NEAREST 'n'
+#define HYPERDBG_CMD_CHAR_SHOWPROCESSES  'p'
 #define HYPERDBG_CMD_CHAR_SHOWREGISTERS  'r'
 #define HYPERDBG_CMD_CHAR_SINGLESTEP     's'
 #define HYPERDBG_CMD_CHAR_BACKTRACE      't'
@@ -69,6 +71,7 @@ typedef enum {
   HYPERDBG_CMD_UNKNOWN = 0,
   HYPERDBG_CMD_HELP,
   HYPERDBG_CMD_SHOWREGISTERS,
+  HYPERDBG_CMD_SHOWPROCESSES,
   HYPERDBG_CMD_DUMPMEMORY,
   HYPERDBG_CMD_SW_BP,
   HYPERDBG_CMD_DELETE_SW_BP,
@@ -93,6 +96,7 @@ typedef struct {
 
 static void CmdHelp(PHYPERDBG_CMD pcmd);
 static void CmdShowRegisters(PHYPERDBG_CMD pcmd);
+static void CmdShowProcesses(PHYPERDBG_CMD pcmd);
 static void CmdDumpMemory(PHYPERDBG_CMD pcmd);
 static void CmdSwBreakpoint(PHYPERDBG_CMD pcmd);
 static void CmdDeleteSwBreakpoint(PHYPERDBG_CMD pcmd);
@@ -128,6 +132,9 @@ hvm_bool HyperDbgProcessCommand(Bit8u *bufcmd)
     break;
   case HYPERDBG_CMD_SHOWREGISTERS:
     CmdShowRegisters(&cmd);
+    break;
+  case HYPERDBG_CMD_SHOWPROCESSES:
+    CmdShowProcesses(&cmd);
     break;
   case HYPERDBG_CMD_DUMPMEMORY:
     CmdDumpMemory(&cmd);
@@ -179,6 +186,7 @@ static void CmdHelp(PHYPERDBG_CMD pcmd)
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "Available commands:");
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - show this help screen", HYPERDBG_CMD_CHAR_HELP);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - dump guest registers",  HYPERDBG_CMD_CHAR_SHOWREGISTERS);
+  vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - dump guest processes",  HYPERDBG_CMD_CHAR_SHOWPROCESSES);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$reg [y] - dump y dwords starting from addr or register reg", HYPERDBG_CMD_CHAR_DUMPMEMORY);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$symbol - set sw breakpoint @ address addr or at address of $symbol", HYPERDBG_CMD_CHAR_SW_BP);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$id - delete sw breakpoint @ address addr or #id", HYPERDBG_CMD_CHAR_DELETE_SW_BP);
@@ -196,6 +204,7 @@ static void CmdHelp(PHYPERDBG_CMD pcmd)
 static void CmdShowRegisters(PHYPERDBG_CMD pcmd)
 {
   VideoResetOutMatrix();
+
   vmm_snprintf(out_matrix[0], OUT_SIZE_X,  "RAX        0x%08hx", context.GuestContext.RAX);
   vmm_snprintf(out_matrix[1], OUT_SIZE_X,  "RBX        0x%08hx", context.GuestContext.RBX);
   vmm_snprintf(out_matrix[2], OUT_SIZE_X,  "RCX        0x%08hx", context.GuestContext.RCX);
@@ -211,6 +220,29 @@ static void CmdShowRegisters(PHYPERDBG_CMD pcmd)
   vmm_snprintf(out_matrix[12], OUT_SIZE_X, "CR3        0x%08hx", context.GuestContext.CR3);
   vmm_snprintf(out_matrix[13], OUT_SIZE_X, "CR4        0x%08hx", context.GuestContext.CR4);
   vmm_snprintf(out_matrix[14], OUT_SIZE_X, "CS         0x%04hx", context.GuestContext.CS);
+
+  VideoRefreshOutArea(LIGHT_GREEN);
+}
+
+static void CmdShowProcesses(PHYPERDBG_CMD pcmd)
+{
+  PROCESS_DATA pp[24];
+  int i, n;
+  hvm_status r;
+
+  VideoResetOutMatrix();
+
+  r = ProcessGetActiveProcesses(context.GuestContext.CR3, pp, sizeof(pp)/sizeof(PROCESS_DATA), &n);
+  if (r != HVM_STATUS_SUCCESS) {
+    vmm_snprintf(out_matrix[0], OUT_SIZE_X, "error while retriving the list of active processes!");
+    VideoRefreshOutArea(RED);
+    return;
+  }
+
+  for (i=0; i<n; i++) {
+    vmm_snprintf(out_matrix[i], OUT_SIZE_X,  "%.2d. CR3: %.8x; PID: %.8x; name: %s",
+		 i, pp[i].cr3, pp[i].pid, pp[i].name);    
+  }
 
   VideoRefreshOutArea(LIGHT_GREEN);
 }
@@ -667,6 +699,7 @@ static void ParseCommand(Bit8u *buffer, PHYPERDBG_CMD pcmd)
   switch(p[0]) {
     PARSE_COMMAND(HELP);
     PARSE_COMMAND(SHOWREGISTERS);
+    PARSE_COMMAND(SHOWPROCESSES);
     PARSE_COMMAND(DUMPMEMORY);
     PARSE_COMMAND(SW_BP);
     PARSE_COMMAND(DELETE_SW_BP);

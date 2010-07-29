@@ -1,0 +1,40 @@
+/*
+  Copyright notice
+  ================
+  
+  Copyright (C) 2010
+      Lorenzo  Martignoni <martignlo@gmail.com>
+      Roberto  Paleari    <roberto.paleari@gmail.com>
+      Aristide Fattori    <joystick@security.dico.unimi.it>
+  
+  This program is free software: you can redistribute it and/or modify it under
+  the terms of the GNU General Public License as published by the Free Software
+  Foundation, either version 3 of the License, or (at your option) any later
+  version.
+  
+  HyperDbg is distributed in the hope that it will be useful, but WITHOUT ANY
+  WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+  A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License along with
+  this program. If not, see <http://www.gnu.org/licenses/>.
+  
+*/
+
+#ifndef _PROCESS_H
+#define _PROCESS_H
+
+#include "types.h"
+
+typedef struct _PROCESS_DATA {
+  hvm_address pid;
+  hvm_address cr3;
+  char        name[32];
+} PROCESS_DATA, *PPROCESS_DATA;
+
+typedef void (*hvm_process_callback)(PPROCESS_DATA);
+
+/* 'cr3' here is just a valid CR3 of the guest */
+hvm_status ProcessGetActiveProcesses(hvm_address cr3, PPROCESS_DATA pp, int sz, int *pn);
+
+#endif	/* _PROCESS_H */
