@@ -374,8 +374,57 @@ hvm_status WindowsFindProcessName(hvm_address cr3, char* name)
   r = WindowsFindProcess(cr3, &pep);
   if (r != HVM_STATUS_SUCCESS) return r;
 
-    r = MmuReadVirtualRegion(cr3, pep + OFFSET_EPROCESS_IMAGEFILENAME, name, 16);
+  r = MmuReadVirtualRegion(cr3, pep + OFFSET_EPROCESS_IMAGEFILENAME, name, 16);
   if (r != HVM_STATUS_SUCCESS) return r;
 
   return HVM_STATUS_SUCCESS;
 }
+
+hvm_status WindowsGetActiveProcesses(hvm_address cr3, PPROCESS_DATA pp, int sz, int* pn)
+{
+  int i;
+  hvm_address  head, cur;
+  LIST_ENTRY   le;
+  hvm_status   r;
+
+  /* Iterate over system processes, and invoke the callback for each of them */
+  head = (hvm_address) PsInitialSystemProcess;
+  cur = head;
+  i = 0;
+
+  do {
+    /* Read the CR3 of the current process */
+    r = MmuReadVirtualRegion(cr3, cur + FIELD_OFFSET(KPROCESS, DirectoryTableBase), &pp[i].cr3, sizeof(pp[i].cr3));
+    if (r != HVM_STATUS_SUCCESS) goto error;
+
+    /* Read the PID of the process */
+    r = MmuReadVirtualRegion(cr3, cur + OFFSET_EPROCESS_UNIQUEPID, &pp[i].pid, sizeof(pp[i].pid));
+    if (r != HVM_STATUS_SUCCESS) goto error;
+
+    /* Read the name of the process */
+    r = MmuReadVirtualRegion(cr3, cur + OFFSET_EPROCESS_IMAGEFILENAME, pp[i].name, 16);
+    if (r != HVM_STATUS_SUCCESS) goto error;
+
+    /* Go on with the next process */
+    r = MmuReadVirtualRegion(cr3, cur + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le));
+    if (r != HVM_STATUS_SUCCESS) {
+      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", cur + OFFSET_EPROCESS_ACTIVELINKS);
+      goto error;
+    }
+
+    cur = (hvm_address) (le.Flink) - OFFSET_EPROCESS_ACTIVELINKS;
+
+    /* HACK: I don't know why there is a "null" process (i.e., with "null" CR3
+       and no name) just before "System" in the linked list.. */
+    if (pp[i].cr3)
+      i++;
+  } while (cur != head && i<sz);
+
+  *pn = i;
+
+  return HVM_STATUS_SUCCESS;
+
+ error:
+  return HVM_STATUS_UNSUCCESSFUL;
+}
+

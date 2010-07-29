@@ -26,6 +26,7 @@
 
 #include <ntddk.h>
 #include "types.h"
+#include "process.h"
 
 /* Default segment selectors */
 #define WINDOWS_DEFAULT_DS 0x23
@@ -228,5 +229,6 @@ hvm_status WindowsFindProcess(hvm_address cr3, hvm_address* ppep);
 hvm_status WindowsFindProcessPid(hvm_address cr3, hvm_address* ppid);
 hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid);
 hvm_status WindowsFindProcessName(hvm_address cr3, char* name);
+hvm_status WindowsGetActiveProcesses(hvm_address cr3, PPROCESS_DATA pp, int sz, int* n);
 
 #endif	/* _PILL_WINXP_H */

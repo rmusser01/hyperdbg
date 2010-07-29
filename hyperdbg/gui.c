@@ -241,39 +241,33 @@ void VideoPrintHeader(void)
     Bit32u l;
     hvm_address pep, pid, tid;
     hvm_status r;
-    char str_tmp[64];
-    char proc_name[16];
-
-    vmm_memset(str_tmp, 0, sizeof(str_tmp));
-
-    vmm_snprintf(str_tmp, sizeof(str_tmp), "=[pid: ");
+    char str_tmp[64], str_pid[16], str_tid[16], str_name[16];
 
     /* PID */
     r = WindowsFindProcessPid(context.GuestContext.CR3, &pid);
-    l = vmm_strlen(str_tmp);
     if (r == HVM_STATUS_SUCCESS) {
-      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "%.4x; tid: ", pid);
+      vmm_snprintf(str_pid, sizeof(str_pid), "%.4x", pid);
     } else {
-      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "N/A; tid: ");
+      vmm_snprintf(str_pid, sizeof(str_pid), "N/A");
     }
 
     /* TID */
     r = WindowsFindProcessTid(context.GuestContext.CR3, &tid);
-    l = vmm_strlen(str_tmp);
     if (r == HVM_STATUS_SUCCESS) {
-      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "%.4x; proc: ", tid);
+      vmm_snprintf(str_tid, sizeof(str_tid), "%.4x", tid);
     } else {
-      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "N/A; proc: ");
+      vmm_snprintf(str_tid, sizeof(str_tid), "N/A");
     }
 
     /* Process name */
-    r = WindowsFindProcessName(context.GuestContext.CR3, proc_name);
-    l = vmm_strlen(str_tmp);
-    if (r == HVM_STATUS_SUCCESS) {
-      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "%s]=", proc_name);
-    } else {
-      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "N/A]=");
+    r = WindowsFindProcessName(context.GuestContext.CR3, str_name);
+    if (r != HVM_STATUS_SUCCESS) {
+      vmm_snprintf(str_name, sizeof(str_name), "N/A");
     }
+
+    vmm_memset(str_tmp, 0, sizeof(str_tmp));
+    vmm_snprintf(str_tmp, sizeof(str_tmp), 
+		 "=[pid: %s; tid: %s; name: %s]=", str_pid, str_tid, str_name);
 
     VideoWriteString(str_tmp, vmm_strlen(str_tmp), LIGHT_GREEN, 2, 0);
   }
