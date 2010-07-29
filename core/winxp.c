@@ -346,7 +346,7 @@ hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid)
     /* Go on with the next thread */
     r = MmuReadVirtualRegion(cr3, kthread_current + OFFSET_KTHREAD_THREADLISTENTRY, &le, sizeof(le));
     if (r != HVM_STATUS_SUCCESS) {
-      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", cur + OFFSET_KTHREAD_THREADLISTENTRY);
+      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", kthread_current + OFFSET_KTHREAD_THREADLISTENTRY);
       break;
     }
 

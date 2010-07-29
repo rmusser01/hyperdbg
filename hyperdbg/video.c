@@ -52,8 +52,8 @@
 #define VIDEO_ADDRESS_BOCHS   0xe0000000
 #define DEFAULT_VIDEO_ADDRESS VIDEO_ADDRESS_BOCHS 
 
-/* Uncomment this line to disable video autodetect */
-//#define VIDEO_ADDRESS_MANUAL
+/* Uncomment this line to disable video autodetect NEEDED TO RUN INTO BOCHS */
+/* #define VIDEO_ADDRESS_MANUAL */
 
 /* ################# */
 /* #### GLOBALS #### */
