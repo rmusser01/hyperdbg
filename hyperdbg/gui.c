@@ -238,24 +238,44 @@ void VideoPrintHeader(void)
 
 #if GUEST_WINDOWS
   {
-    hvm_address pep, pid;
+    Bit32u l;
+    hvm_address pep, pid, tid;
     hvm_status r;
     char str_tmp[64];
     char proc_name[16];
-    r = WindowsFindProcess(context.GuestContext.CR3, &pep);
-    if (r != HVM_STATUS_SUCCESS) goto error;
-
-    r = MmuReadVirtualRegion(context.GuestContext.CR3, pep + OFFSET_EPROCESS_UNIQUEPID, &pid, sizeof(pid));
-    if (r != HVM_STATUS_SUCCESS) goto error;
 
     vmm_memset(str_tmp, 0, sizeof(str_tmp));
 
-    r = MmuReadVirtualRegion(context.GuestContext.CR3, pep + OFFSET_EPROCESS_IMAGEFILENAME, proc_name, 16);
-    if (r != HVM_STATUS_SUCCESS) goto error;
-    vmm_snprintf(str_tmp, sizeof(str_tmp), "=[pid: %.8x; proc: %s]=", pid, proc_name);
+    vmm_snprintf(str_tmp, sizeof(str_tmp), "=[pid: ");
+
+    /* PID */
+    r = WindowsFindProcessPid(context.GuestContext.CR3, &pid);
+    l = vmm_strlen(str_tmp);
+    if (r == HVM_STATUS_SUCCESS) {
+      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "%.4x; tid: ", pid);
+    } else {
+      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "N/A; tid: ");
+    }
+
+    /* TID */
+    r = WindowsFindProcessTid(context.GuestContext.CR3, &tid);
+    l = vmm_strlen(str_tmp);
+    if (r == HVM_STATUS_SUCCESS) {
+      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "%.4x; proc: ", tid);
+    } else {
+      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "N/A; proc: ");
+    }
+
+    /* Process name */
+    r = WindowsFindProcessName(context.GuestContext.CR3, proc_name);
+    l = vmm_strlen(str_tmp);
+    if (r == HVM_STATUS_SUCCESS) {
+      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "%s]=", proc_name);
+    } else {
+      vmm_snprintf(str_tmp + l, sizeof(str_tmp) - l, "N/A]=");
+    }
+
     VideoWriteString(str_tmp, vmm_strlen(str_tmp), LIGHT_GREEN, 2, 0);
-  error:
-    ;
   }
 #endif
 }
