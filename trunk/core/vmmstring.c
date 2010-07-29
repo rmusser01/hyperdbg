@@ -22,6 +22,7 @@
 */
 
 #include "types.h"
+#include "vmmstring.h"
 
 /* ########################## */
 /* #### LOCAL PROTOTYPES #### */
@@ -142,8 +143,17 @@ unsigned char *vmm_strncpy(unsigned char *dst, unsigned char *src, Bit32u n)
 
   i = 0;
   while (i < n && src[i] != 0)
-    dst[i] = src[i];
-  return src;
+    dst[i] = src[i++];
+  return dst;
+}
+
+unsigned char *vmm_strncat(unsigned char *dst, unsigned char *src, Bit32u n)
+{
+  Bit32u i = 0, len = vmm_strlen(dst);
+  while(i < n && src[i] != 0)
+    dst[len + i] = src[i++];
+  dst[len + i] = 0;
+  return dst;
 }
 
 Bit32u vmm_strlen(unsigned char *str)

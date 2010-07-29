@@ -435,9 +435,9 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
   VmxVmcsWrite(HOST_FS_BASE, GetSegmentDescriptorBase(gdt_base, RegGetFs()));
   VmxVmcsWrite(HOST_GS_BASE, GetSegmentDescriptorBase(gdt_base, RegGetGs()));
   VmxVmcsWrite(HOST_TR_BASE, GetSegmentDescriptorBase(gdt_base, RegGetTr()));
-
   /* Host GDTR/IDTR base (they both hold *linear* addresses) */
   VmxVmcsWrite(HOST_GDTR_BASE, gdt_reg.BaseLo | (gdt_reg.BaseHi << 16));
+
   VmxVmcsWrite(HOST_IDTR_BASE, GetSegmentDescriptorBase(gdt_base, RegGetDs()) + (Bit32u) vmxInitState.VMMIDT);
 
   /* Host IA32_SYSENTER_ESP/EIP/CS */

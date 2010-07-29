@@ -360,14 +360,11 @@ hvm_status HyperDbgHostInit(void)
 hvm_status HyperDbgHostFini(void)
 {
   EVENT_CONDITION_EXCEPTION exception;
-
   /* Remove DEBUG handler */
   exception.exceptionnum = TRAP_DEBUG;
   EventUnsubscribe(EventException, &exception, sizeof(exception));
-
   /* Remove INT3 handler */  
   exception.exceptionnum = TRAP_INT3;
   EventUnsubscribe(EventException, &exception, sizeof(exception));
-
   return HVM_STATUS_SUCCESS;
 }

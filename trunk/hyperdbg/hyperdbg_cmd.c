@@ -695,7 +695,7 @@ static void ParseCommand(Bit8u *buffer, PHYPERDBG_CMD pcmd)
 
     /* Calculate argument length */
     for (n=0; *p != '\0' && !CHAR_IS_SPACE(*p); n++) p++;
-    strncpy(pcmd->args[i], p-n, MIN(n, sizeof(pcmd->args[0])));
+    vmm_strncpy(pcmd->args[i], p-n, MIN(n, sizeof(pcmd->args[0])));
   
   }
   for (i=0; i<sizeof(pcmd->args)/sizeof(pcmd->args[0]); i++) {

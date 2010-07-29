@@ -27,6 +27,7 @@
 #include "types.h"
 #include <stdarg.h>
 
+unsigned char* vmm_strncat(unsigned char *dst, unsigned char *src, Bit32u n);
 unsigned char* vmm_strncpy(unsigned char *dst, unsigned char *src, Bit32u n);
 Bit32s         vmm_strncmp(unsigned char *str1, unsigned char *str2, Bit32u n);
 Bit32s         vmm_strncmpi(unsigned char *str1, unsigned char *str2, Bit32u n);
