@@ -308,7 +308,7 @@ static int WndManageTrayIcon(HWND hWnd, DWORD dwAction)
       /* Fallback on standard icon */
       LoadIcon(NULL, IDI_APPLICATION);
     }
-    vmm_strncpy(niData.szTip, "HyperGUI", sizeof(niData.szTip));
+    strncpy(niData.szTip, "HyperGUI", sizeof(niData.szTip));
 
     niData.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     break;
