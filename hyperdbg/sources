@@ -17,5 +17,6 @@ SOURCES=		\
     gui.c 		\
     sw_bp.c 		\
     syms.c 		\
-    symsearch.c \
-	xpvideo.c
+    symsearch.c         \
+    xpvideo.c           \
+    pager.c    
