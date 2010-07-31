@@ -21,20 +21,15 @@
   
 */
 
-#ifndef _GUI_H
-#define _GUI_H
+#ifndef _PAGER_H
+#define _PAGER_H
 
-#include "hyperdbg.h"
-#include "video.h"
+#include "types.h"
 
-extern Bit8u out_matrix[OUT_SIZE_Y][OUT_SIZE_X];
+#define PAGES 10
 
-void VideoUpdateShell(Bit8u* buffer);
-void VideoInitShell(void);
-void VideoDrawFrame(void);
-void VideoPrintHeader(void);
-void VideoResetOutMatrix(void);
-void VideoResetOutMatrixCache(void);
-void VideoRefreshOutArea(unsigned int);
+void     PagerLoop(Bit32u color);
+hvm_bool PagerAddLine(Bit8u *line);
 
-#endif	/* _GUI_H */
+#endif /* _PAGER_H */
+
