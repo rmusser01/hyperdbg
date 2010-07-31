@@ -147,9 +147,8 @@ void VideoInitShell(void)
 
 void VideoDrawFrame(void)
 {
-  Bit32u i;     /*0123456789012345678*/
+  Bit32u i;   
   Bit8u *footer = "-[ Made in Italy ]-";
-  /* Bit8u *footer =   "-------------------"; */
   Bit32u color;
   VideoPrintHeader();
 
@@ -220,22 +219,20 @@ void VideoRefreshOutArea(unsigned int color)
 
 void VideoPrintHeader(void)
 {
-  int i, numberofdash;
+  Bit32u i, numberofdash, pos, len;
   char *name;
 
   name = "=[ HyperDbg ]=";
-  i = 0;
-  numberofdash = (((SHELL_SIZE_X - vmm_strlen(name))/2)-1);
+  numberofdash = SHELL_SIZE_X/2-1;
   VideoWriteChar('+', LIGHT_GREEN, 0, 0);
 
   for(i = 1; i <= numberofdash; i++) {
     VideoWriteChar('-', LIGHT_GREEN, i, 0);
-    VideoWriteChar('-', RED, i+numberofdash+vmm_strlen(name), 0);
+    VideoWriteChar('-', RED, i+numberofdash, 0);
   }
 
-  VideoWriteString(name, vmm_strlen(name), WHITE, numberofdash+1, 0);
   VideoWriteChar('+', RED, SHELL_SIZE_X-1, 0);
-
+  pos = (SHELL_SIZE_X/2) - (vmm_strlen(name)/2);
 #if GUEST_WINDOWS
   {
     Bit32u l;
@@ -268,10 +265,14 @@ void VideoPrintHeader(void)
     vmm_memset(str_tmp, 0, sizeof(str_tmp));
     vmm_snprintf(str_tmp, sizeof(str_tmp), 
 		 "=[pid: %s; tid: %s; name: %s]=", str_pid, str_tid, str_name);
-
     VideoWriteString(str_tmp, vmm_strlen(str_tmp), LIGHT_GREEN, 2, 0);
+    /* Check if we have to move 'name' a little more to the right */
+    len = vmm_strlen(str_tmp) + 3;
+    if(len > pos && len < SHELL_SIZE_X - vmm_strlen(name))
+      pos = len;
   }
 #endif
+  VideoWriteString(name, vmm_strlen(name), WHITE, pos, 0);
 }
 
 /* FIXME: after we decide the new size of the, shell we have to reset all the

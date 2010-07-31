@@ -24,7 +24,7 @@
 /* xpvideo.c
  *
  * Routines for detecting resolution and video adapter framebuffer address in Window XP.
- * some of this code was inspired by the work of Mysterie:
+ * Some of this code was inspired by the work of Mysterie:
  *   "http://mysterie.fr/blog/index.php?post/2009/07/22/..."
  *
  * Jon Larimer <jlarimer@gmail.com>
@@ -72,7 +72,7 @@ hvm_status XpVideoGetWindowsXPDisplayData(hvm_address *addr, Bit32u *framebuffer
   ULONG length;
   hvm_bool is_vgasave;
 
-  /* Allocate some space for the name of our driver. this is a bit overkill... */
+  /* Allocate some space for the name of our driver. This is a bit overkill... */
   stringBuf = ExAllocatePoolWithTag(NonPagedPool, 1024, 'lnoj');
   if(!stringBuf) {
     WindowsLog("[xpvideo] can't allocate memory!");
@@ -132,7 +132,7 @@ hvm_status XpVideoGetWindowsXPDisplayData(hvm_address *addr, Bit32u *framebuffer
   *height = vidModeInfo.VisScreenHeight;
   *width = vidModeInfo.VisScreenWidth;
 
-  /* The stride is wrong in many cases. this is a ridiculous hack that tries to find 
+  /* The stride is wrong in many cases. This is a ridiculous hack that tries to find 
      the real stride, at least on my computers. It won't work for everyone. */
   if(is_vgasave) {
     *stride = *width;

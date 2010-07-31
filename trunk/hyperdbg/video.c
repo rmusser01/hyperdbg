@@ -117,7 +117,6 @@ hvm_status VideoAlloc(void)
 {
   PHYSICAL_ADDRESS pa;
   Bit32u i;
-    int x, y;
   pa.u.HighPart = 0;
   pa.u.LowPart  = video_address;
 
@@ -138,8 +137,11 @@ hvm_status VideoAlloc(void)
 
 
 #if 0
-  // debug code to draw a 100x100 white square at the top left of the screen. this can be used
-  // to test the video settings without actually breaking into hyperdbg -jon
+  /* Debug code to draw a 100x100 white square at the top left of the screen.
+     This can be used to test the video settings without actually breaking into
+     HyperDbg. -jon
+  */
+  int x, y;
   for(x=0; x<100; x++) {
     for(y=0; y<100; y++) {
       *(video_mem + y * video_stride + x) = 0xFFFFFFFF;
