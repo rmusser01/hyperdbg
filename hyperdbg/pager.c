@@ -51,6 +51,8 @@ static void PagerReset(void);
 static void PagerShowPage(Bit32u page);
 static void PagerEditGui(void);
 static void PagerRestoreGui(void);
+static void PagerShowInfo(hvm_bool last);
+static void PagerHideInfo(void);
 
 /* ################ */
 /* #### BODIES #### */
@@ -61,7 +63,7 @@ static void PagerReset()
 {
   Bit32u i, ii, iii;
 
-  /* Leave last screen on the console */
+  /* Leave last shown page on the console */
   for(ii = 0; ii < OUT_SIZE_Y; ii++) {
     vmm_strncpy(out_matrix[ii], pages[current_visible_page][ii], OUT_SIZE_X);
   }
@@ -109,57 +111,93 @@ static void PagerRestoreGui()
   }
 }
 
+static void PagerShowInfo(hvm_bool last)
+{
+  Bit32u len;
+  VideoWriteChar('=', WHITE, 33, SHELL_SIZE_Y-3);
+  VideoWriteChar('[', WHITE, 34, SHELL_SIZE_Y-3);
+  if(!last) {
+    len = 5;
+    VideoWriteString("START", 5, LIGHT_BLUE, 35, SHELL_SIZE_Y-3);
+  }
+  else {
+    len = 3;
+    VideoWriteString("END", 3, LIGHT_BLUE, 35, SHELL_SIZE_Y-3);
+  }
+  VideoWriteChar(']', WHITE, 35+len, SHELL_SIZE_Y-3);
+  VideoWriteChar('=', WHITE, 36+len, SHELL_SIZE_Y-3);
+}
+
+static void PagerHideInfo()
+{
+  Bit32u i;
+  for(i = 32; i < 42; i++) {
+    VideoWriteChar('-', WHITE, i, SHELL_SIZE_Y-3);
+  }
+}
+
 void PagerLoop(Bit32u color)
 {
   Bit8u ch;
   hvm_bool isMouse, exitLoop = FALSE;
 
   c = color;
-  PagerEditGui();
-  current_visible_page = 0;
-  PagerShowPage(current_visible_page);
   VideoResetOutMatrix();
 
-  Log("[HyperDbg] Starting Pager Loop");
+  /* If there's only one page, there's no need to start the pager */
+  if(current_page > 0 && current_line > 0) {
+    PagerEditGui();
+    current_visible_page = 0;
+    PagerShowPage(current_visible_page);
+    PagerShowInfo(FALSE);
 
-  while(1) {
-    if (KeyboardReadKeystroke(&ch, FALSE, &isMouse) != HVM_STATUS_SUCCESS) {
-      /* Sleep for some time, just to avoid full busy waiting */
-      CmSleep(150);
-      continue;
-    }
+    Log("[HyperDbg] Starting Pager Loop");
 
-    if (isMouse) {
-      /* Skip mouse events */
-      continue;
-    }
+    while(1) {
+      if (KeyboardReadKeystroke(&ch, FALSE, &isMouse) != HVM_STATUS_SUCCESS) {
+	/* Sleep for some time, just to avoid full busy waiting */
+	CmSleep(150);
+	continue;
+      }
 
-    ch = KeyboardScancodeToKeycode(ch);
-    switch(ch) {
-    case 0:
-      /* Unrecognized key -- ignore it */
-      break;
-    case 'n':
-      if(current_visible_page < PAGES && current_visible_page < current_page)
-	 PagerShowPage(++current_visible_page);
-      break;
-    case 'p':
-      if(current_visible_page > 0)
-	PagerShowPage(--current_visible_page);
-      break;
-    case 'q':
-      exitLoop = TRUE;
-      break;
-    default:
-      break; /* Do nothing */
+      if (isMouse) {
+	/* Skip mouse events */
+	continue;
+      }
+
+      ch = KeyboardScancodeToKeycode(ch);
+      switch(ch) {
+      case 0:
+	/* Unrecognized key -- ignore it */
+	break;
+      case 'n':
+	PagerHideInfo();
+	if(current_visible_page < PAGES && current_visible_page < current_page)
+	  PagerShowPage(++current_visible_page);
+	if(current_visible_page >= current_page)
+	  PagerShowInfo(TRUE);
+	break;
+      case 'p':
+	PagerHideInfo();
+	if(current_visible_page > 0)
+	  PagerShowPage(--current_visible_page);
+	if(current_visible_page == 0)
+	  PagerShowInfo(FALSE);
+	break;
+      case 'q':
+	exitLoop = TRUE;
+	break;
+      default:
+	break; /* Do nothing */
+      }
+      if(exitLoop) break;
     }
-    if(exitLoop) break;
+    PagerRestoreGui();
+    Log("[HyperDbg] Exiting Pager Loop");
   }
-  PagerRestoreGui();
-  PagerReset(); 
-  VideoRefreshOutArea(LIGHT_GREEN);
 
-  Log("[HyperDbg] Exiting Pager Loop");
+  PagerReset();
+  VideoRefreshOutArea(LIGHT_GREEN);
 }
 
 hvm_bool PagerAddLine(Bit8u *line)
