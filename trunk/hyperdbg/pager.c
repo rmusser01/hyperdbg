@@ -29,6 +29,8 @@
 #include "keyboard.h"
 #include "debug.h"
 
+#define PAGES 10
+
 /* ################# */
 /* #### GLOBALS #### */
 /* ################# */
@@ -58,16 +60,18 @@ static void PagerRestoreGui(void);
 static void PagerReset()
 {
   Bit32u i, ii, iii;
-  /* leave last screen on the console */
+
+  /* Leave last screen on the console */
   for(ii = 0; ii < OUT_SIZE_Y; ii++) {
     vmm_strncpy(out_matrix[ii], pages[current_visible_page][ii], OUT_SIZE_X);
   }
 
-  /* clear pages */
+  /* Clear pages */
   for(i = 0; i < PAGES; i++) {
     for(ii = 0; ii < OUT_SIZE_Y; ii++) {
       for(iii = 0; iii < OUT_SIZE_X; iii++)
-	pages[i][ii][iii] = 0x20; /* We use spaces to reset as in gui.c */
+	/* We use spaces to reset as in gui.c */
+	pages[i][ii][iii] = ' ';
     }
   }
   current_page = current_line = current_visible_page = 0;
@@ -76,7 +80,9 @@ static void PagerReset()
 static void PagerShowPage(Bit32u page)
 {
   Bit32u ii, len;
+
   if(page >= PAGES) return;
+
   /* Copy selected page into out matrix Note: we always
      copy OUT_SIZE_X to eventually overwrite preceding chars */
   for(ii = 0; ii < OUT_SIZE_Y; ii++) 
@@ -97,6 +103,7 @@ static void PagerEditGui()
 static void PagerRestoreGui()
 {
   Bit32u i;
+
   for(i = 1; i < SHELL_SIZE_X-1; i++) {
     VideoWriteChar('-', WHITE, i, SHELL_SIZE_Y-3);
   }
@@ -106,12 +113,15 @@ void PagerLoop(Bit32u color)
 {
   Bit8u ch;
   hvm_bool isMouse, exitLoop = FALSE;
+
   c = color;
   PagerEditGui();
   current_visible_page = 0;
   PagerShowPage(current_visible_page);
   VideoResetOutMatrix();
+
   Log("[HyperDbg] Starting Pager Loop");
+
   while(1) {
     if (KeyboardReadKeystroke(&ch, FALSE, &isMouse) != HVM_STATUS_SUCCESS) {
       /* Sleep for some time, just to avoid full busy waiting */
@@ -148,15 +158,22 @@ void PagerLoop(Bit32u color)
   PagerRestoreGui();
   PagerReset(); 
   VideoRefreshOutArea(LIGHT_GREEN);
+
   Log("[HyperDbg] Exiting Pager Loop");
 }
 
 hvm_bool PagerAddLine(Bit8u *line)
 {
   Bit32u len;
+
   /* Perform some checks */
-  if(current_page >= PAGES) return FALSE; /* No more space! */
-  if(current_line >= OUT_SIZE_Y) return  FALSE; /* As we take care of checking this at this very function end, if we arrive here it means something is screwed up */
+
+  /* No more space? */
+  if(current_page >= PAGES) return FALSE; 
+
+  /* As we take care of checking this at this very function end, if we arrive
+     here it means something is screwed up */
+  if(current_line >= OUT_SIZE_Y) return FALSE; 
 
   len = vmm_strlen(line);
   if(len >= OUT_SIZE_X)
@@ -164,9 +181,11 @@ hvm_bool PagerAddLine(Bit8u *line)
   
   vmm_strncpy(pages[current_page][current_line], line, len);
   current_line++;
-  if(current_line >= OUT_SIZE_Y) { /* Flip one page */
+  if(current_line >= OUT_SIZE_Y) { 
+    /* Flip one page */
     current_line = 0;
-    current_page++;                /* The check at the beginning of the function will take care of EOPages */
+    /* The check at the beginning of the function will take care of EOPages */
+    current_page++;                
   }
   return TRUE;
 }

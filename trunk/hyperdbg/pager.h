@@ -26,8 +26,6 @@
 
 #include "types.h"
 
-#define PAGES 10
-
 void     PagerLoop(Bit32u color);
 hvm_bool PagerAddLine(Bit8u *line);
 
