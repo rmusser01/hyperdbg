@@ -38,6 +38,8 @@
 #include "syms.h"
 #include "common.h"
 #include "process.h"
+#include "network.h"
+#include "pager.h"
 
 #ifdef GUEST_WINDOWS
 #include "winxp.h"
@@ -54,8 +56,10 @@
 #define HYPERDBG_CMD_CHAR_HELP           'h'
 #define HYPERDBG_CMD_CHAR_INFO           'i'
 #define HYPERDBG_CMD_CHAR_SYMBOL_NEAREST 'n'
+#define HYPERDBG_CMD_CHAR_SHOWMODULES    'm'
 #define HYPERDBG_CMD_CHAR_SHOWPROCESSES  'p'
 #define HYPERDBG_CMD_CHAR_SHOWREGISTERS  'r'
+#define HYPERDBG_CMD_CHAR_SHOWSOCKETS    'w'
 #define HYPERDBG_CMD_CHAR_SINGLESTEP     's'
 #define HYPERDBG_CMD_CHAR_BACKTRACE      't'
 #define HYPERDBG_CMD_CHAR_SYMBOL         'S'
@@ -70,8 +74,10 @@
 typedef enum {
   HYPERDBG_CMD_UNKNOWN = 0,
   HYPERDBG_CMD_HELP,
+  HYPERDBG_CMD_SHOWMODULES,
   HYPERDBG_CMD_SHOWREGISTERS,
   HYPERDBG_CMD_SHOWPROCESSES,
+  HYPERDBG_CMD_SHOWSOCKETS,
   HYPERDBG_CMD_DUMPMEMORY,
   HYPERDBG_CMD_SW_BP,
   HYPERDBG_CMD_DELETE_SW_BP,
@@ -97,6 +103,8 @@ typedef struct {
 static void CmdHelp(PHYPERDBG_CMD pcmd);
 static void CmdShowRegisters(PHYPERDBG_CMD pcmd);
 static void CmdShowProcesses(PHYPERDBG_CMD pcmd);
+static void CmdShowModules(PHYPERDBG_CMD pcmd);
+static void CmdShowSockets(PHYPERDBG_CMD pcmd);
 static void CmdDumpMemory(PHYPERDBG_CMD pcmd);
 static void CmdSwBreakpoint(PHYPERDBG_CMD pcmd);
 static void CmdDeleteSwBreakpoint(PHYPERDBG_CMD pcmd);
@@ -135,6 +143,12 @@ hvm_bool HyperDbgProcessCommand(Bit8u *bufcmd)
     break;
   case HYPERDBG_CMD_SHOWPROCESSES:
     CmdShowProcesses(&cmd);
+    break;
+  case HYPERDBG_CMD_SHOWMODULES:
+    CmdShowModules(&cmd);
+    break;
+  case HYPERDBG_CMD_SHOWSOCKETS:
+    CmdShowSockets(&cmd);
     break;
   case HYPERDBG_CMD_DUMPMEMORY:
     CmdDumpMemory(&cmd);
@@ -187,6 +201,8 @@ static void CmdHelp(PHYPERDBG_CMD pcmd)
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - show this help screen", HYPERDBG_CMD_CHAR_HELP);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - dump guest registers",  HYPERDBG_CMD_CHAR_SHOWREGISTERS);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - dump guest processes",  HYPERDBG_CMD_CHAR_SHOWPROCESSES);
+  vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - dump guest kernel modules",  HYPERDBG_CMD_CHAR_SHOWMODULES);
+  vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - dump guest network connections",  HYPERDBG_CMD_CHAR_SHOWSOCKETS);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$reg [y] - dump y dwords starting from addr or register reg", HYPERDBG_CMD_CHAR_DUMPMEMORY);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$symbol - set sw breakpoint @ address addr or at address of $symbol", HYPERDBG_CMD_CHAR_SW_BP);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$id - delete sw breakpoint @ address addr or #id", HYPERDBG_CMD_CHAR_DELETE_SW_BP);
@@ -229,29 +245,102 @@ static void CmdShowProcesses(PHYPERDBG_CMD pcmd)
   PROCESS_DATA prev, next;
   int i, n;
   hvm_status r;
-
-  VideoResetOutMatrix();
+  char tmp[OUT_SIZE_X];
 
   r = ProcessGetNextProcess(context.GuestContext.CR3, NULL, &next);
-  for (i=0; i<24; i++) {
+
+  for (i=0; ; i++) {
     if (r == HVM_STATUS_END_OF_FILE) {
       /* No more processes */
       break;
     } else if (r != HVM_STATUS_SUCCESS) {
-      vmm_snprintf(out_matrix[i], OUT_SIZE_X, "error while retriving active processes!");
+      vmm_snprintf(out_matrix[i], OUT_SIZE_X, "error while retrieving active processes!");
       VideoRefreshOutArea(RED);
       return;
     }
 
-    vmm_snprintf(out_matrix[i], OUT_SIZE_X,  "%.2d. CR3: %.8x; PID: %.8x; name: %s",
+    vmm_snprintf(tmp, sizeof(tmp),  "%.2d. CR3: %08hx; PID: %d; name: %s",
 		 i, next.cr3, next.pid, next.name);    
+    PagerAddLine(tmp);
 
     /* Get the next process */
     prev = next;
     r = ProcessGetNextProcess(context.GuestContext.CR3, &prev, &next);
   }
 
-  VideoRefreshOutArea(LIGHT_GREEN);
+  PagerLoop(LIGHT_GREEN);
+}
+
+static void CmdShowModules(PHYPERDBG_CMD pcmd)
+{
+  MODULE_DATA prev, next;
+  int i, n;
+  hvm_status r;
+  char tmp[OUT_SIZE_X];
+
+  r = ProcessGetNextModule(context.GuestContext.CR3, NULL, &next);
+
+  for (i=0; ; i++) {
+    if (r == HVM_STATUS_END_OF_FILE) {
+      /* No more processes */
+      break;
+    } else if (r != HVM_STATUS_SUCCESS) {
+      vmm_snprintf(out_matrix[i], OUT_SIZE_X, "error while retrieving kernel modules!");
+      VideoRefreshOutArea(RED);
+      return;
+    }
+
+    vmm_snprintf(tmp, sizeof(tmp),  "%.2d. base: %08hx; entry: %08hx; name: %s",
+		 i, next.baseaddr, next.entrypoint, next.name);    
+    PagerAddLine(tmp);
+
+    /* Get the next process */
+    prev = next;
+    r = ProcessGetNextModule(context.GuestContext.CR3, &prev, &next);
+  }
+
+  PagerLoop(LIGHT_GREEN);
+}
+
+static void CmdShowSockets(PHYPERDBG_CMD pcmd)
+{
+  hvm_status r;
+  SOCKET sockets[128];
+  Bit32u i, n;
+  char s1[16], s2[16], tmp[64];
+
+  r = NetworkBuildSocketList(context.GuestContext.CR3, sockets, sizeof(sockets)/sizeof(SOCKET), &n);
+  if (r != HVM_STATUS_SUCCESS) {
+    vmm_snprintf(out_matrix[0], OUT_SIZE_X, "error while retrieving active network sockets!");
+    VideoRefreshOutArea(RED);
+    return;
+  }
+
+  for (i=0; i<n; i++) {
+    vmm_memset(s1, 0, sizeof(s1));
+    vmm_strncpy(s1, inet_ntoa(sockets[i].local_ip), sizeof(s1));
+
+    switch (sockets[i].state) {
+    case SocketStateEstablished:
+      vmm_memset(s2, 0, sizeof(s2));
+      vmm_strncpy(s2, inet_ntoa(sockets[i].remote_ip), sizeof(s2));
+      vmm_snprintf(tmp, sizeof(tmp), "[%.3d] ESTABLISHED lip: %s lport: %d rip: %s rport: %d proto: %d pid: %d\n", 
+		   i, s1, sockets[i].local_port, s2, sockets[i].remote_port, 
+		   sockets[i].protocol, sockets[i].pid);
+      break;
+    case SocketStateListen:
+      vmm_snprintf(tmp, sizeof(tmp), "[%.3d] LISTEN lip: %s lport: %d proto: %d pid: %d\n", 
+		   i, s1, sockets[i].local_port, sockets[i].protocol, sockets[i].pid);
+      break;
+    default:
+      vmm_snprintf(tmp, sizeof(tmp), "[%.3d] Unknown socket state\n", i);
+      break;
+    }
+
+    PagerAddLine(tmp);
+  }
+
+  PagerLoop(LIGHT_GREEN);
 }
 
 static void CmdDumpMemory(PHYPERDBG_CMD pcmd)
@@ -578,8 +667,8 @@ static void CmdBacktrace(PHYPERDBG_CMD pcmd)
     vmm_memset(module, 0, sizeof(module));
     if(current_rip >= hyperdbg_state.win_state.kernel_base) {
       /* FIXME -> check if it's win */
+      r = WindowsFindModule(context.GuestContext.CR3, current_rip, name, sizeof(name)/sizeof(Bit16u));
 
-      r = WindowsFindModule(context.GuestContext.CR3, current_rip, name, 64);
       if(r == HVM_STATUS_SUCCESS) {
 	wide2ansi(namec, (Bit8u*)name, sizeof(namec)/sizeof(Bit8s));
 	if(vmm_strlen(namec) > 0)
@@ -707,6 +796,8 @@ static void ParseCommand(Bit8u *buffer, PHYPERDBG_CMD pcmd)
     PARSE_COMMAND(HELP);
     PARSE_COMMAND(SHOWREGISTERS);
     PARSE_COMMAND(SHOWPROCESSES);
+    PARSE_COMMAND(SHOWMODULES);
+    PARSE_COMMAND(SHOWSOCKETS);
     PARSE_COMMAND(DUMPMEMORY);
     PARSE_COMMAND(SW_BP);
     PARSE_COMMAND(DELETE_SW_BP);

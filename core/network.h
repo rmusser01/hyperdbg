@@ -21,35 +21,31 @@
   
 */
 
-#include "process.h"
+#ifndef _NETWORK_H
+#define _NETWORK_H
 
-#ifdef GUEST_WINDOWS
-#include "winxp.h"
-#elif defined GUEST_LINUX
-#endif
+#include "types.h"
 
-hvm_status ProcessGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext)
-{
-  hvm_status r;
+typedef enum {
+  SocketStateUnknown = 0,
+  SocketStateListen,
+  SocketStateEstablished,
+} SOCKET_STATE;
 
-#ifdef GUEST_WINDOWS
-  r = WindowsGetNextProcess(cr3, pprev, pnext);
-#elif defined GUEST_LINUX
-#error Unimplemented
-#endif
+typedef struct _SOCKET {
+  SOCKET_STATE state;
+  Bit32u remote_ip;
+  Bit32u local_ip;
+  Bit16u remote_port;
+  Bit16u local_port;
+  Bit32u pid;
+  Bit16u protocol;
+} SOCKET;
 
-  return r;
-}
+Bit16u ntohs(Bit16u v);
+Bit32u ntohl(Bit32u v);
+char  *inet_ntoa(Bit32u a);
 
-hvm_status ProcessGetNextModule(hvm_address cr3, PMODULE_DATA pprev, PMODULE_DATA pnext)
-{
-  hvm_status r;
+hvm_status NetworkBuildSocketList(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
 
-#ifdef GUEST_WINDOWS
-  r = WindowsGetNextModule(cr3, pprev, pnext);
-#elif defined GUEST_LINUX
-#error Unimplemented
-#endif
-
-  return r;
-}
+#endif	/* _NETWORK_H */
