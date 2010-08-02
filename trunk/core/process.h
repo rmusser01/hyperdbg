@@ -33,9 +33,17 @@ typedef struct _PROCESS_DATA {
   char        name[32];
 } PROCESS_DATA, *PPROCESS_DATA;
 
+typedef struct _MODULE_DATA {
+  hvm_address baseaddr;
+  hvm_address entrypoint;
+  hvm_address pobj;		/* Pointer to the module object (e.g., LDR_MODULE on Windows) */
+  char        name[32];
+} MODULE_DATA, *PMODULE_DATA;
+
 typedef void (*hvm_process_callback)(PPROCESS_DATA);
 
 /* 'cr3' here is just a valid CR3 of the guest */
 hvm_status ProcessGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext);
+hvm_status ProcessGetNextModule (hvm_address cr3, PMODULE_DATA pprev, PMODULE_DATA pnext);
 
 #endif	/* _PROCESS_H */

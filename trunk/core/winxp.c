@@ -48,6 +48,8 @@ static struct {
 } WindowsSymbols;
 
 static hvm_address WindowsFindPsLoadedModuleList(PDRIVER_OBJECT DriverObject);
+static hvm_status  WindowsFindNetworkConnections(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
+static hvm_status  WindowsFindNetworkSockets(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
 
 /* ################ */
 /* #### BODIES #### */
@@ -158,9 +160,40 @@ hvm_status WindowsGetKernelBase(hvm_address* pbase)
   return r;
 }
 
-hvm_status WindowsFindModule(hvm_address cr3, hvm_address rip, PWSTR name, Bit32u namesz)
+hvm_status  WindowsFindModuleByName(hvm_address cr3, Bit8u *name, MODULE_DATA *pmodule)
 {
-  NTSTATUS    r;
+  MODULE_DATA prev, next;
+  hvm_status r;
+
+  r = ProcessGetNextModule(cr3, NULL, &next);
+
+  while (1) {
+    if (r == HVM_STATUS_END_OF_FILE) {
+      /* No more processes */
+      break;
+    } else if (r != HVM_STATUS_SUCCESS) {
+      /* Some error occurred */
+      Log("[WinXP] Can't read traverse modules list");
+      break;
+    }
+
+    if (!vmm_strncmpi(name, next.name, vmm_strlen(name))) {
+      memcpy(pmodule, &next, sizeof(next));
+      return HVM_STATUS_SUCCESS; /* FOUND! */
+    }
+
+    /* Get the next process */
+    prev = next;
+    r = ProcessGetNextModule(cr3, &prev, &next);
+  }
+
+  /* Not found */
+  return HVM_STATUS_UNSUCCESSFUL;
+}
+
+hvm_status WindowsFindModule(hvm_address cr3, hvm_address addr, PWSTR name, Bit32u namesz)
+{
+  hvm_status  r;
   hvm_address proc, v, pldr;
   ULONG       module_current, module_head;
   LIST_ENTRY le;
@@ -215,8 +248,8 @@ hvm_status WindowsFindModule(hvm_address cr3, hvm_address rip, PWSTR name, Bit32
 			     MIN(module.BaseDllName.MaximumLength, namesz));
 
     if (r == HVM_STATUS_SUCCESS && \
-	rip < (ULONG) module.BaseAddress + (ULONG)module.SizeOfImage && \
-	rip >= (ULONG)module.BaseAddress) {
+	addr < (ULONG) module.BaseAddress + (ULONG)module.SizeOfImage && \
+	addr >= (ULONG)module.BaseAddress) {
       return HVM_STATUS_SUCCESS; /* FOUND! */
     }
 
@@ -420,3 +453,181 @@ hvm_status WindowsGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_
   return HVM_STATUS_SUCCESS;
 }
 
+hvm_status WindowsGetNextModule(hvm_address cr3, PMODULE_DATA pprev, PMODULE_DATA pnext)
+{
+  hvm_status r;
+  LDR_MODULE module;
+  Bit16u wname[64];
+
+  if (!pnext) return HVM_STATUS_UNSUCCESSFUL;
+
+  if (!pprev) {
+    /* Start with the first process, i.e., System */
+    pnext->pobj = (hvm_address) WindowsSymbols.PsLoadedModuleList - FIELD_OFFSET(LDR_MODULE, InLoadOrderModuleList);
+  } else {
+    /* Go on with the next process in the linked-list of modules */
+    if (!pprev->pobj) return HVM_STATUS_UNSUCCESSFUL;
+
+    r = MmuReadVirtualRegion(cr3, (hvm_address) pprev->pobj, &module, sizeof(module));
+    if (r != HVM_STATUS_SUCCESS ) return HVM_STATUS_UNSUCCESSFUL;
+
+    pnext->pobj = (hvm_address) module.InLoadOrderModuleList.Flink - FIELD_OFFSET(LDR_MODULE, InLoadOrderModuleList);
+
+    if (pnext->pobj == (hvm_address) WindowsSymbols.PsLoadedModuleList - FIELD_OFFSET(LDR_MODULE, InLoadOrderModuleList))
+      return HVM_STATUS_END_OF_FILE;
+  }
+
+  pnext->baseaddr   = (hvm_address) module.BaseAddress;
+  pnext->entrypoint = (hvm_address) module.EntryPoint;
+
+  r = MmuReadVirtualRegion(cr3, (hvm_address) module.BaseDllName.Buffer, wname,
+  			   MIN(module.BaseDllName.MaximumLength, sizeof(wname)/sizeof(Bit16u)));
+
+  if (r != HVM_STATUS_SUCCESS) {
+    pnext->name[0] = '\0';
+  } else {
+    vmm_memset(pnext->name, 0, sizeof(pnext->name));
+    wide2ansi(pnext->name, (Bit8u*) wname, module.BaseDllName.Length/2);
+  }
+
+  return HVM_STATUS_SUCCESS;
+}
+
+static hvm_status  WindowsFindNetworkConnections(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize)
+{
+  hvm_status r;
+  hvm_address table_base, table_entry;
+  unsigned int i, j;
+  Bit32u table_size;  
+  TCPT_OBJECT obj;
+  MODULE_DATA tcp_module;
+
+  r = WindowsFindModuleByName(cr3, "tcpip.sys", &tcp_module);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  /* Read table base */
+  r = MmuReadVirtualRegion(cr3, tcp_module.baseaddr + OFFSET_TCB_TABLE, &table_base, sizeof(table_base));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  /* Read table size */
+  r = MmuReadVirtualRegion(cr3, tcp_module.baseaddr + OFFSET_TCB_TABLE_SIZE, &table_size, sizeof(table_size));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  j = 0;
+  for (i=0; i<table_size && i<maxsize; i++) {
+    r = MmuReadVirtualRegion(cr3, table_base + (i*4), &table_entry, sizeof(table_entry));
+    if (r != HVM_STATUS_SUCCESS) 
+      continue;
+
+    if (!table_entry) {
+      /* Invalid entry */
+      continue;
+    }
+
+    r = MmuReadVirtualRegion(cr3, table_entry, &obj, sizeof(obj));
+    if (r != HVM_STATUS_SUCCESS) 
+      continue;
+
+    vmm_memset(&buf[j], 0, sizeof(SOCKET));
+
+    buf[j].state       = SocketStateEstablished;
+    buf[j].remote_ip   = obj.RemoteIpAddress;
+    buf[j].local_ip    = obj.LocalIpAddress;
+    buf[j].remote_port = ntohs(obj.RemotePort);
+    buf[j].local_port  = ntohs(obj.LocalPort);
+    buf[j].pid         = obj.Pid;
+    buf[j].protocol    = 7;	/* TCP */
+    j++;
+  }
+
+  *psize = j;
+
+  return HVM_STATUS_SUCCESS;
+}
+
+static hvm_status  WindowsFindNetworkSockets(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize)
+{
+  hvm_status r;
+  MODULE_DATA tcp_module;
+  hvm_address next, table_base, table_entry;
+  Bit32u  local_ip, pid, table_size;
+  Bit16u local_port, protocol;
+  LARGE_INTEGER create_time;
+
+  unsigned int i, j;
+
+  r = WindowsFindModuleByName(cr3, "tcpip.sys", &tcp_module);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  /* Read addrobj base */
+  r = MmuReadVirtualRegion(cr3, tcp_module.baseaddr + OFFSET_ADDROBJ_TABLE, &table_base, sizeof(table_base));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  /* Read table size */
+  r = MmuReadVirtualRegion(cr3, tcp_module.baseaddr + OFFSET_ADDROBJ_TABLE_SIZE, &table_size, sizeof(table_size));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  j = 0;
+  for (i=0; i<table_size; i++) {
+    r = MmuReadVirtualRegion(cr3, table_base + (i*4), &table_entry, sizeof(table_entry));
+    if (r != HVM_STATUS_SUCCESS) 
+      continue;
+
+    if (!table_entry) {
+      /* Invalid entry */
+      continue;
+    }
+
+    while (table_entry && MmIsAddressValid((PVOID) table_entry)) {
+      r = MmuReadVirtualRegion(cr3, table_entry + OFFSET_ADDRESS_OBJECT_NEXT, &next, sizeof(next));
+      if (r != HVM_STATUS_SUCCESS) break;
+
+      r = MmuReadVirtualRegion(cr3, table_entry + OFFSET_ADDRESS_OBJECT_LOCALIP, &local_ip, sizeof(local_ip));
+      if (r != HVM_STATUS_SUCCESS) break;
+
+      r = MmuReadVirtualRegion(cr3, table_entry + OFFSET_ADDRESS_OBJECT_LOCALPORT, &local_port, sizeof(local_port));
+      if (r != HVM_STATUS_SUCCESS) break;
+
+      r = MmuReadVirtualRegion(cr3, table_entry + OFFSET_ADDRESS_OBJECT_PID, &pid, sizeof(pid));
+      if (r != HVM_STATUS_SUCCESS) break;
+
+      r = MmuReadVirtualRegion(cr3, table_entry + OFFSET_ADDRESS_OBJECT_PROTOCOL, &protocol, sizeof(protocol));
+      if (r != HVM_STATUS_SUCCESS) break;
+
+      r = MmuReadVirtualRegion(cr3, table_entry + OFFSET_ADDRESS_OBJECT_CREATETIME, &create_time, sizeof(create_time));
+      if (r != HVM_STATUS_SUCCESS) break;
+
+      local_port = ntohs(local_port);
+
+      vmm_memset(&buf[j], 0, sizeof(SOCKET));
+      buf[j].state       = SocketStateListen;
+      buf[j].local_ip    = local_ip;
+      buf[j].local_port  = local_port;
+      buf[j].pid         = pid;
+      buf[j].protocol    = protocol;
+
+      j++;
+      table_entry = next;
+    }
+  }
+
+  *psize = j;
+
+  return HVM_STATUS_SUCCESS;
+}
+
+hvm_status WindowsBuildSocketList(hvm_address cr3, SOCKET* buf, Bit32u maxsize, Bit32u *psize)
+{
+  hvm_status r;
+  unsigned int n1, n2;
+
+  r = WindowsFindNetworkConnections(cr3, buf, maxsize, &n1);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  r = WindowsFindNetworkSockets(cr3, buf + n1, maxsize - n1, &n2);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  *psize = (n1+n2);
+
+  return HVM_STATUS_SUCCESS;
+}

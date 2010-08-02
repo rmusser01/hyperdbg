@@ -21,32 +21,50 @@
   
 */
 
-#include "process.h"
+#include "network.h"
+#include "vmmstring.h"
 
 #ifdef GUEST_WINDOWS
 #include "winxp.h"
 #elif defined GUEST_LINUX
 #endif
 
-hvm_status ProcessGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext)
-{
-  hvm_status r;
-
-#ifdef GUEST_WINDOWS
-  r = WindowsGetNextProcess(cr3, pprev, pnext);
-#elif defined GUEST_LINUX
-#error Unimplemented
-#endif
-
-  return r;
+Bit16u ntohs(Bit16u v) {
+  return ((v & 0xff00) >> 8) | ((v & 0xff) << 8);
 }
 
-hvm_status ProcessGetNextModule(hvm_address cr3, PMODULE_DATA pprev, PMODULE_DATA pnext)
+Bit32u ntohl(Bit32u v) {
+  return (
+	  (v & 0xff000000) >> 24 |
+	  (v & 0x00ff0000) >>  8 |
+	  (v & 0x0000ff00) <<  8 |
+	  (v & 0x000000ff) << 24
+	  );
+}
+
+char *inet_ntoa(Bit32u a)
+{
+  static char internal_buffer[16];
+
+  a = ntohl(a);
+
+  vmm_snprintf(internal_buffer, sizeof(internal_buffer),
+	       "%d.%d.%d.%d",
+	       (a & 0xff000000) >> 24,
+	       (a & 0x00ff0000) >> 16,
+	       (a & 0x0000ff00) >>  8,
+	       (a & 0x000000ff)
+	       );
+
+  return internal_buffer;
+}
+
+hvm_status NetworkBuildSocketList(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize)
 {
   hvm_status r;
 
 #ifdef GUEST_WINDOWS
-  r = WindowsGetNextModule(cr3, pprev, pnext);
+  r = WindowsBuildSocketList(cr3, buf, maxsize, psize);
 #elif defined GUEST_LINUX
 #error Unimplemented
 #endif

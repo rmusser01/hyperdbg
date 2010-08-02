@@ -25,8 +25,10 @@
 #define _PILL_WINXP_H
 
 #include <ntddk.h>
+
 #include "types.h"
 #include "process.h"
+#include "network.h"
 
 /* Default segment selectors */
 #define WINDOWS_DEFAULT_DS 0x23
@@ -58,6 +60,19 @@
 
 #define OFFSET_PEB_LDRDATA             0x00c
 
+/* tcpip.sys internal offsets */
+#define OFFSET_TCB_TABLE               0x493e8
+#define OFFSET_TCB_TABLE_SIZE          0x3f3b0
+#define OFFSET_ADDROBJ_TABLE           0x48360
+#define OFFSET_ADDROBJ_TABLE_SIZE      0x48364
+
+#define OFFSET_ADDRESS_OBJECT_NEXT       0x000
+#define OFFSET_ADDRESS_OBJECT_LOCALIP    0x02c
+#define OFFSET_ADDRESS_OBJECT_LOCALPORT  0x030
+#define OFFSET_ADDRESS_OBJECT_PROTOCOL   0x032
+#define OFFSET_ADDRESS_OBJECT_PID        0x148
+#define OFFSET_ADDRESS_OBJECT_CREATETIME 0x158
+
 /* Bits */
 #define EPROCESS_FLAGS_EXITING (1 << 2)
 #define EPROCESS_FLAGS_DELETE  (1 << 3)
@@ -71,6 +86,27 @@ typedef struct _KPRCB KPRCB, *PKPRCB;
 typedef struct _KQUEUE KQUEUE, *PKQUEUE;
 
 typedef unsigned short WORD;
+
+#pragma pack (push, 1)
+/* This is the structure that maps established connections */
+typedef struct _TCPT_OBJECT {
+  /* 0x0 */
+  struct _TCPT_OBJECT *Next;
+  /* 0x4 */
+  ULONG32 reserved1;
+  /* 0x8 */
+  ULONG32 reserved2;
+  /* 0xc */
+  ULONG32 RemoteIpAddress;
+  /* 0x10 */
+  ULONG32 LocalIpAddress;
+  /* 0x14 */
+  USHORT RemotePort;
+  /* 0x16 */
+  USHORT LocalPort;
+  /* 0x18 */
+  ULONG32 Pid;
+} TCPT_OBJECT, *PTCPT_OBJECT;
 
 typedef struct _LDR_MODULE {
   LIST_ENTRY              InLoadOrderModuleList;
@@ -216,11 +252,14 @@ typedef struct _PEB_LDR_DATA {
   LIST_ENTRY InInitializationOrderModuleList;
   PVOID EntryInProgress;
 } PEB_LDR_DATA, *PPEB_LDR_DATA;
+#pragma pack (pop)
 
 hvm_status WindowsInit(PDRIVER_OBJECT DriverObject);
 hvm_status WindowsGetKeyboardVector(unsigned char*);
 hvm_status WindowsGetKernelBase(hvm_address*);
-hvm_status WindowsFindModule(hvm_address cr3, hvm_address rip, PWCHAR name, Bit32u namesz);
+hvm_status  WindowsFindModuleByName(hvm_address cr3, Bit8u *name, MODULE_DATA *pmodule);
+/* Find the module that contains the specified address ('rip') */
+hvm_status WindowsFindModule(hvm_address cr3, hvm_address addr, PWCHAR name, Bit32u namesz);
 Bit32u     WindowsGuessFrames(void);
 hvm_bool   WindowsProcessIsTerminating(hvm_address cr3);
 
@@ -229,6 +268,10 @@ hvm_status WindowsFindProcess(hvm_address cr3, hvm_address* ppep);
 hvm_status WindowsFindProcessPid(hvm_address cr3, hvm_address* ppid);
 hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid);
 hvm_status WindowsFindProcessName(hvm_address cr3, char* name);
-hvm_status WindowsGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext);
+hvm_status WindowsGetNextProcess(hvm_address cr3, PROCESS_DATA* pprev, PROCESS_DATA* pnext);
+hvm_status WindowsGetNextModule(hvm_address cr3, MODULE_DATA* pprev, MODULE_DATA* pnext);
+
+/* Network-related functions */
+hvm_status WindowsBuildSocketList(hvm_address cr3, SOCKET* buf, Bit32u maxsize, Bit32u *psize);
 
 #endif	/* _PILL_WINXP_H */

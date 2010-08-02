@@ -19,7 +19,8 @@ SOURCES=		\
 	mmu.c           \
 	vt.c            \
 	vmx.c		\
-	process.c
+	process.c       \
+	network.c
 
 I386_SOURCES=		\
 	vmx-asm.asm 	\

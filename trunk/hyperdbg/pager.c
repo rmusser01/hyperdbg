@@ -85,8 +85,8 @@ static void PagerShowPage(Bit32u page)
 
   if(page >= PAGES) return;
 
-  /* Copy selected page into out matrix Note: we always
-     copy OUT_SIZE_X to eventually overwrite preceding chars */
+  /* Copy selected page into out matrix.
+     Note: we always copy OUT_SIZE_X to eventually overwrite preceding chars */
   for(ii = 0; ii < OUT_SIZE_Y; ii++) 
     VideoWriteString(pages[page][ii], OUT_SIZE_X, c, OUT_START_X, OUT_START_Y+ii);
 
