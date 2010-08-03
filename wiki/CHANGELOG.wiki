@@ -2,7 +2,7 @@
 
 = CHANGELOG =
 
-== 8 Aug 2010 ==
+== 3 Aug 2010 ==
 
 === New Features: ===
  * New basic VM-Introspection capabilities:
