@@ -32,7 +32,7 @@
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static hvm_bool DicotomicSymbolSearch(hvm_address addr, Bit32u start, Bit32u end, Bit32u* index);
+static hvm_bool DicotomicSymbolSearch(hvm_address addr, Bit32s start, Bit32s end, Bit32u* index);
 
 /* ################ */
 /* #### BODIES #### */
@@ -81,9 +81,9 @@ PSYMBOL SymbolGetFromName(Bit8u* name)
   return NULL;
 }
 
-/* Returns TRUE and sets Index to the index of the found entries if
+/* Returns TRUE and sets Index to the index of the found entry if
    found. Otherwise, returns FALSE and Index is undefined */
-static hvm_bool DicotomicSymbolSearch(hvm_address addr, Bit32u start, Bit32u end, Bit32u* index)
+static hvm_bool DicotomicSymbolSearch(hvm_address addr, Bit32s start, Bit32s end, Bit32u* index)
 {
   Bit32u mid;
   PSYMBOL CurrentSym;
@@ -96,7 +96,7 @@ static hvm_bool DicotomicSymbolSearch(hvm_address addr, Bit32u start, Bit32u end
       *index = mid;
       return TRUE;
     }
-
+    
     if(addr < (CurrentSym->addr + hyperdbg_state.win_state.kernel_base)) {
       end = mid - 1;
     } else {
