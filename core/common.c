@@ -78,9 +78,7 @@ void CmSleep(Bit32u microseconds)
   RegRdtsc(&t0);
   do {
     RegRdtsc(&t1);
-
   } while (t1 < t0 + cycles);
-
   
   /*
     Int 15h AH=86h

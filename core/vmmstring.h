@@ -28,6 +28,8 @@
 #include <stdarg.h>
 
 unsigned char* vmm_strncat(unsigned char *dst, unsigned char *src, Bit32u n);
+Bit32s         vmm_memcmp(void *s1, void *s2, Bit32u n);
+void*          vmm_memcpy(void *dst, void *src, Bit32u n);
 unsigned char* vmm_strncpy(unsigned char *dst, unsigned char *src, Bit32u n);
 Bit32s         vmm_strncmp(unsigned char *str1, unsigned char *str2, Bit32u n);
 Bit32s         vmm_strncmpi(unsigned char *str1, unsigned char *str2, Bit32u n);
@@ -35,8 +37,8 @@ Bit32u         vmm_strlen(unsigned char *str);
 hvm_bool       vmm_strtoul(char *str, Bit32u *out);
 void           vmm_memset(void *s, int c, Bit32u n);
 
-int            vmm_snprintf(char*, size_t, const char*, ...);
-int            vmm_vsnprintf(char*, size_t, const char*, va_list);
+int            vmm_snprintf(char* c, size_t s, const char* cc, ...);
+int            vmm_vsnprintf(char* c, size_t s, const char* cc, va_list l);
 
 unsigned char  vmm_tolower(unsigned char c);
 unsigned char  vmm_toupper(unsigned char c);
@@ -46,6 +48,5 @@ hvm_bool       vmm_isupper(char c);
 hvm_bool       vmm_isalpha(char c);
 hvm_bool       vmm_isdigit(char c);
 hvm_bool       vmm_isxdigit(char c);
-hvm_bool       vmm_isascii(char c);
 
 #endif /* _STRING_H */

@@ -2,7 +2,7 @@
 #define UDIS86
 
 extern "C" {
-#include "types.h"
+#include "ltypes.h"
 #include "input.h"
 #include "itab.h"
 #include "decode.h"

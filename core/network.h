@@ -26,6 +26,11 @@
 
 #include "types.h"
 
+Bit16u vmm_ntohs(Bit16u v);
+Bit32u vmm_ntohl(Bit32u v);
+
+char* inet_ntoa(Bit32u a);
+
 typedef enum {
   SocketStateUnknown = 0,
   SocketStateListen,
@@ -41,10 +46,6 @@ typedef struct _SOCKET {
   Bit32u pid;
   Bit16u protocol;
 } SOCKET;
-
-Bit16u ntohs(Bit16u v);
-Bit32u ntohl(Bit32u v);
-char  *inet_ntoa(Bit32u a);
 
 hvm_status NetworkBuildSocketList(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
 

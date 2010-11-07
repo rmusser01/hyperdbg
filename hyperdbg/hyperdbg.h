@@ -25,7 +25,7 @@
 #define _HYPERDBG_H
 
 #define HYPERDBG_VERSION  "20100325"
-#define HYPERDBG_URL      "http://security.dico.unimi.it/hyperdbg/"
+#define HYPERDBG_URL      "http://code.google.com/p/hyperdbg/"
 
 #include "types.h"
 

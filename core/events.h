@@ -25,6 +25,7 @@
 #define _EVENTS_H
 
 #include "types.h"
+#include <stddef.h>  // includes size_t type
 
 typedef enum {
   EventPublishNone,              /* Event not accepted */
@@ -52,7 +53,7 @@ typedef enum {
   EventIO,
   EventControlRegister,
   EventHlt,
-} EVENT_TYPE;
+} HVM_EVENT_TYPE;
 
 typedef EVENT_PUBLISH_STATUS (*EVENT_CALLBACK)(PEVENT_ARGUMENTS);
 
@@ -83,10 +84,10 @@ typedef struct _EVENT_CONDITION_CR {
 typedef int EVENT_CONDITION_NONE;
 
 hvm_status EventInit(void);
-hvm_bool EventSubscribe(EVENT_TYPE type, void* pcondition, int condition_size, EVENT_CALLBACK callback);
-hvm_bool EventUnsubscribe(EVENT_TYPE type, void* pcondition, int condition_size);
-hvm_bool EventHasType(EVENT_TYPE type);
-EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, PEVENT_ARGUMENTS args, void* pcondition, int condition_size);
+hvm_bool EventSubscribe(HVM_EVENT_TYPE type, void* pcondition, int condition_size, EVENT_CALLBACK callback);
+hvm_bool EventUnsubscribe(HVM_EVENT_TYPE type, void* pcondition, int condition_size);
+hvm_bool EventHasType(HVM_EVENT_TYPE type);
+EVENT_PUBLISH_STATUS EventPublish(HVM_EVENT_TYPE type, PEVENT_ARGUMENTS args, void* pcondition, int condition_size);
 
 void EventUpdateExceptionBitmap(Bit32u* pbitmap);
 void EventUpdateIOBitmaps(Bit8u* pIOBitmapA, Bit8u* pIOBitmapB);

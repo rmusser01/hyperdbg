@@ -60,21 +60,43 @@
 #define HAVE_STDLIB_H
 #define HAVE_LONG_LONG
 
-#ifdef HAVE_STRING_H
-# include <string.h>
+#ifdef GUEST_WINDOWS
+ #include <stdint.h>
+ #ifdef HAVE_STRING_H
+  #include <string.h>
+ #endif
+
+ #ifdef HAVE_STRINGS_H
+  #include <strings.h>
+ #endif
+ #ifdef HAVE_CTYPE_H
+  #include <ctype.h>
+ #endif
+ #include <sys/types.h>
+ #include <stdarg.h>
+ #ifdef HAVE_STDLIB_H
+  #include <stdlib.h>
+ #endif
+
+#elif defined GUEST_LINUX
+ #ifdef HAVE_STRING_H
+  #include <linux/string.h>
+ #endif
+
+ #ifdef HAVE_STRINGS_H
+//#include <strings.h>
+ #endif
+ #ifdef HAVE_CTYPE_H
+  #include <linux/ctype.h>
+ #endif
+  #include <linux/types.h>
+  #include <linux/kernel.h>
+
+ #ifdef HAVE_STDLIB_H
+//#include <stdlib.h>
+ #endif
 #endif
 
-#ifdef HAVE_STRINGS_H
-# include <strings.h>
-#endif
-#ifdef HAVE_CTYPE_H
-# include <ctype.h>
-#endif
-#include <sys/types.h>
-#include <stdarg.h>
-#ifdef HAVE_STDLIB_H
-# include <stdlib.h>
-#endif
 
 #if defined(HAVE_SNPRINTF) && defined(HAVE_VSNPRINTF) && defined(HAVE_C99_VSNPRINTF)
 /* only include stdio.h if we are not re-defining snprintf or vsnprintf */
@@ -98,37 +120,10 @@ void dummy_snprintf (
 # endif
 # define isdigit(c) ((c) >= '0' && (c) <= '9')
 
-static size_t dopr (
-  char *buffer,
-  size_t maxlen,
-  const char *format,
-  va_list args
-);
-static void fmtstr (
-  char *buffer,
-  size_t * currlen,
-  size_t maxlen,
-  char *value,
-  int flags,
-  int min,
-  int max
-);
-static void fmtint (
-  char *buffer,
-  size_t * currlen,
-  size_t maxlen,
-  long long value,
-  int base,
-  int min,
-  int max,
-  int flags
-);
-static void dopr_outch (
-  char *buffer,
-  size_t * currlen,
-  size_t maxlen,
-  char c
-);
+static size_t dopr (char *buffer, size_t maxlen, const char *format, va_list args);
+static void fmtstr (char *buffer, size_t * currlen, size_t maxlen, char *value, int flags, int min, int max);
+static void fmtint (char *buffer, size_t * currlen, size_t maxlen, long long value, int base, int min, int max, int flags);
+static void dopr_outch (char *buffer, size_t * currlen, size_t maxlen, char c);
 
 /*
  * dopr(): poor man's version of doprintf
@@ -164,12 +159,7 @@ static void dopr_outch (
 #  define MAX(p,q) (((p) >= (q)) ? (p) : (q))
 # endif
 
-static size_t dopr (
-  char *buffer,
-  size_t maxlen,
-  const char *format,
-  va_list args
-)
+static size_t dopr (char *buffer, size_t maxlen, const char *format, va_list args)
 {
   char ch;
   LLONG value;
@@ -362,12 +352,11 @@ static size_t dopr (
       case 'g':
         break;
       case 'c':
-        dopr_outch (buffer, &currlen, maxlen, va_arg (args, char)
-        );
+        //TOFIX? int was char
+        dopr_outch (buffer, &currlen, maxlen, va_arg (args, int));
         break;
       case 's':
-        strvalue = va_arg (args, char *
-        );
+        strvalue = va_arg (args, char*);
         if (max == -1) {
           max = strlen (strvalue);
         }
@@ -377,20 +366,18 @@ static size_t dopr (
         break;
       case 'p':
         flags |= DP_F_UNSIGNED | DP_F_UP;
-        strvalue = va_arg (args, void *
-        );
-        fmtint (buffer, &currlen, maxlen, (long long) strvalue, 16, min, max, flags);
+        strvalue = va_arg (args, void*);
+        //TOFIX? unsigned long was long long
+        fmtint (buffer, &currlen, maxlen, (unsigned long) strvalue, 16, min, max, flags);
         break;
       case 'n':
         if (cflags == DP_C_SHORT) {
           short int *num;
-          num = va_arg (args, short int *
-          );
+          num = va_arg (args, short int*);
           *num = (short int) currlen;
         } else if (cflags == DP_C_LONG) {
           long int *num;
-          num = va_arg (args, long int *
-          );
+          num = va_arg (args, long int*);
           *num = (long int) currlen;
         } else if (cflags == DP_C_LLONG) {
           LLONG *num;
@@ -398,13 +385,12 @@ static size_t dopr (
           *num = (LLONG) currlen;
         } else {
           int *num;
-          num = va_arg (args, int *
-          );
+          num = va_arg (args, int*);
           *num = currlen;
         }
         break;
       case '%':
-        dopr_outch (buffer, &currlen, maxlen, ch);
+        dopr_outch(buffer, &currlen, maxlen, ch);
         break;
       case 'w':
         /* not supported yet, treat as next char */
@@ -450,7 +436,7 @@ static void fmtstr (
   int cnt = 0;
 
 # ifdef DEBUG_SNPRINTF
-  printf ("fmtstr min=%d max=%d s=[%s]\n", min, max, value);
+  printf("fmtstr min=%d max=%d s=[%s]\n", min, max, value);
 # endif
   if (value == 0) {
     value = "<NULL>";
@@ -492,6 +478,7 @@ static void fmtint (
   int flags
 )
 {
+
   int signvalue = 0;
   unsigned long long uvalue;
   char convert[20];
@@ -504,6 +491,7 @@ static void fmtint (
     max = 0;
 
   uvalue = (unsigned long long) value;
+
 
   if (!(flags & DP_F_UNSIGNED)) {
     if (value < 0) {
@@ -519,11 +507,15 @@ static void fmtint (
 
   if (flags & DP_F_UP)
     caps = 1;                   /* Should characters be upper case? */
-
   do {
-    convert[place++] = (caps ? "0123456789ABCDEF" : "0123456789abcdef")
-      [uvalue % (unsigned) base];
+#ifdef GUEST_LINUX
+    /* DIRTY HACK: we can't use __udivdi3 */
+    convert[place++] = (caps ? "0123456789ABCDEF" : "0123456789abcdef")[((unsigned long)uvalue) % (unsigned) base];
+    uvalue = (((unsigned long)uvalue) / (unsigned) base);
+#elif defined GUEST_WINDOWS
+    convert[place++] = (caps ? "0123456789ABCDEF" : "0123456789abcdef")[uvalue % (unsigned) base];    
     uvalue = (uvalue / (unsigned) base);
+#endif
   } while (uvalue && (place < 20));
   if (place == 20)
     place--;
@@ -543,7 +535,7 @@ static void fmtint (
     spadlen = -spadlen;         /* Left Justifty */
 
 # ifdef DEBUG_SNPRINTF
-  printf ("zpad: %d, spad: %d, min: %d, max: %d, place: %d\n", zpadlen, spadlen, min, max, place);
+  //  printf ("zpad: %d, spad: %d, min: %d, max: %d, place: %d\n", zpadlen, spadlen, min, max, place);
 # endif
 
   /* Spaces */
@@ -575,12 +567,7 @@ static void fmtint (
   }
 }
 
-static void dopr_outch (
-  char *buffer,
-  size_t * currlen,
-  size_t maxlen,
-  char c
-)
+static void dopr_outch (char *buffer, size_t * currlen, size_t maxlen, char c)
 {
   if (*currlen < maxlen) {
     buffer[(*currlen)] = c;
@@ -589,24 +576,14 @@ static void dopr_outch (
 }
 
 # if !defined(HAVE_VSNPRINTF) || !defined(HAVE_C99_VSNPRINTF)
-int vmm_vsnprintf (
-  char *str,
-  size_t count,
-  const char *fmt,
-  va_list args
-)
+int vmm_vsnprintf (char *str, size_t count, const char *fmt, va_list args)
 {
   return dopr (str, count, fmt, args);
 }
 # endif
 
 # if !defined(HAVE_SNPRINTF) || !defined(HAVE_C99_VSNPRINTF)
-int vmm_snprintf (
-  char *str,
-  size_t count,
-  const char *fmt,
-  ...
-)
+int vmm_snprintf (char *str, size_t count, const char *fmt, ...)
 {
   size_t ret;
   va_list ap;

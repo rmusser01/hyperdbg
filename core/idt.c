@@ -24,27 +24,26 @@
 #include "x86.h"
 #include "idt.h"
 
-__declspec(naked) void NullIDTHandler(void)
-{
-  __asm { IRETD };
-}
-
 void RegisterIDTHandler(Bit16u index, void (*handler) (void))
 {
   IDTR tmp_idt;
   PIDT_ENTRY descriptors, pidt_entry;
 
-  __asm { SIDT tmp_idt };
-
+  __asm__ __volatile__(
+		       "sidt %0\n"
+		       :"=m"(tmp_idt)
+		       ::"memory"
+		       );
+  
   descriptors = (PIDT_ENTRY) (tmp_idt.BaseHi << 16 | tmp_idt.BaseLo);
   pidt_entry = &(descriptors[index]);
-
+  
   /* Copy a valid handler (0x2e).
      FIXME: Here we are assuming our handler lies in the same segment of the
      interrupt handler 0x2e.
-   */
+  */
   descriptors[index] = descriptors[0x2e];
-
+  
   pidt_entry->LowOffset  = ((hvm_address) handler) & 0xffff;
   pidt_entry->HighOffset = ((hvm_address) handler) >> 16;
 }
@@ -53,7 +52,7 @@ PIDT_ENTRY GetIDTEntry(Bit8u num)
 {					
   Bit32u flags;
   PIDT_ENTRY pidt_entry;
-
+  
   /* Be sure the IF is clear */
   flags = RegGetFlags();
   RegSetFlags(flags & ~FLAGS_IF_MASK);
@@ -71,35 +70,36 @@ void HookIDT(Bit8u entryno, Bit16u selector, void (*handler)(void))
   PIDT_ENTRY pidt_entry;
 
   pidt_entry = GetIDTEntry(entryno);
+  
+  __asm__ __volatile__(
+		       "cli\n"
+		       "pushal\n"
+    
+		       /* Save original CR0 */
+		       "movl	%%cr0,%%eax\n"
+		       "pushl	%%eax\n"
+    
+		       /* Disable memory protection */
+		       "andl	$0xfffeffff,%%eax\n"
+		       "movl	%%eax,%%cr0\n"
+		       
+		       /* Recover original interrupt handler */
+		       "movl	%0,%%eax\n" 
+		       "movw	%1,%%cx\n" 
+		       "movl	%2,%%ebx\n"
+		       
+		       /* Set the new handler */
+		       "movw	%%ax,(%%ebx)\n"   /* LowOffset */
+		       "shr	$16,%%eax\n"
+		       "movw	%%ax,6(%%ebx)\n" /* HighOffset */
+		       "movw	%%cx,2(%%ebx)\n" /* Selector */
+		       
+		       /* Restore original CR0 */
+		       "popl %%eax\n"
+		       "movl %%eax,%%cr0\n"
 
-  __asm {
-    CLI;
-    PUSHAD;
-		   
-    /* Save original CR0 */
-    MOV EAX, CR0;
-    PUSH EAX;
-
-    /* Disable memory protection */
-    AND EAX, 0xfffeffff;
-    MOV CR0, EAX;
-
-    /* Recover original interrupt handler */
-    MOV EAX, handler; 
-    MOV CX, selector; 
-    MOV EBX, pidt_entry;
-
-    /* Set the new handler */
-    MOV [EBX], AX;   /* LowOffset */
-    SHR EAX, 16;
-    MOV [EBX+6], AX; /* HighOffset */
-    MOV [EBX+2], CX; /* Selector */
-
-    /* Restore original CR0 */
-    POP EAX;
-    MOV CR0, EAX;
-
-    POPAD;
-    STI;
-  };
+		       "popal\n"
+		       "sti\n"
+		       ::"m"(handler), "m"(selector), "m"(pidt_entry)
+		       );
 }

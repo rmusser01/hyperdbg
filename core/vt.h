@@ -57,62 +57,62 @@ typedef enum {
   VT_REGISTER_R15,
 } VtRegister;
 
-struct CPU_CONTEXT {
-  struct {
-    hvm_address RIP;
-    hvm_address ResumeRIP;
-    hvm_address RSP;
-    hvm_address CS;
-    hvm_address CR0;
-    hvm_address CR3;
-    hvm_address CR4;
-    hvm_address RFLAGS;
+struct __attribute__((__packed__)) CPU_CONTEXT {
+  struct __attribute__((__packed__)) {
+    hvm_address rip;
+    hvm_address resumerip;
+    hvm_address rsp;
+    hvm_address cs;
+    hvm_address cr0;
+    hvm_address cr3;
+    hvm_address cr4;
+    hvm_address rflags;
 
-    hvm_address RAX;
-    hvm_address RBX;
-    hvm_address RCX;
-    hvm_address RDX;
-    hvm_address RDI;
-    hvm_address RSI;
-    hvm_address RBP;
+    hvm_address rax;
+    hvm_address rbx;
+    hvm_address rcx;
+    hvm_address rdx;
+    hvm_address rdi;
+    hvm_address rsi;
+    hvm_address rbp;
   } GuestContext;
 };
 
 struct HVM_X86_OPS {
   /* VT-related */
-  hvm_bool    (*vt_cpu_has_support)(void);
-  hvm_bool    (*vt_disabled_by_bios)(void);
-  hvm_bool    (*vt_enabled)(void);
-  hvm_status  (*vt_initialize)(void (*idt_initializer)(PIDT_ENTRY));
-  hvm_status  (*vt_finalize)(void);
-  void        (*vt_launch)(void);
-  hvm_status  (*vt_hardware_enable)(void);
-  hvm_status  (*vt_hardware_disable)(void);
-  void        (*vt_hypercall)(Bit32u num);
+  hvm_bool      (*vt_cpu_has_support)(void);
+  hvm_bool      (*vt_disabled_by_bios)(void);
+  hvm_bool      (*vt_enabled)(void);
+  hvm_status    (*vt_initialize)(void (*idt_initializer)(PIDT_ENTRY));
+  hvm_status    (*vt_finalize)(void);
+  void          (*vt_launch)(void);
+  hvm_status    (*vt_hardware_enable)(void);
+  hvm_status    (*vt_hardware_disable)(void);
+  void          (*vt_hypercall)(Bit32u num) USESTACK;
 
   /* These will be removed in a near future... */
-  hvm_status  (*vt_vmcs_initialize)(hvm_address guest_stack, hvm_address guest_return, hvm_address host_cr3);
-  Bit32u      (*vt_vmcs_read)(Bit32u encoding);
-  void        (*vt_vmcs_write)(Bit32u encoding, Bit32u value);
+  hvm_status    (*vt_vmcs_initialize)(hvm_address guest_stack, hvm_address guest_return, hvm_address host_cr3);
+  Bit32u        (*vt_vmcs_read)(Bit32u encoding) USESTACK;
+  void          (*vt_vmcs_write)(Bit32u encoding, Bit32u value) USESTACK;
+  
+  void          (*vt_set_cr0)(hvm_address cr0);
+  void          (*vt_set_cr3)(hvm_address cr3);
+  void          (*vt_set_cr4)(hvm_address cr4);
 
-  void        (*vt_set_cr0)(hvm_address cr0);
-  void        (*vt_set_cr3)(hvm_address cr3);
-  void        (*vt_set_cr4)(hvm_address cr4);
-
-  void        (*vt_trap_io)(hvm_bool enabled);
-  Bit32u      (*vt_get_exit_instr_len)(void);
+  void          (*vt_trap_io)(hvm_bool enabled);
+  Bit32u        (*vt_get_exit_instr_len)(void);
 
   /* Memory management */
-  void (*mmu_tlb_flush)(void);
+  void          (*mmu_tlb_flush)(void);
 
   /* HVM-related */
-  void       (*hvm_handle_exit)(void);
-  hvm_status (*hvm_switch_off)(void);
-  hvm_status (*hvm_update_events)(void);
-  void       (*hvm_inject_hw_exception)(Bit32u type, Bit32u error_code);
+  void          (*hvm_handle_exit)(void);
+  hvm_status    (*hvm_switch_off)(void);
+  hvm_status    (*hvm_update_events)(void);
+  void          (*hvm_inject_hw_exception)(Bit32u type, Bit32u error_code);
 };
 
-extern struct CPU_CONTEXT context;
+extern struct CPU_CONTEXT context asm("_context");
 extern struct HVM_X86_OPS hvm_x86_ops;
 
 #endif	/* _VT_H */

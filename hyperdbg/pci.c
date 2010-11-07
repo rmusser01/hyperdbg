@@ -172,10 +172,10 @@ static Bit8u pci_conf_type = PCI_CONF_TYPE_NONE;
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static void  PCIListController(void);
 static int   PCIConfRead(unsigned bus, unsigned dev, unsigned fn, unsigned reg, unsigned len, unsigned int *value);
 
 #if 0
+static void   PCIListController(void);
 static Bit32u PCIGetName(unsigned int v, unsigned int d, unsigned char *out_char, int out_size);
 #endif
 
@@ -207,30 +207,6 @@ void PCIInit(void)
       pci_conf_type = PCI_CONF_TYPE_NONE;
     }
   }
-}
-
-static void PCIListController(void)
-{
-  int i, result;
-  unsigned int ctrl_bus, ctrl_dev, ctrl_fn, tmp, vendor, device;
-  unsigned char pci_data[0x40];
-  unsigned char debug[256];
- 
-  for (ctrl_bus=0; ctrl_bus<255; ctrl_bus++)
-    for (ctrl_dev=0; ctrl_dev<31; ctrl_dev++)
-      for (ctrl_fn=0; ctrl_fn<7; ctrl_fn++) {
-	result = PCIConfRead(ctrl_bus, ctrl_dev, ctrl_fn, PCI_VENDOR_ID, 2, &vendor);
-	result = PCIConfRead(ctrl_bus, ctrl_dev, ctrl_fn, PCI_DEVICE_ID, 2, &device);
-	  
-	if ((vendor == 0xffff || device == 0xffff ) ||
-	    (vendor == 0x0 && device == 0x0))
-	  continue;
-
-	for (i=0;i<0x40;i++) {
-	  result = PCIConfRead(ctrl_bus, ctrl_dev, ctrl_fn, i,1, &tmp);
-	  pci_data[i] = (unsigned char)(tmp & 0xff);
-	}
-      }
 }
 
 static int PCIConfRead(unsigned bus, unsigned dev, unsigned fn, unsigned reg, unsigned len, unsigned int *value)
@@ -280,9 +256,7 @@ hvm_status PCIDetectDisplay(hvm_address* pdisplay_address)
   unsigned char pci_data[0x40];
   pci_info* p_pci_info;
 
-  unsigned char debug[256];
-
-  WindowsLog("[*] Starting PCI scan\n");
+  GuestLog("[*] Starting PCI scan\n");
  
   for (ctrl_bus=0; ctrl_bus<255; ctrl_bus++)
     for (ctrl_dev=0; ctrl_dev<31; ctrl_dev++)
@@ -297,7 +271,7 @@ hvm_status PCIDetectDisplay(hvm_address* pdisplay_address)
 	result = PCIConfRead(ctrl_bus, ctrl_dev, ctrl_fn, PCI_HEADER_TYPE, 1, &header_type_tmp);
 	header_type_tmp &= 0x7f;
 
-	WindowsLog("[*] Found device! Vendor: %.4x device: %.4x header: %.2x\n", 
+	GuestLog("[*] Found device! Vendor: %.4x device: %.4x header: %.2x\n", 
 		 vendor, device, header_type_tmp);
 
 	for (i=0; i<0x40; i++) {
@@ -324,7 +298,7 @@ hvm_status PCIDetectDisplay(hvm_address* pdisplay_address)
 	    if (!pos && !flg)
 	      continue;
 	    if (!(flg & PCI_BASE_ADDRESS_SPACE_IO) && (flg & PCI_BASE_ADDRESS_MEM_PREFETCH)) {
-	      WindowsLog("[D] Prefetchable PCI memory at %.8x\n", pos & PCI_BASE_ADDRESS_MEM_MASK);
+	      GuestLog("[D] Prefetchable PCI memory at %.8x\n",(Bit32u) (pos & PCI_BASE_ADDRESS_MEM_MASK));
 	      *pdisplay_address = pos & PCI_BASE_ADDRESS_MEM_MASK;
 	      break;
 	    }
@@ -334,24 +308,47 @@ hvm_status PCIDetectDisplay(hvm_address* pdisplay_address)
 	  *pdisplay_address &= ~PCI_BASE_ADDRESS_SPACE_IO;
 	  *pdisplay_address &= PCI_BASE_ADDRESS_MEM_MASK;
 	} else {
-	  WindowsLog("[W] Unexpected PCI header\n");
+	  GuestLog("[W] Unexpected PCI header\n");
 	  continue;
 	}
 
 #if 0
 	PCIGetName(vendor, device, debug, sizeof(debug));
-	WindowsLog("[*] Good device '%s'\n", debug);
+	GuestLog("[*] Good device '%s'\n", debug);
 #endif
 
 	return HVM_STATUS_SUCCESS;
       }
 
-  WindowsLog("[E] PCI scan: failed\n");
+  GuestLog("[E] PCI scan: failed\n");
 
   return HVM_STATUS_UNSUCCESSFUL;
 }
 
 #if 0
+static void PCIListController(void)
+{
+  int i, result;
+  unsigned int ctrl_bus, ctrl_dev, ctrl_fn, tmp, vendor, device;
+  unsigned char pci_data[0x40];
+ 
+  for (ctrl_bus=0; ctrl_bus<255; ctrl_bus++)
+    for (ctrl_dev=0; ctrl_dev<31; ctrl_dev++)
+      for (ctrl_fn=0; ctrl_fn<7; ctrl_fn++) {
+	result = PCIConfRead(ctrl_bus, ctrl_dev, ctrl_fn, PCI_VENDOR_ID, 2, &vendor);
+	result = PCIConfRead(ctrl_bus, ctrl_dev, ctrl_fn, PCI_DEVICE_ID, 2, &device);
+	  
+	if ((vendor == 0xffff || device == 0xffff ) ||
+	    (vendor == 0x0 && device == 0x0))
+	  continue;
+
+	for (i=0;i<0x40;i++) {
+	  result = PCIConfRead(ctrl_bus, ctrl_dev, ctrl_fn, i,1, &tmp);
+	  pci_data[i] = (unsigned char)(tmp & 0xff);
+	}
+      }
+}
+
 static Bit32u PCIGetName(unsigned int v, unsigned int d, unsigned char *out_char, int out_size)
 {
   unsigned int i, ii;

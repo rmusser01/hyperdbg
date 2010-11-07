@@ -18,38 +18,40 @@
   
   You should have received a copy of the GNU General Public License along with
   this program. If not, see <http://www.gnu.org/licenses/>.
-  
+
 */
 
-#ifndef _IDT_H
-#define _IDT_H
+#include "vt.h"
 
-#include "types.h"
+#define _OFFSETOF(s, m)				\
+  (&(((s*)0)->m))
+#define DEFINE(_sym, _val)						\
+  __asm__ __volatile__ ( "\n->" #_sym " %0 " #_val : : "i" (_val) )
+#define BLANK()					\
+  __asm__ __volatile__ ( "\n->" : : )
+#define OFFSET(_sym, _str, _mem)		\
+  DEFINE(_sym, _OFFSETOF(_str, _mem));
 
-#define IDT_TYPE_TASK_GATE    0b00101
-#define IDT_TYPE_32_INT_GATE  0b01110
-#define IDT_TYPE_16_INT_GATE  0b00110
-#define IDT_TYPE_32_TRAP_GATE 0b01111
-#define IDT_TYPE_16_TRAP_GATE 0b00111
+#define CONTEXT_SYMBOL(s)					\
+  OFFSET(CONTEXT_##s, struct CPU_CONTEXT, GuestContext.s);
 
-typedef struct {
-  unsigned      LowOffset       :16;
-  unsigned      Selector        :16;
-  unsigned      Access          :16;
-  unsigned      HighOffset      :16;
-} IDT_ENTRY, *PIDT_ENTRY;
+void __foo__ (void)
+{
+  CONTEXT_SYMBOL(rip);
+  CONTEXT_SYMBOL(resumerip);
+  CONTEXT_SYMBOL(rsp);
+  CONTEXT_SYMBOL(cs);
+  CONTEXT_SYMBOL(cr0);
+  CONTEXT_SYMBOL(cr3);
+  CONTEXT_SYMBOL(cr4);
+  CONTEXT_SYMBOL(rflags);
+  BLANK();
 
-typedef struct _IDTR {
-  unsigned	Limit		:16;
-  unsigned	BaseLo		:16;
-  unsigned	BaseHi		:16;
-} IDTR;
-
-/* Defined in i386/vmx-asm.S */
-void       NullIDTHandler(void);
-
-void       RegisterIDTHandler(Bit16u index, void (*handler) (void));
-PIDT_ENTRY GetIDTEntry(Bit8u num);
-void       HookIDT(Bit8u entryno, Bit16u selector, void (*handler)(void));
-
-#endif	/* _IDT_H */
+  CONTEXT_SYMBOL(rax);
+  CONTEXT_SYMBOL(rbx);
+  CONTEXT_SYMBOL(rcx);
+  CONTEXT_SYMBOL(rdx);
+  CONTEXT_SYMBOL(rdi);
+  CONTEXT_SYMBOL(rsi);
+  CONTEXT_SYMBOL(rbp);     
+}

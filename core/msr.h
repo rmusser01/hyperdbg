@@ -24,6 +24,8 @@
 #ifndef _PILL_MSR_H
 #define _PILL_MSR_H
 
+#include "common.h"
+
 #pragma pack (push, 1)
 
 /* MSRs */
@@ -89,7 +91,7 @@ typedef struct _IA32_FEATURE_CONTROL_MSR
 #pragma pack (pop)
 
 /* Read MSR register to LARGE_INTEGER variable */
-void ReadMSR (Bit32u reg, PMSR msr);
-void WriteMSR(Bit32u reg, Bit32u highpart, Bit32u lowpart);
+void USESTACK ReadMSR (Bit32u reg, PMSR msr);
+void USESTACK WriteMSR(Bit32u reg, Bit32u highpart, Bit32u lowpart);
 
 #endif /* _PILL_MSR_H */

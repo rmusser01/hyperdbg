@@ -21,7 +21,16 @@
   
 */
 
-#include <ntddk.h>
+#ifdef GUEST_WINDOWS
+
+#include <ddk/ntddk.h>
+
+#elif defined GUEST_LINUX
+
+#include <linux/mm.h>
+#include "mmu.h"
+
+#endif
 
 #include "hyperdbg.h"
 #include "video.h"
@@ -31,7 +40,7 @@
 
 #ifdef XPVIDEO
 #include "xpvideo.h"
-#endif // XPVIDEO
+#endif
 
 /* ################ */
 /* #### MACROS #### */
@@ -53,15 +62,15 @@
 #define DEFAULT_VIDEO_ADDRESS VIDEO_ADDRESS_BOCHS 
 
 /* Uncomment this line to disable video autodetect NEEDED TO RUN INTO BOCHS */
-/* #define VIDEO_ADDRESS_MANUAL */
+/* #define VIDEO_ADDRESS_MANUAL */ //definito nel makefile!!
 
 /* ################# */
 /* #### GLOBALS #### */
 /* ################# */
 
-static Bit32u     *video_mem = NULL;
+static Bit32u*     video_mem = NULL;
 static hvm_address video_address = 0;
-static Bit32u    **video_backup;
+static Bit32u**    video_backup;
 static Bit32u      video_sizex, video_sizey, video_stride, framebuffer_size;
 
 /* ################ */
@@ -70,20 +79,20 @@ static Bit32u      video_sizex, video_sizey, video_stride, framebuffer_size;
 
 hvm_status VideoInit(void)
 {
-  hvm_status r;
-
 #ifdef XPVIDEO
   XpVideoGetWindowsXPDisplayData(&video_address, &framebuffer_size, &video_sizex, &video_sizey, &video_stride);
 #else
 #ifndef VIDEO_ADDRESS_MANUAL
+  hvm_status r;
+
   PCIInit();
   r = PCIDetectDisplay(&video_address);
   if (r != HVM_STATUS_SUCCESS) {
-    WindowsLog("[E] PCI display detection failed!");
+    GuestLog("[E] PCI display detection failed!");
     return HVM_STATUS_UNSUCCESSFUL;
   }
 #else
-  video_address = (hvm_address) DEFAULT_VIDEO_ADDRESS;
+  video_address = (hvm_address)DEFAULT_VIDEO_ADDRESS;
 #endif 
 
   /* Set default screen resolution */
@@ -94,8 +103,8 @@ hvm_status VideoInit(void)
 
 #endif // XPVIDEO
   
-  WindowsLog("[*] Found PCI display region at physical address %.8x\n", video_address);
-  WindowsLog("[*] Using resolution of %d x %d, stride %d\n", video_sizex, video_sizey, video_stride);
+  GuestLog("[*] Found PCI display region at physical address %.8x\n", video_address);
+  GuestLog("[*] Using resolution of %d x %d, stride %d\n", video_sizex, video_sizey, video_stride);
 
 
   return HVM_STATUS_SUCCESS;
@@ -117,25 +126,26 @@ hvm_status VideoAlloc(void)
 {
   PHYSICAL_ADDRESS pa;
   Bit32u i;
+  
   pa.u.HighPart = 0;
   pa.u.LowPart  = video_address;
 
-
   /* Allocate memory to save current pixels */
-  video_backup = MmAllocateNonCachedMemory(FONT_Y * SHELL_SIZE_Y * sizeof(Bit32u));
-  if(video_backup == 0) return HVM_STATUS_UNSUCCESSFUL;
-
+  video_backup = (Bit32u**) GUEST_MALLOC(FONT_Y * SHELL_SIZE_Y * sizeof(Bit32u));
+  if(!video_backup) return HVM_STATUS_UNSUCCESSFUL;
+  
   for(i = 0; i < FONT_Y * SHELL_SIZE_Y; i++) {
-    video_backup[i] = MmAllocateNonCachedMemory(FONT_X * SHELL_SIZE_X * sizeof(Bit32u));
-    if(video_backup[i] == 0) return HVM_STATUS_UNSUCCESSFUL;
+    video_backup[i] = GUEST_MALLOC(FONT_X * SHELL_SIZE_X * sizeof(Bit32u));
+    if(!video_backup[i]) return HVM_STATUS_UNSUCCESSFUL;
   }
-
+  Log("Mapping video memory...");
+  
   /* Map video memory */
-  video_mem = (Bit32u*) MmMapIoSpace(pa, framebuffer_size, MmWriteCombined);
+  MmuMapPhysicalSpace(pa.u.LowPart, framebuffer_size, (hvm_address*) &video_mem);
+  
   if (!video_mem)
-    return HVM_STATUS_UNSUCCESSFUL;
-
-
+       return HVM_STATUS_UNSUCCESSFUL;
+  
 #if 0
   /* Debug code to draw a 100x100 white square at the top left of the screen.
      This can be used to test the video settings without actually breaking into
@@ -155,17 +165,15 @@ hvm_status VideoAlloc(void)
 hvm_status VideoDealloc(void)
 {
   Bit32u i;
-
-  for(i = 0; i < FONT_Y * SHELL_SIZE_Y; i++)
-    MmFreeNonCachedMemory(video_backup[i], FONT_X * SHELL_SIZE_X * sizeof(Bit32u));
-
-  MmFreeNonCachedMemory(video_backup, FONT_Y * SHELL_SIZE_Y * sizeof(Bit32u));
-
+  
+  for(i = 0; i < FONT_Y * SHELL_SIZE_Y; i++)  
+    GUEST_FREE(video_backup[i], FONT_X * SHELL_SIZE_X * sizeof(Bit32u));
+  GUEST_FREE(video_backup, FONT_Y * SHELL_SIZE_Y * sizeof(Bit32u));
+  
   if (video_mem) {
-    MmUnmapIoSpace(video_mem, framebuffer_size);
+    MmuUnmapPhysicalSpace((hvm_address) video_mem, framebuffer_size);
     video_mem = NULL;
   }
-
   return HVM_STATUS_SUCCESS;
 }
 
@@ -261,12 +269,12 @@ void VideoClear(Bit32u color)
 void VideoSave(void)
 {
   int i,j;
-
   for(j = 0; j < FONT_Y * SHELL_SIZE_Y; j++) {
     for(i = 0; i < FONT_X * SHELL_SIZE_X; i++) {
       video_backup[j][i] = video_mem[(j*video_stride)+i];
     }
   }
+  
 }
 
 void VideoRestore(void)

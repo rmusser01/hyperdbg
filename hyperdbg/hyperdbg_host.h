@@ -25,7 +25,6 @@
 #define _HYPERDBG_HOST_H
 
 #include "hyperdbg.h"
-#include "pill.h"
 #include "events.h"
 
 hvm_status HyperDbgHostInit(void);

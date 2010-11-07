@@ -24,7 +24,7 @@
 #ifndef _PILL_WINXP_H
 #define _PILL_WINXP_H
 
-#include <ntddk.h>
+#include <ddk/ntddk.h>
 
 #include "types.h"
 #include "process.h"

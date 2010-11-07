@@ -9,7 +9,7 @@
 /* #include <assert.h> */
 /* #include <string.h> */
 
-#include "types.h"
+#include "ltypes.h"
 #include "itab.h"
 #include "input.h"
 #include "decode.h"
@@ -1054,9 +1054,9 @@ static int clear_insn(register struct ud* u)
   u->mnemonic  = UD_Inone;
   u->itab_entry = NULL;
 
-  memset( &u->operand[ 0 ], 0, sizeof( struct ud_operand ) );
-  memset( &u->operand[ 1 ], 0, sizeof( struct ud_operand ) );
-  memset( &u->operand[ 2 ], 0, sizeof( struct ud_operand ) );
+  vmm_memset( &u->operand[ 0 ], 0, sizeof( struct ud_operand ) );
+  vmm_memset( &u->operand[ 1 ], 0, sizeof( struct ud_operand ) );
+  vmm_memset( &u->operand[ 2 ], 0, sizeof( struct ud_operand ) );
  
   return 0;
 }

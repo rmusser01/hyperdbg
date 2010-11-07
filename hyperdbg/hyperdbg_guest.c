@@ -25,11 +25,18 @@
 #include "hyperdbg_common.h"
 #include "hyperdbg_guest.h"
 #include "hyperdbg_host.h"
+
+#ifdef GUEST_WINDOWS
 #include "winxp.h"
+#elif defined GUEST_LINUX
+
+#endif
+
 #include "keyboard.h"
 #include "debug.h"
 #include "vt.h"
 #include "video.h"
+
 
 /* ################# */
 /* #### GLOBALS #### */
@@ -49,14 +56,14 @@ hvm_status HyperDbgGuestInit(void)
 
   /* Initialize the video subsystem */
   if(VideoInit() != HVM_STATUS_SUCCESS) {
-    WindowsLog("[HyperDbg] Video initialization error");
+    GuestLog("[HyperDbg] Video initialization error");
     return HVM_STATUS_UNSUCCESSFUL;
   }
 
   /* Allocate video buffer */
   r = VideoAlloc();
   if(r != HVM_STATUS_SUCCESS) {
-    WindowsLog("[HyperDbg] Cannot initialize video!");
+    GuestLog("[HyperDbg] Cannot initialize video!");
     return HVM_STATUS_UNSUCCESSFUL;
   }
 
@@ -70,16 +77,16 @@ hvm_status HyperDbgGuestInit(void)
 #ifdef GUEST_WINDOWS
   r = WindowsGetKernelBase(&hyperdbg_state.win_state.kernel_base);
   if (r != HVM_STATUS_SUCCESS) {
-    WindowsLog("[HyperDbg] Cannot initialize guest-specific variables!");
+    GuestLog("[HyperDbg] Cannot initialize guest-specific variables!");
     return HVM_STATUS_UNSUCCESSFUL;
   }
 #elif defined GUEST_LINUX
-#error Linux guest is still unimplemented
+
 #else
 #error Invalid HyperDBG guest!
 #endif
 
-  WindowsLog("[HyperDbg] Initialized!", 0);
+  GuestLog("[HyperDbg] Initialized!");
 
   return HVM_STATUS_SUCCESS;
 }
@@ -91,7 +98,7 @@ hvm_status HyperDbgGuestFini(void)
 {
   if(!hyperdbg_state.initialized) return HVM_STATUS_SUCCESS;
 
-  WindowsLog("[HyperDbg] Unloading...");
+  GuestLog("[HyperDbg] Unloading...");
 
   /* Deallocate video buffer */
   VideoDealloc();

@@ -26,6 +26,9 @@
 
 #if defined(WIN32)
 /* Windows */
+#include <inttypes.h>
+#include <stddef.h>
+
 typedef unsigned char     Bit8u;
 typedef   signed char     Bit8s;
 typedef unsigned short    Bit16u;
@@ -34,9 +37,20 @@ typedef unsigned int      Bit32u;
 typedef   signed int      Bit32s;
 typedef unsigned __int64  Bit64u;
 typedef   signed __int64  Bit64s;
+
 #else
 /* Linux */
-#error "TODO: Linux data types"
+#include <linux/types.h>
+
+typedef unsigned           char   Bit8u;
+typedef   signed           char   Bit8s;
+typedef unsigned short     int    Bit16u;
+typedef signed short       int    Bit16s;
+typedef unsigned           int    Bit32u;
+typedef   signed           int    Bit32s;
+typedef unsigned long long int    Bit64u;
+typedef   signed long long int    Bit64s;
+
 #endif
 
 #define GET32L(val64) ((Bit32u)(((Bit64u)(val64)) & 0xFFFFFFFF))
@@ -49,6 +63,16 @@ typedef Bit32u hvm_address;
 #endif
 
 typedef Bit64u hvm_phy_address;
+
+#ifdef GUEST_LINUX
+typedef struct _PHYSICAL_ADDRESS 
+{
+  struct {
+    Bit32u LowPart;
+    Bit64s HighPart;
+  } u;
+} PHYSICAL_ADDRESS;
+#endif
 
 typedef Bit32u hvm_bool;
 #define TRUE  1

@@ -27,16 +27,17 @@
 #define COM_PORT_IRQ                    0x004
 #define COM_PORT_ADDRESS                0x3f8
 
+#include "common.h"
 #include "types.h"
 
 /* COM level communication */
-void  __stdcall ComInit(void);
-void  __stdcall ComPrint(Bit8u* fmt, ...);
-Bit8u __stdcall ComIsInitialized();
+void  ComInit(void);
+void  ComPrint(const char* fmt, ...) asm("_ComPrint");
+Bit8u ComIsInitialized(void);
 
 /* Hardware port level communication */
-void  __stdcall PortInit(void);
-void  __stdcall PortSendByte(Bit8u b);
-Bit8u __stdcall PortRecvByte(void);
+void  PortInit(void);
+void  PortSendByte(Bit8u b);
+Bit8u PortRecvByte(void);
 
 #endif	/* _PILL_COMIO_H */

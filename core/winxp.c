@@ -26,6 +26,7 @@
 #include "mmu.h"
 #include "common.h"
 #include "vmmstring.h"
+#include <ddk/ntddk.h>
 
 /* ################ */
 /* #### MACROS #### */
@@ -45,11 +46,13 @@ typedef NTSTATUS (NTAPI *NTQUERYSYSTEMINFORMATION)(ULONG, PVOID, ULONG, PULONG);
 static struct {
   NTQUERYSYSTEMINFORMATION NtQuerySystemInformation;
   ULONG PsLoadedModuleList;
+  PEPROCESS PsInitialSystemProcess;
 } WindowsSymbols;
 
 static hvm_address WindowsFindPsLoadedModuleList(PDRIVER_OBJECT DriverObject);
 static hvm_status  WindowsFindNetworkConnections(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
 static hvm_status  WindowsFindNetworkSockets(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
+
 
 /* ################ */
 /* #### BODIES #### */
@@ -66,7 +69,10 @@ hvm_status WindowsInit(PDRIVER_OBJECT DriverObject)
 
   WindowsSymbols.PsLoadedModuleList = WindowsFindPsLoadedModuleList(DriverObject);
   if (WindowsSymbols.PsLoadedModuleList == 0) return HVM_STATUS_UNSUCCESSFUL;
-
+  
+  RtlInitUnicodeString(&u, L"PsInitialSystemProcess");
+  WindowsSymbols.PsInitialSystemProcess= (PEPROCESS) *((PEPROCESS*) MmGetSystemRoutineAddress(&u));
+  if (WindowsSymbols.PsInitialSystemProcess == 0) return HVM_STATUS_UNSUCCESSFUL;
   return HVM_STATUS_SUCCESS;
 }
 
@@ -129,13 +135,13 @@ hvm_status WindowsGetKernelBase(hvm_address* pbase)
   PSYSTEM_MODULE_INFORMATION pSystemModuleInformation;
   hvm_status r;
 
-  WindowsSymbols.NtQuerySystemInformation(SystemModuleInformation, (PVOID) &Byte, 0, &Byte);
+  WindowsSymbols.NtQuerySystemInformation(SystemModuleInformation, (PVOID) &Byte, 0, (PULONG) &Byte);
       
   pBuffer = MmAllocateNonCachedMemory(Byte);          
   if(!pBuffer)
     return HVM_STATUS_UNSUCCESSFUL;
                 
-  if(WindowsSymbols.NtQuerySystemInformation(SystemModuleInformation, pBuffer, Byte, &Byte)) {
+  if(WindowsSymbols.NtQuerySystemInformation(SystemModuleInformation, pBuffer, Byte, (PULONG) &Byte)) {
     MmFreeNonCachedMemory(pBuffer, Byte);
     return HVM_STATUS_UNSUCCESSFUL;
   }
@@ -178,7 +184,7 @@ hvm_status  WindowsFindModuleByName(hvm_address cr3, Bit8u *name, MODULE_DATA *p
     }
 
     if (!vmm_strncmpi(name, next.name, vmm_strlen(name))) {
-      memcpy(pmodule, &next, sizeof(next));
+      vmm_memcpy(pmodule, &next, sizeof(next));
       return HVM_STATUS_SUCCESS; /* FOUND! */
     }
 
@@ -302,7 +308,7 @@ hvm_status WindowsFindProcess(hvm_address cr3, hvm_address* ppep)
 
   /* Iterate over ("visible") system processes */
   found = FALSE;
-  r = ProcessGetNextProcess(context.GuestContext.CR3, NULL, &next);
+  r = ProcessGetNextProcess(context.GuestContext.cr3, NULL, &next);
 
   while (1) {
     if (r == HVM_STATUS_END_OF_FILE) {
@@ -322,7 +328,7 @@ hvm_status WindowsFindProcess(hvm_address cr3, hvm_address* ppep)
 
     /* Go on with next process */
     prev = next;
-    r = ProcessGetNextProcess(context.GuestContext.CR3, &prev, &next);
+    r = ProcessGetNextProcess(context.GuestContext.cr3, &prev, &next);
   }
 
   return found ? HVM_STATUS_SUCCESS : HVM_STATUS_UNSUCCESSFUL;
@@ -413,17 +419,17 @@ hvm_status WindowsFindProcessName(hvm_address cr3, char* name)
 
 hvm_status WindowsGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext)
 {
-  hvm_status   r;
-
+  hvm_status r;
+  
   if (!pnext) return HVM_STATUS_UNSUCCESSFUL;
 
   if (!pprev) {
     /* Start with the first process, i.e., System */
-    pnext->pobj = (hvm_address) PsInitialSystemProcess;
+    pnext->pobj = (hvm_address) WindowsSymbols.PsInitialSystemProcess;
   } else {
     /* Go on with the next process in the linked-list of active ones */
     LIST_ENTRY   le;
-
+    
     if (!pprev->pobj) return HVM_STATUS_UNSUCCESSFUL;
 
     r = MmuReadVirtualRegion(cr3, pprev->pobj + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le));
@@ -434,7 +440,7 @@ hvm_status WindowsGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_
 
     pnext->pobj = (hvm_address) (le.Flink) - OFFSET_EPROCESS_ACTIVELINKS;
 
-    if (pnext->pobj == (hvm_address) PsInitialSystemProcess)
+    if (pnext->pobj == (hvm_address) WindowsSymbols.PsInitialSystemProcess)
       return HVM_STATUS_END_OF_FILE;
   }
 
@@ -533,8 +539,8 @@ static hvm_status  WindowsFindNetworkConnections(hvm_address cr3, SOCKET *buf, B
     buf[j].state       = SocketStateEstablished;
     buf[j].remote_ip   = obj.RemoteIpAddress;
     buf[j].local_ip    = obj.LocalIpAddress;
-    buf[j].remote_port = ntohs(obj.RemotePort);
-    buf[j].local_port  = ntohs(obj.LocalPort);
+    buf[j].remote_port = vmm_ntohs(obj.RemotePort);
+    buf[j].local_port  = vmm_ntohs(obj.LocalPort);
     buf[j].pid         = obj.Pid;
     buf[j].protocol    = 7;	/* TCP */
     j++;
@@ -597,7 +603,7 @@ static hvm_status  WindowsFindNetworkSockets(hvm_address cr3, SOCKET *buf, Bit32
       r = MmuReadVirtualRegion(cr3, table_entry + OFFSET_ADDRESS_OBJECT_CREATETIME, &create_time, sizeof(create_time));
       if (r != HVM_STATUS_SUCCESS) break;
 
-      local_port = ntohs(local_port);
+      local_port = vmm_ntohs(local_port);
 
       vmm_memset(&buf[j], 0, sizeof(SOCKET));
       buf[j].state       = SocketStateListen;
