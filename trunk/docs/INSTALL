@@ -1,23 +1,16 @@
 HyperDbg
 ========
 
-To compile HyperDbg and the analysis infrastructure you need the Microsoft
-Windows Driver Kit (WDK). You can download the WDK from:
+To compile HyperDbg and the analysis infrastructure you need the GNU GCC
+compiler. The compiler is typically included in any Linux
+distribution. Instead, if you want to compile the Windows version of HyperDbg,
+then you can install the MinGW environment[1].
 
-  http://www.microsoft.com/whdc/driver/wdk/
+To compile the Windows or Linux version of HyperDbg, you only have to choose
+the appropriate Makefile (Makefile.windows or Makefile.linux). As an example,
+under Microsoft Windows you should run:
 
-Unfortunately, this version of HyperDbg is unable to automatically detect the
-user defined resolution. Thus, you need to choose the desired resolution at
-compile-time.
-
-To compile HyperDbg simply run:
-
-  build_code.cmd hyperdbg <xresolution> <yresolution>
-
-As an example, to compile for a target machine with a resolution of 800x600 use
-the syntax:
-
-  build_code.cmd hyperdbg 800 600
+      Makefile -f Makefile.windows
 
 Video issues
 ============
@@ -86,3 +79,7 @@ Note that, to use symbol2c.py, you need to install the pdbparse library,
 available at:
 
 http://code.google.com/p/pdbparse/
+
+Footnotes: 
+[1]  http://www.mingw.org/
+
