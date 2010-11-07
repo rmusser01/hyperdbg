@@ -60,6 +60,7 @@
 /* Various video memory addresses */
 #define VIDEO_ADDRESS_BOCHS   0xe0000000
 #define DEFAULT_VIDEO_ADDRESS VIDEO_ADDRESS_BOCHS 
+#define VIDEO_ADDRESS_MANUAL
 
 /* Uncomment this line to disable video autodetect NEEDED TO RUN INTO BOCHS */
 /* #define VIDEO_ADDRESS_MANUAL */ //definito nel makefile!!
@@ -141,7 +142,11 @@ hvm_status VideoAlloc(void)
   Log("Mapping video memory...");
   
   /* Map video memory */
+#ifdef GUEST_LINUX  
   MmuMapPhysicalSpace(pa.u.LowPart, framebuffer_size, (hvm_address*) &video_mem);
+#elif defined GUEST_WINDOWS
+  video_mem = (Bit32u*) MmMapIoSpace(pa, framebuffer_size, MmWriteCombined);
+#endif
   
   if (!video_mem)
        return HVM_STATUS_UNSUCCESSFUL;
@@ -171,7 +176,11 @@ hvm_status VideoDealloc(void)
   GUEST_FREE(video_backup, FONT_Y * SHELL_SIZE_Y * sizeof(Bit32u));
   
   if (video_mem) {
+#ifdef GUEST_LINUX
     MmuUnmapPhysicalSpace((hvm_address) video_mem, framebuffer_size);
+#elif defined GUEST_WINDOWS
+    MmUnmapIoSpace(video_mem, framebuffer_size);
+#endif
     video_mem = NULL;
   }
   return HVM_STATUS_SUCCESS;
