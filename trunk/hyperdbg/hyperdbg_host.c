@@ -34,6 +34,7 @@
 #include "events.h"
 #include "sw_bp.h"
 #include "vt.h"
+#include "symsearch.h"
 
 /* ################ */
 /* #### MACROS #### */
@@ -49,11 +50,14 @@
 static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(PEVENT_ARGUMENTS args);
 static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(PEVENT_ARGUMENTS args);
 static EVENT_PUBLISH_STATUS HyperDbgIOHandler(PEVENT_ARGUMENTS args);
-static EVENT_PUBLISH_STATUS HyperDbgVMCallHandler(PEVENT_ARGUMENTS args);
 
+// static EVENT_PUBLISH_STATUS HyperDbgVMCallHandler(PEVENT_ARGUMENTS args);
+
+#if 0
 /* This hypercall is invoked when we want to change the resolution of the GUI
-   dynamically */
+   dynamically but it is not used so far so I commented it out */
 static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(PEVENT_ARGUMENTS args);
+#endif
 
 static EVENT_PUBLISH_STATUS HyperDbgHypercallUser(PEVENT_ARGUMENTS args);
 
@@ -70,7 +74,7 @@ static void HyperDbgCommandLoop(void);
 static EVENT_PUBLISH_STATUS HyperDbgHypercallUser(PEVENT_ARGUMENTS args)
 {
   hvm_address request_number;
-  request_number = context.GuestContext.RBX;
+  request_number = context.GuestContext.rbx;
 
   Log("[HyperDbg] Request from non-root mode 0x%x", request_number);
   
@@ -86,12 +90,15 @@ static EVENT_PUBLISH_STATUS HyperDbgHypercallUser(PEVENT_ARGUMENTS args)
   return EventPublishHandled;
 }
 
+/* Not used right now */
+#if 0
 static EVENT_PUBLISH_STATUS HyperDbgHypercallSetResolution(PEVENT_ARGUMENTS args)
 {
-  VideoSetResolution(context.GuestContext.RBX, context.GuestContext.RCX);
+  VideoSetResolution(context.GuestContext.rbx, context.GuestContext.rcx);
 
   return EventPublishHandled;
 }
+#endif
 
 static void HyperDbgEnter(void)
 {
@@ -121,29 +128,26 @@ static void HyperDbgCommandLoop(void)
   Bit8u c, keyboard_buffer[256];
   int i;
   hvm_bool isMouse, exitLoop;
-
   exitLoop = FALSE;
-  
+    
   /* Backup RFLAGS */
   flags = RegGetFlags();
-
   /* Disable interrupts (only if they were enabled) */
   RegSetFlags(flags & ~FLAGS_IF_MASK);
-
+  
   if (VideoEnabled()) {
     /* Backup video memory */
-    if (!hyperdbg_state.singlestepping) {
+    if (!hyperdbg_state.singlestepping)
       VideoSave();
-    }
     VideoInitShell();
   }
-
+  
   /* We are not currently single-stepping */
   hyperdbg_state.singlestepping = FALSE;
   
   i = 0;
-  memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
-
+  vmm_memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
+  
   while (1) {
     if (KeyboardReadKeystroke(&c, FALSE, &isMouse) != HVM_STATUS_SUCCESS) {
       /* Sleep for some time, just to avoid full busy waiting */
@@ -161,7 +165,7 @@ static void HyperDbgCommandLoop(void)
       break;
     }
     c = KeyboardScancodeToKeycode(c);
-
+    
     /* Process this key */
     switch (c) {
     case 0:
@@ -179,7 +183,7 @@ static void HyperDbgCommandLoop(void)
       /* End of command */
       exitLoop = HyperDbgProcessCommand(keyboard_buffer);
       i = 0;
-      memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
+      vmm_memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
       break;
 
     case '\t':
@@ -233,7 +237,7 @@ static EVENT_PUBLISH_STATUS HyperDbgIOHandler(PEVENT_ARGUMENTS args)
   }
 
   /* Emulate the 'inb' instruction. The destination is always %al */
-  context.GuestContext.RAX = ((hvm_address) context.GuestContext.RAX & 0xffffff00) | (c & 0xff);
+  context.GuestContext.rax = ((hvm_address) context.GuestContext.rax & 0xffffff00) | (c & 0xff);
 
   if (!isMouse && c == HYPERDBG_MAGIC_SCANCODE) {
     /* This is our "magic" scancode! */
@@ -242,7 +246,7 @@ static EVENT_PUBLISH_STATUS HyperDbgIOHandler(PEVENT_ARGUMENTS args)
        instruction, that will never be executed. For this reason, the debugger
        should not highlight 'inb' as the current instruction. 
        NOTE: the "core" does not update the guest RIP with the value cached in the VMCS */
-    context.GuestContext.RIP += hvm_x86_ops.vt_get_exit_instr_len();
+    context.GuestContext.rip += hvm_x86_ops.vt_get_exit_instr_len();
 
     HyperDbgEnter();
   }
@@ -255,16 +259,16 @@ static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(PEVENT_ARGUMENTS args)
   hvm_bool ours;
 
   /* DeleteSwBp will check if this bp has been setup by us and eventually reset it */
-  Log("[HyperDbg] checking bp @%.8x", context.GuestContext.RIP);
-  ours = SwBreakpointDelete(context.GuestContext.CR3, context.GuestContext.RIP);
+  Log("[HyperDbg] checking bp @%.8x", context.GuestContext.rip);
+  ours = SwBreakpointDelete(context.GuestContext.cr3, context.GuestContext.rip);
   if(!ours) { /* Pass it to the guest */
     return EventPublishPass;
   }
 
-  Log("[HyperDbg] bp is ours, resetting GUEST_RIP to %.8x", context.GuestContext.RIP);
+  Log("[HyperDbg] bp is ours, resetting GUEST_RIP to %.8x", context.GuestContext.rip);
 
   /* Update guest RIP to re-execute the faulty instruction */
-  context.GuestContext.ResumeRIP = context.GuestContext.RIP;
+  context.GuestContext.resumerip = context.GuestContext.rip;
 
   Log("[HyperDbg] Done!");
 
@@ -285,25 +289,26 @@ static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(PEVENT_ARGUMENTS args)
 
   /* FIXME: unset iff TF has not been set by the guest */
   /* Unset TF and hide it to the guest */
-  flags = context.GuestContext.RFLAGS;
+  flags = context.GuestContext.rflags;
   flags &= ~FLAGS_TF_MASK; 
-  context.GuestContext.RFLAGS = flags;
+  context.GuestContext.rflags = flags;
 
   /* Update guest RIP to re-execute the faulty instruction */
-  context.GuestContext.ResumeRIP = context.GuestContext.RIP;
+  context.GuestContext.resumerip = context.GuestContext.rip;
 
   HyperDbgEnter();
 
   /* Let's set RF to 1 so that we won't trap when really executing the instruction */
-  flags = context.GuestContext.RFLAGS;
+  flags = context.GuestContext.rflags;
   flags |= FLAGS_RF_MASK;
-  context.GuestContext.RFLAGS = flags;
+  context.GuestContext.rflags = flags;
 
   return EventPublishHandled;
 }
 
 EVENT_PUBLISH_STATUS HyperDbgIO(void)
 {
+  
   return EventPublishHandled;
 }
 
@@ -333,17 +338,19 @@ hvm_status HyperDbgHostInit(void)
 
   /* JOY: I commented this as for now we are not using it and we do not want
      random userspace process to mess up with our resolution :) */
+#if 0
   /* Register a hypercall to update screen resolution */
-/*   hypercall.hypernum = HYPERDBG_HYPERCALL_SETRES; */
-/*   if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HyperDbgHypercallSetResolution)) { */
-/*     WindowsLog("ERROR: Unable to register screen resolution hypercall handler"); */
-/*     return HVM_STATUS_UNSUCCESSFUL; */
-/*   } */
+  hypercall.hypernum = HYPERDBG_HYPERCALL_SETRES;
+  if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HyperDbgHypercallSetResolution)) {
+    GuestLog("ERROR: Unable to register screen resolution hypercall handler");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+#endif
 
   /* Register a hypercall to handle non-root -> root requests */
   hypercall.hypernum = HYPERDBG_HYPERCALL_USER;
   if(!EventSubscribe(EventHypercall, &hypercall, sizeof(hypercall), HyperDbgHypercallUser)) {
-    WindowsLog("ERROR: Unable to register non-root -> root hypercall handler");
+    GuestLog("ERROR: Unable to register non-root -> root hypercall handler");
     return HVM_STATUS_UNSUCCESSFUL;
   }
   

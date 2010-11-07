@@ -28,7 +28,6 @@
 #include "debug.h"
 #include "video.h"
 #include "gui.h"
-#include "stdlib.h"		/* FIXME: re-implement atoi() */
 #include "mmu.h"
 #include "sw_bp.h"
 #include "x86.h"       /* Needed for the FLAGS_TF_MASK macro */
@@ -117,6 +116,7 @@ static void CmdUnknown(PHYPERDBG_CMD pcmd);
 
 static void ParseCommand(Bit8u *buffer, PHYPERDBG_CMD pcmd);
 static hvm_bool GetRegFromStr(Bit8u *name, hvm_address *value);
+static int atoi(const char* str);
 
 /* ################ */
 /* #### BODIES #### */
@@ -221,21 +221,21 @@ static void CmdShowRegisters(PHYPERDBG_CMD pcmd)
 {
   VideoResetOutMatrix();
 
-  vmm_snprintf(out_matrix[0], OUT_SIZE_X,  "RAX        0x%08hx", context.GuestContext.RAX);
-  vmm_snprintf(out_matrix[1], OUT_SIZE_X,  "RBX        0x%08hx", context.GuestContext.RBX);
-  vmm_snprintf(out_matrix[2], OUT_SIZE_X,  "RCX        0x%08hx", context.GuestContext.RCX);
-  vmm_snprintf(out_matrix[3], OUT_SIZE_X,  "RDX        0x%08hx", context.GuestContext.RDX);
-  vmm_snprintf(out_matrix[4], OUT_SIZE_X,  "RSP        0x%08hx", context.GuestContext.RSP);
-  vmm_snprintf(out_matrix[5], OUT_SIZE_X,  "RBP        0x%08hx", context.GuestContext.RBP); 
-  vmm_snprintf(out_matrix[6], OUT_SIZE_X,  "RSI        0x%08hx", context.GuestContext.RSI);
-  vmm_snprintf(out_matrix[7], OUT_SIZE_X,  "RDI        0x%08hx", context.GuestContext.RDI);
-  vmm_snprintf(out_matrix[8], OUT_SIZE_X,  "RIP        0x%08hx", context.GuestContext.RIP);
-  vmm_snprintf(out_matrix[9], OUT_SIZE_X,  "Resume RIP 0x%08hx", context.GuestContext.ResumeRIP);
-  vmm_snprintf(out_matrix[10], OUT_SIZE_X, "RFLAGS     0x%08hx", context.GuestContext.RFLAGS);
-  vmm_snprintf(out_matrix[11], OUT_SIZE_X, "CR0        0x%08hx", context.GuestContext.CR0);
-  vmm_snprintf(out_matrix[12], OUT_SIZE_X, "CR3        0x%08hx", context.GuestContext.CR3);
-  vmm_snprintf(out_matrix[13], OUT_SIZE_X, "CR4        0x%08hx", context.GuestContext.CR4);
-  vmm_snprintf(out_matrix[14], OUT_SIZE_X, "CS         0x%04hx", context.GuestContext.CS);
+  vmm_snprintf(out_matrix[0], OUT_SIZE_X,  "RAX        0x%08hx", context.GuestContext.rax);
+  vmm_snprintf(out_matrix[1], OUT_SIZE_X,  "RBX        0x%08hx", context.GuestContext.rbx);
+  vmm_snprintf(out_matrix[2], OUT_SIZE_X,  "RCX        0x%08hx", context.GuestContext.rcx);
+  vmm_snprintf(out_matrix[3], OUT_SIZE_X,  "RDX        0x%08hx", context.GuestContext.rdx);
+  vmm_snprintf(out_matrix[4], OUT_SIZE_X,  "RSP        0x%08hx", context.GuestContext.rsp);
+  vmm_snprintf(out_matrix[5], OUT_SIZE_X,  "RBP        0x%08hx", context.GuestContext.rbp); 
+  vmm_snprintf(out_matrix[6], OUT_SIZE_X,  "RSI        0x%08hx", context.GuestContext.rsi);
+  vmm_snprintf(out_matrix[7], OUT_SIZE_X,  "RDI        0x%08hx", context.GuestContext.rdi);
+  vmm_snprintf(out_matrix[8], OUT_SIZE_X,  "RIP        0x%08hx", context.GuestContext.rip);
+  vmm_snprintf(out_matrix[9], OUT_SIZE_X,  "Resume RIP 0x%08hx", context.GuestContext.resumerip);
+  vmm_snprintf(out_matrix[10], OUT_SIZE_X, "RFLAGS     0x%08hx", context.GuestContext.rflags);
+  vmm_snprintf(out_matrix[11], OUT_SIZE_X, "CR0        0x%08hx", context.GuestContext.cr0);
+  vmm_snprintf(out_matrix[12], OUT_SIZE_X, "CR3        0x%08hx", context.GuestContext.cr3);
+  vmm_snprintf(out_matrix[13], OUT_SIZE_X, "CR4        0x%08hx", context.GuestContext.cr4);
+  vmm_snprintf(out_matrix[14], OUT_SIZE_X, "CS         0x%04hx", context.GuestContext.cs);
 
   VideoRefreshOutArea(LIGHT_GREEN);
 }
@@ -243,11 +243,13 @@ static void CmdShowRegisters(PHYPERDBG_CMD pcmd)
 static void CmdShowProcesses(PHYPERDBG_CMD pcmd)
 {
   PROCESS_DATA prev, next;
-  int i, n;
+  int i;
   hvm_status r;
   char tmp[OUT_SIZE_X];
 
-  r = ProcessGetNextProcess(context.GuestContext.CR3, NULL, &next);
+  VideoResetOutMatrix();
+
+  r = ProcessGetNextProcess(context.GuestContext.cr3, NULL, &next);
 
   for (i=0; ; i++) {
     if (r == HVM_STATUS_END_OF_FILE) {
@@ -265,20 +267,22 @@ static void CmdShowProcesses(PHYPERDBG_CMD pcmd)
 
     /* Get the next process */
     prev = next;
-    r = ProcessGetNextProcess(context.GuestContext.CR3, &prev, &next);
+    r = ProcessGetNextProcess(context.GuestContext.cr3, &prev, &next);
   }
 
   PagerLoop(LIGHT_GREEN);
 }
 
+
 static void CmdShowModules(PHYPERDBG_CMD pcmd)
 {
   MODULE_DATA prev, next;
-  int i, n;
+  int i;
   hvm_status r;
   char tmp[OUT_SIZE_X];
+  VideoResetOutMatrix();
 
-  r = ProcessGetNextModule(context.GuestContext.CR3, NULL, &next);
+  r = ProcessGetNextModule(context.GuestContext.cr3, NULL, &next);
 
   for (i=0; ; i++) {
     if (r == HVM_STATUS_END_OF_FILE) {
@@ -296,7 +300,7 @@ static void CmdShowModules(PHYPERDBG_CMD pcmd)
 
     /* Get the next process */
     prev = next;
-    r = ProcessGetNextModule(context.GuestContext.CR3, &prev, &next);
+    r = ProcessGetNextModule(context.GuestContext.cr3, &prev, &next);
   }
 
   PagerLoop(LIGHT_GREEN);
@@ -308,10 +312,11 @@ static void CmdShowSockets(PHYPERDBG_CMD pcmd)
   SOCKET sockets[128];
   Bit32u i, n;
   char s1[16], s2[16], tmp[64];
+  VideoResetOutMatrix();
+  r = NetworkBuildSocketList(context.GuestContext.cr3, sockets, sizeof(sockets)/sizeof(SOCKET), &n);
 
-  r = NetworkBuildSocketList(context.GuestContext.CR3, sockets, sizeof(sockets)/sizeof(SOCKET), &n);
   if (r != HVM_STATUS_SUCCESS) {
-    vmm_snprintf(out_matrix[0], OUT_SIZE_X, "error while retrieving active network sockets!");
+    vmm_snprintf(out_matrix[0], OUT_SIZE_X, "error while retrieving network information!");
     VideoRefreshOutArea(RED);
     return;
   }
@@ -347,7 +352,6 @@ static void CmdDumpMemory(PHYPERDBG_CMD pcmd)
 {
   int i, n, x, y;
   hvm_address base;
-  hvm_bool test;
   hvm_status r;
   Bit32u v;
 
@@ -389,7 +393,7 @@ static void CmdDumpMemory(PHYPERDBG_CMD pcmd)
   }
 
   /* Check if the address is ok! */ 
-  if(!MmuIsAddressValid(context.GuestContext.CR3, base)) {
+  if(!MmuIsAddressValid(context.GuestContext.cr3, base)) {
     Log("[HyperDbg] Invalid memory address!\n");
     vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid memory address!");
     VideoRefreshOutArea(RED);
@@ -418,7 +422,7 @@ static void CmdDumpMemory(PHYPERDBG_CMD pcmd)
     /* Check if we reached the maximum number of lines */
     if(y >= OUT_SIZE_Y) break; 
 
-    r = MmuReadVirtualRegion(context.GuestContext.CR3, base+(i*4), &v, sizeof(v));
+    r = MmuReadVirtualRegion(context.GuestContext.cr3, base+(i*4), &v, sizeof(v));
 
     if (r == HVM_STATUS_SUCCESS) {
       vmm_snprintf(&out_matrix[y][x], 9, "%08hx", v);
@@ -434,7 +438,6 @@ static void CmdDumpMemory(PHYPERDBG_CMD pcmd)
 static void CmdSwBreakpoint(PHYPERDBG_CMD pcmd)
 {
   hvm_address addr;
-  hvm_bool test;
   Bit32u bp_index;
   PSYMBOL symbol;
 
@@ -451,8 +454,9 @@ static void CmdSwBreakpoint(PHYPERDBG_CMD pcmd)
   /* Check if the param is a symbol name */
   if(pcmd->args[0][0] == '$') {
     symbol = SymbolGetFromName((Bit8u*) &pcmd->args[0][1]);
-    if(symbol)
+    if(symbol) {
       addr = symbol->addr + hyperdbg_state.win_state.kernel_base;
+    }
     else {
       Log("[HyperDbg] Invalid symbol!");
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Undefined symbol %s!",  &pcmd->args[0][1]);
@@ -469,7 +473,7 @@ static void CmdSwBreakpoint(PHYPERDBG_CMD pcmd)
     }
 
     /* Check if the address is ok */
-    if(!MmuIsAddressValid(context.GuestContext.CR3, addr)) {
+    if(!MmuIsAddressValid(context.GuestContext.cr3, addr)) {
       Log("[HyperDbg] Invalid memory address!");
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid memory address!");
       VideoRefreshOutArea(RED);
@@ -477,7 +481,7 @@ static void CmdSwBreakpoint(PHYPERDBG_CMD pcmd)
     }
   }
 
-  bp_index = SwBreakpointSet(context.GuestContext.CR3, addr);
+  bp_index = SwBreakpointSet(context.GuestContext.cr3, addr);
   if(bp_index == MAXSWBPS) {
     vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Unable to set bp #%d", bp_index);
     VideoRefreshOutArea(RED);
@@ -505,7 +509,7 @@ static void CmdDeleteSwBreakpoint(PHYPERDBG_CMD pcmd)
   /* Check if we want to delete a bp by its id */
   if(pcmd->args[0][0] == '$') {
     index = atoi(&pcmd->args[0][1]);
-    if(!SwBreakpointDeleteById(context.GuestContext.CR3, index)) {
+    if(!SwBreakpointDeleteById(context.GuestContext.cr3, index)) {
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Bp #%d not found!", index);
       VideoRefreshOutArea(RED);
       return;
@@ -520,13 +524,13 @@ static void CmdDeleteSwBreakpoint(PHYPERDBG_CMD pcmd)
       return;
     }
     /* Check if the address is ok */
-    if(!MmuIsAddressValid(context.GuestContext.CR3, addr)) {
+    if(!MmuIsAddressValid(context.GuestContext.cr3, addr)) {
       Log("[HyperDbg] Invalid memory address: %.8x", addr);
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid memory address!");
       VideoRefreshOutArea(RED);
       return;
     }
-    if(!SwBreakpointDelete(context.GuestContext.CR3, addr)) {
+    if(!SwBreakpointDelete(context.GuestContext.cr3, addr)) {
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Bp @%08hx not found!", addr);
       VideoRefreshOutArea(RED);
       return;
@@ -541,13 +545,13 @@ static void CmdSetSingleStep(PHYPERDBG_CMD pcmd)
   hvm_address flags;
 
   /* Fetch guest EFLAGS */
-  flags = context.GuestContext.RFLAGS;
+  flags = context.GuestContext.rflags;
 
   /* Set guest flag TF; leave others unchanged */
   flags = flags | FLAGS_TF_MASK;
 
   /* These will be written @ vmentry */
-  context.GuestContext.RFLAGS = flags; 
+  context.GuestContext.rflags = flags; 
 
   /* Update HyperDbg state structure */
   hyperdbg_state.singlestepping = TRUE;
@@ -556,7 +560,7 @@ static void CmdSetSingleStep(PHYPERDBG_CMD pcmd)
 static void CmdDisassemble(PHYPERDBG_CMD pcmd)
 {
   hvm_address addr, tmpaddr, i, operand;
-  hvm_address y, rip;
+  hvm_address y;
   ud_t ud_obj;
   Bit8u* disasinst;
   Bit8u disasbuf[128];
@@ -568,10 +572,10 @@ static void CmdDisassemble(PHYPERDBG_CMD pcmd)
 
   /* Check if we have to use RIP and if it's valid */
   if(pcmd->nargs == 0) {
-    if(MmuIsAddressValid(context.GuestContext.CR3, context.GuestContext.RIP)) {
-      addr = context.GuestContext.RIP;
+    if(MmuIsAddressValid(context.GuestContext.cr3, context.GuestContext.rip)) {
+      addr = context.GuestContext.rip;
     } else {
-      Log("[HyperDbg] RIP is not valid: %.8x", context.GuestContext.RIP);
+      Log("[HyperDbg] RIP is not valid: %.8x", context.GuestContext.rip);
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid RIP!");
       VideoRefreshOutArea(RED);
       return;
@@ -585,7 +589,7 @@ static void CmdDisassemble(PHYPERDBG_CMD pcmd)
     }
 
     /* Check if the address is ok */
-    if(!MmuIsAddressValid(context.GuestContext.CR3, addr)) {
+    if(!MmuIsAddressValid(context.GuestContext.cr3, addr)) {
       Log("[HyperDbg] Invalid memory address: %.8x", addr);
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Invalid memory address!");
       VideoRefreshOutArea(RED);
@@ -600,7 +604,7 @@ static void CmdDisassemble(PHYPERDBG_CMD pcmd)
   ud_set_mode(&ud_obj, 32);
   ud_set_syntax(&ud_obj, UD_SYN_ATT);
   
-  MmuReadVirtualRegion(context.GuestContext.CR3, addr, disasbuf, sizeof(disasbuf) ); ///sizeof(Bit8u));
+  MmuReadVirtualRegion(context.GuestContext.cr3, addr, disasbuf, sizeof(disasbuf) ); ///sizeof(Bit8u));
   ud_set_input_buffer(&ud_obj, disasbuf, sizeof(disasbuf)/sizeof(Bit8u));
 
   while(ud_disassemble(&ud_obj)) {
@@ -636,8 +640,6 @@ static void CmdBacktrace(PHYPERDBG_CMD pcmd)
   Bit32u current_frame, nframes, n;
   hvm_address current_rip;
   hvm_status r;
-  PSYMBOL nearsym;
-  Bit16u name[64];
   Bit8u  namec[64];
   Bit8u  sym[96];
   Bit8u  module[96];
@@ -655,29 +657,37 @@ static void CmdBacktrace(PHYPERDBG_CMD pcmd)
   }
 
   /* Print backtrace */
-  current_frame = context.GuestContext.RBP;
+  current_frame = context.GuestContext.rbp;
   nframes = 0;
 
   while (1) {
-    r = MmuReadVirtualRegion(context.GuestContext.CR3, current_frame+4, &current_rip, sizeof(current_rip));
+    r = MmuReadVirtualRegion(context.GuestContext.cr3, current_frame+4, &current_rip, sizeof(current_rip));
     if (r != HVM_STATUS_SUCCESS) break;
 
     vmm_memset(namec, 0, sizeof(namec));
     vmm_memset(sym, 0, sizeof(sym));
     vmm_memset(module, 0, sizeof(module));
-    if(current_rip >= hyperdbg_state.win_state.kernel_base) {
-      /* FIXME -> check if it's win */
-      r = WindowsFindModule(context.GuestContext.CR3, current_rip, name, sizeof(name)/sizeof(Bit16u));
 
+#ifdef GUEST_WINDOWS
+    PSYMBOL nearsym;
+    Bit16u name[64];
+    if(current_rip >= hyperdbg_state.win_state.kernel_base) {
+      
+      r = WindowsFindModule(context.GuestContext.cr3, current_rip, name, sizeof(name)/sizeof(Bit16u));
       if(r == HVM_STATUS_SUCCESS) {
 	wide2ansi(namec, (Bit8u*)name, sizeof(namec)/sizeof(Bit8s));
 	if(vmm_strlen(namec) > 0)
 	  vmm_snprintf(module, 96, "[%s]", namec);
       }
       nearsym = SymbolGetNearest((hvm_address) current_rip);
-      if(current_rip-(nearsym->addr + hyperdbg_state.win_state.kernel_base) < 100000) /* FIXME: tune this param */
-	vmm_snprintf(sym, 96, "(%s+%d)", nearsym->name, (current_rip-(nearsym->addr + hyperdbg_state.win_state.kernel_base)));
+      if(nearsym) {
+	if(current_rip-(nearsym->addr + hyperdbg_state.win_state.kernel_base) < 100000) /* FIXME: tune this param */
+	  vmm_snprintf(sym, 96, "(%s+%d)", nearsym->name, (current_rip-(nearsym->addr + hyperdbg_state.win_state.kernel_base)));
+      }
     }
+#elif defined GUEST_LINUX
+     
+#endif
 
     vmm_snprintf(out_matrix[nframes], OUT_SIZE_X, "[%02d] @%.8hx %.8hx %-40s %s\n", nframes, current_frame, current_rip, sym, module);
 
@@ -687,7 +697,7 @@ static void CmdBacktrace(PHYPERDBG_CMD pcmd)
     }
 
     /* Go on with the next frame */
-    r = MmuReadVirtualRegion(context.GuestContext.CR3, current_frame, &current_frame, sizeof(current_frame));
+    r = MmuReadVirtualRegion(context.GuestContext.cr3, current_frame, &current_frame, sizeof(current_frame));
     if (r != HVM_STATUS_SUCCESS) break;
   }
   VideoRefreshOutArea(LIGHT_GREEN);
@@ -696,7 +706,6 @@ static void CmdBacktrace(PHYPERDBG_CMD pcmd)
 static void CmdLookupSymbol(PHYPERDBG_CMD pcmd, hvm_bool bExactMatch)
 {
   hvm_address base;
-  Bit8u *name;
   PSYMBOL psym;
 
   base = 0;
@@ -722,8 +731,11 @@ static void CmdLookupSymbol(PHYPERDBG_CMD pcmd, hvm_bool bExactMatch)
       vmm_snprintf(out_matrix[0], OUT_SIZE_X, "No symbol defined for %08hx", base);
   } else {
     psym = SymbolGetNearest(base);
-    vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Nearest symbol smaller than %08hx: %s (@%08hx)", 
-		 base, psym->name, psym->addr + hyperdbg_state.win_state.kernel_base);
+    if(psym)
+      vmm_snprintf(out_matrix[0], OUT_SIZE_X, "Nearest symbol smaller than %08hx: %s (@%08hx)", 
+		   base, psym->name, psym->addr + hyperdbg_state.win_state.kernel_base);
+    else
+      vmm_snprintf(out_matrix[0], OUT_SIZE_X, "No symbol found!");
   }
 
   VideoRefreshOutArea(LIGHT_GREEN);
@@ -758,18 +770,18 @@ static void CmdUnknown(PHYPERDBG_CMD pcmd)
 
 static hvm_bool GetRegFromStr(Bit8u *name, hvm_address *value)
 {
-  if(vmm_strncmpi(name, "RAX", 3) == 0) { *value = context.GuestContext.RAX; return TRUE; }
-  if(vmm_strncmpi(name, "RBX", 3) == 0) { *value = context.GuestContext.RBX; return TRUE; }
-  if(vmm_strncmpi(name, "RCX", 3) == 0) { *value = context.GuestContext.RCX; return TRUE; }
-  if(vmm_strncmpi(name, "RDX", 3) == 0) { *value = context.GuestContext.RDX; return TRUE; }
-  if(vmm_strncmpi(name, "RSP", 3) == 0) { *value = context.GuestContext.RSP; return TRUE; }
-  if(vmm_strncmpi(name, "RBP", 3) == 0) { *value = context.GuestContext.RBP; return TRUE; }
-  if(vmm_strncmpi(name, "RSI", 3) == 0) { *value = context.GuestContext.RSI; return TRUE; }
-  if(vmm_strncmpi(name, "RDI", 3) == 0) { *value = context.GuestContext.RSI; return TRUE; }
-  if(vmm_strncmpi(name, "RIP", 3) == 0) { *value = context.GuestContext.RIP; return TRUE; }
-  if(vmm_strncmpi(name, "CR0", 3) == 0) { *value = context.GuestContext.CR0; return TRUE; }
-  if(vmm_strncmpi(name, "CR3", 3) == 0) { *value = context.GuestContext.CR3; return TRUE; }
-  if(vmm_strncmpi(name, "CR4", 3) == 0) { *value = context.GuestContext.CR4; return TRUE; }
+  if(vmm_strncmpi(name, "RAX", 3) == 0) { *value = context.GuestContext.rax; return TRUE; }
+  if(vmm_strncmpi(name, "RBX", 3) == 0) { *value = context.GuestContext.rbx; return TRUE; }
+  if(vmm_strncmpi(name, "RCX", 3) == 0) { *value = context.GuestContext.rcx; return TRUE; }
+  if(vmm_strncmpi(name, "RDX", 3) == 0) { *value = context.GuestContext.rdx; return TRUE; }
+  if(vmm_strncmpi(name, "RSP", 3) == 0) { *value = context.GuestContext.rsp; return TRUE; }
+  if(vmm_strncmpi(name, "RBP", 3) == 0) { *value = context.GuestContext.rbp; return TRUE; }
+  if(vmm_strncmpi(name, "RSI", 3) == 0) { *value = context.GuestContext.rsi; return TRUE; }
+  if(vmm_strncmpi(name, "RDI", 3) == 0) { *value = context.GuestContext.rsi; return TRUE; }
+  if(vmm_strncmpi(name, "RIP", 3) == 0) { *value = context.GuestContext.rip; return TRUE; }
+  if(vmm_strncmpi(name, "CR0", 3) == 0) { *value = context.GuestContext.cr0; return TRUE; }
+  if(vmm_strncmpi(name, "CR3", 3) == 0) { *value = context.GuestContext.cr3; return TRUE; }
+  if(vmm_strncmpi(name, "CR4", 3) == 0) { *value = context.GuestContext.cr4; return TRUE; }
   
   return FALSE;
 }
@@ -780,7 +792,7 @@ static void ParseCommand(Bit8u *buffer, PHYPERDBG_CMD pcmd)
   int i, n;
 
   /* Initialize */
-  memset(pcmd, 0, sizeof(HYPERDBG_CMD));
+  vmm_memset(pcmd, 0, sizeof(HYPERDBG_CMD));
 
   p = buffer;
 
@@ -836,3 +848,63 @@ static void ParseCommand(Bit8u *buffer, PHYPERDBG_CMD pcmd)
   }
 }
 
+static int atoi(const char* str)
+{
+  int exp(int x, int y)
+  {
+    int res;
+    if (y==0)
+      return 1;
+
+    for (res=x ; y>1; y--)
+      res= res*x;
+    return res;
+  }
+  
+  int i,len;
+  int res=0;
+  
+  /* Get string length */
+  for (len=0 ; str[len]!='\0' ; len++);
+  
+  /* convert every character */
+  
+  for (i=0 ; i<len ; i++)
+    {
+      switch (str[i])
+	{
+	case '0':
+	  break;
+	case '1':
+	  res= res + exp(10,len-(i+1));
+	  break;
+	case '2':
+	  res= res + 2 * exp(10,len-(i+1));
+	  break;
+	case '3':
+	  res= res + 3 * exp(10,len-(i+1));
+	  break;
+	case '4':
+	  res= res + 4 * exp(10,len-(i+1));
+	  break;
+	case '5':
+	  res= res + 5 * exp(10,len-(i+1));
+	  break;
+	case '6':
+	  res= res + 6 * exp(10,len-(i+1));
+	  break;
+	case '7':
+	  res= res + 7 * exp(10,len-(i+1));
+	  break;
+	case '8':
+	  res= res + 8 * exp(10,len-(i+1));
+	  break;
+	case '9':
+	  res= res + 9 * exp(10,len-(i+1));
+	  break;
+	default:
+	  return 0;
+	}
+    }
+  return res;
+}

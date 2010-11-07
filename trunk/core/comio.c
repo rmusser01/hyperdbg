@@ -18,7 +18,7 @@
   
   You should have received a copy of the GNU General Public License along with
   this program. If not, see <http://www.gnu.org/licenses/>.
-  
+
 */
 
 /* kudos to Invisible Things Lab */
@@ -28,7 +28,6 @@
 #include "common.h"
 #include "vmmstring.h"
 #include "x86.h"
-#include <stdarg.h>
 
 #define TRANSMIT_HOLDING_REGISTER	   0x00
 #define RECEIVER_BUFFER_REGISTER           0x00
@@ -48,7 +47,7 @@
 
 /* INTERRUPT_ENABLE_REGISTER bits */
 #define IER_RECEIVED_DATA               (1 << 0)
-#define IER_TRANSMITTER_EMPTY           (1 << 1) 
+#define IER_TRANSMITTER_EMPTY           (1 << 1)
 #define IER_RECEIVER_CHANGED            (1 << 2)
 #define IER_MODEM_CHANGED               (1 << 3)
 #define IER_SLEEP_MODE                  (1 << 4)
@@ -59,52 +58,67 @@
 static Bit16u  DebugComPort = 0;
 static Bit32u  ComSpinLock;	/* Spin lock that guards accesses to the COM port */
 
-void __stdcall ComInit()
+void ComInit()
 {
-  CmInitSpinLock(&ComSpinLock);
-}
+#ifdef GUEST_LINUX
+  /* FIXME: check if serial port has already been initialized */
+  /* and restore the original guest encoding (port + 3) upon an enter */
 
-void __stdcall ComPrint(Bit8u* fmt, ...)
+  IoWritePortByte(DebugComPort + 1, 0x00);    // Disable all interrupts
+  IoWritePortByte(DebugComPort + 3, 0x80);    // Enable DLAB (set baud rate divisor)
+  IoWritePortByte(DebugComPort + 0, 0x03);    // Set divisor to 3 (lo byte) 38400 baud
+  IoWritePortByte(DebugComPort + 1, 0x00);    //                  (hi byte)
+  IoWritePortByte(DebugComPort + 3, 0x03);    // 8 bits, no parity, one stop bit
+  IoWritePortByte(DebugComPort + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
+  IoWritePortByte(DebugComPort + 4, 0x0B);    // IRQs enabled, RTS/DSR set
+#endif
+
+  CmInitSpinLock(&ComSpinLock);
+ }
+
+void ComPrint(const char* fmt, ...)
 {
   va_list args;
-  Bit8u str[1024] = {0};
+  char str[1024] = {0};
   unsigned int i;
-
-  va_start (args, fmt);
-
+  
   CmAcquireSpinLock(&ComSpinLock);
-
+  
+  va_start(args, fmt);
   vmm_vsnprintf(str, sizeof(str), fmt, args);
-  for (i = 0; i < strlen(str); i++)
+  va_end(args);  
+  
+  for (i = 0; i < vmm_strlen(str); i++)
     PortSendByte(str[i]);
-
+  
   CmReleaseSpinLock(&ComSpinLock);
 }
 
-Bit8u __stdcall ComIsInitialized()
+
+Bit8u ComIsInitialized()
 {
   /* Ok, we should also check if ComInit() has been invoked.. but we assume it
      has */
   return (DebugComPort != 0);
 }
 
-void __stdcall PortInit()
+void PortInit()
 {
   DebugComPort = COM_PORT_ADDRESS;
 }
 
-void __stdcall PortSendByte(Bit8u b)
+void PortSendByte(Bit8u b)
 {
   /* Empty input buffer */
   while (!(IoReadPortByte(DebugComPort + LINE_STATUS_REGISTER) & LSR_THR_EMPTY));
-
+  
   IoWritePortByte(DebugComPort + TRANSMIT_HOLDING_REGISTER, b);
 }
 
-Bit8u __stdcall PortRecvByte(void)
+Bit8u PortRecvByte(void)
 {
   /* Wait until we receive something -- busy waiting!! */
   while ((IoReadPortByte(DebugComPort + LINE_STATUS_REGISTER) & LSR_DATA_AVAILABLE) == 0);
-
+  
   return IoReadPortByte(DebugComPort + RECEIVER_BUFFER_REGISTER);
 }

@@ -1,5 +1,5 @@
 /* -----------------------------------------------------------------------------
- * types.h
+ * Linux version of types.h
  *
  * Copyright (c) 2006, Vivek Mohan <vivek@sig9.com>
  * All rights reserved. See LICENSE
@@ -8,8 +8,17 @@
 #ifndef UD_TYPES_H
 #define UD_TYPES_H
 
-/* #include <stdio.h> */
-#include <ntddk.h>
+#ifdef GUEST_WINDOWS
+
+#include <inttypes.h>
+#include <stddef.h>
+#include <ddk/ntddk.h>
+
+#elif defined GUEST_LINUX
+
+#include <linux/types.h>
+
+#endif
 
 #ifdef _MSC_VER
 # define FMT64 "%I64"
@@ -23,7 +32,7 @@
   typedef LONG int64_t;
 #else
 # define FMT64 "%ll"
-# include <inttypes.h>
+//# include <inttypes.h>
 #endif
 
 #include "itab.h"

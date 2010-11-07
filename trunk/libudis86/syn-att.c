@@ -6,7 +6,7 @@
  * -----------------------------------------------------------------------------
  */
 
-#include "types.h"
+#include "ltypes.h"
 #include "extern.h"
 #include "decode.h"
 #include "itab.h"

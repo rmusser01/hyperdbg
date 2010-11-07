@@ -45,8 +45,6 @@ void HandleCR(Bit8u crno, VtCrAccessType accesstype, hvm_bool ismemory, VtRegist
   EVENT_CONDITION_CR cr;
   EVENT_PUBLISH_STATUS s;
 
-/*   Log("HandleCR(%d, %d, %d, %d)", crno, accesstype, ismemory, gpr); */
-
   /* Notify to plugins */
   cr.crno    = crno;
   cr.iswrite = (accesstype == VT_CR_ACCESS_WRITE);
@@ -71,14 +69,14 @@ void HandleCR(Bit8u crno, VtCrAccessType accesstype, hvm_bool ismemory, VtRegist
 	f = hvm_x86_ops.vt_set_cr4;
 
       switch(gpr) {
-      case VT_REGISTER_RAX:  f(context.GuestContext.RAX); break;
-      case VT_REGISTER_RCX:  f(context.GuestContext.RCX); break;
-      case VT_REGISTER_RDX:  f(context.GuestContext.RDX); break;
-      case VT_REGISTER_RBX:  f(context.GuestContext.RBX); break;
-      case VT_REGISTER_RSP:  f(context.GuestContext.RSP); break;
-      case VT_REGISTER_RBP:  f(context.GuestContext.RBP); break;
-      case VT_REGISTER_RSI:  f(context.GuestContext.RSI); break;
-      case VT_REGISTER_RDI:  f(context.GuestContext.RDI); break;
+      case VT_REGISTER_RAX:  f(context.GuestContext.rax); break;
+      case VT_REGISTER_RCX:  f(context.GuestContext.rcx); break;
+      case VT_REGISTER_RDX:  f(context.GuestContext.rdx); break;
+      case VT_REGISTER_RBX:  f(context.GuestContext.rbx); break;
+      case VT_REGISTER_RSP:  f(context.GuestContext.rsp); break;
+      case VT_REGISTER_RBP:  f(context.GuestContext.rbp); break;
+      case VT_REGISTER_RSI:  f(context.GuestContext.rsi); break;
+      case VT_REGISTER_RDI:  f(context.GuestContext.rdi); break;
       default: 
 	Log("HandleCR(WRITE): unknown register %d", gpr);
 	break;
@@ -88,21 +86,21 @@ void HandleCR(Bit8u crno, VtCrAccessType accesstype, hvm_bool ismemory, VtRegist
       hvm_address x;
 
       if (crno == 0)
-	x = context.GuestContext.CR0;
+	x = context.GuestContext.cr0;
       else if (crno == 3)
-	x = context.GuestContext.CR3;
+	x = context.GuestContext.cr3;
       else
-	x = context.GuestContext.CR4;
+	x = context.GuestContext.cr4;
 
       switch(gpr) {
-      case VT_REGISTER_RAX:  context.GuestContext.RAX = x; break;
-      case VT_REGISTER_RCX:  context.GuestContext.RCX = x; break;
-      case VT_REGISTER_RDX:  context.GuestContext.RDX = x; break;
-      case VT_REGISTER_RBX:  context.GuestContext.RBX = x; break;
-      case VT_REGISTER_RSP:  context.GuestContext.RSP = x; break;
-      case VT_REGISTER_RBP:  context.GuestContext.RBP = x; break;
-      case VT_REGISTER_RSI:  context.GuestContext.RSI = x; break;
-      case VT_REGISTER_RDI:  context.GuestContext.RDI = x; break;
+      case VT_REGISTER_RAX:  context.GuestContext.rax = x; break;
+      case VT_REGISTER_RCX:  context.GuestContext.rcx = x; break;
+      case VT_REGISTER_RDX:  context.GuestContext.rdx = x; break;
+      case VT_REGISTER_RBX:  context.GuestContext.rbx = x; break;
+      case VT_REGISTER_RSP:  context.GuestContext.rsp = x; break;
+      case VT_REGISTER_RBP:  context.GuestContext.rbp = x; break;
+      case VT_REGISTER_RSI:  context.GuestContext.rsi = x; break;
+      case VT_REGISTER_RDI:  context.GuestContext.rdi = x; break;
       default: 
 	Log("HandleCR(READ): unknown register %d", gpr);
 	break;
@@ -144,34 +142,33 @@ void HandleIO(Bit16u port, hvm_bool isoutput, Bit8u size, hvm_bool isstring, hvm
        reason, we fall back on a simpler (and more effective) solution: we
        disable I/O traps, let the guest do a single step, and then enable I/O
        traps again */
-    Bit32u v;
+
     isIOStepping = TRUE;
     
     /* Disable I/O bitmaps */
     hvm_x86_ops.vt_trap_io(FALSE);
 
     /* Re-exec faulty instruction */
-    context.GuestContext.ResumeRIP = context.GuestContext.RIP;
+    context.GuestContext.resumerip = context.GuestContext.rip;
 
     /* Enable single-step, but don't trap current instruction */
-    context.GuestContext.RFLAGS = context.GuestContext.RFLAGS | FLAGS_TF_MASK | FLAGS_RF_MASK;
+    context.GuestContext.rflags = context.GuestContext.rflags | FLAGS_TF_MASK | FLAGS_RF_MASK;
   }
 }
 
 void HandleVMCALL(void)
 {
   EVENT_CONDITION_HYPERCALL event;
-  EVENT_CALLBACK f;
   EVENT_PUBLISH_STATUS s;
 
-  Log("VMCALL #%.8x detected", context.GuestContext.RAX);
+  Log("VMCALL #%.8x detected", context.GuestContext.rax);
 
-  event.hypernum = context.GuestContext.RAX;
+  event.hypernum = context.GuestContext.rax;
   s = EventPublish(EventHypercall, NULL, &event, sizeof(event));
 
   if (s == EventPublishNone) {
     /* Unexisting hypercall */
-    Log("Unimplemented hypercall #%.8x", context.GuestContext.RAX);
+    Log("Unimplemented hypercall #%.8x", context.GuestContext.rax);
   }
 }
 
@@ -183,7 +180,7 @@ void HandleVMLAUNCH(void)
   hvm_x86_ops.hvm_inject_hw_exception(TRAP_INVALID_OP, 0);  
 
   /* Re-exec faulty instruction */
-  context.GuestContext.ResumeRIP = context.GuestContext.RIP;
+  context.GuestContext.resumerip = context.GuestContext.rip;
 }
 
 void HandleNMI(Bit32u trap, Bit32u error_code, Bit32u qualification)
@@ -227,14 +224,14 @@ void HandleNMI(Bit32u trap, Bit32u error_code, Bit32u qualification)
 	 single-stepping */
 
       /* TODO: Check if TF was not enabled by the guest before!!! */
-      context.GuestContext.RFLAGS = FLAGS_TO_ULONG(context.GuestContext.RFLAGS) & ~FLAGS_TF_MASK;
+      context.GuestContext.rflags = FLAGS_TO_ULONG(context.GuestContext.rflags) & ~FLAGS_TF_MASK;
     } else {
       /* Pass hw exception to the guest OS */
       hvm_x86_ops.hvm_inject_hw_exception(trap, error_code);
     }
 
     /* Re-execute the faulty instruction */
-    context.GuestContext.ResumeRIP = context.GuestContext.RIP;
+    context.GuestContext.resumerip = context.GuestContext.rip;
 
     /* Handle PF */
     if (trap == TRAP_PAGE_FAULT) {

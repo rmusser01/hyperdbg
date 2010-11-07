@@ -27,8 +27,7 @@
 
 #define INT3_OPCODE 0xcc
 
-typedef struct _SW_BP
-{
+typedef struct _SW_BP {
   hvm_address Addr;
   Bit8u OldOpcode;
 } SW_BP, *PSW_BP;

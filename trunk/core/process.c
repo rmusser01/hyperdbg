@@ -26,6 +26,7 @@
 #ifdef GUEST_WINDOWS
 #include "winxp.h"
 #elif defined GUEST_LINUX
+
 #endif
 
 hvm_status ProcessGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext)
@@ -35,7 +36,8 @@ hvm_status ProcessGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_
 #ifdef GUEST_WINDOWS
   r = WindowsGetNextProcess(cr3, pprev, pnext);
 #elif defined GUEST_LINUX
-#error Unimplemented
+  /* TODO! */
+  r = HVM_STATUS_UNSUCCESSFUL;
 #endif
 
   return r;
@@ -48,7 +50,8 @@ hvm_status ProcessGetNextModule(hvm_address cr3, PMODULE_DATA pprev, PMODULE_DAT
 #ifdef GUEST_WINDOWS
   r = WindowsGetNextModule(cr3, pprev, pnext);
 #elif defined GUEST_LINUX
-#error Unimplemented
+  /* TODO! */
+  r = HVM_STATUS_UNSUCCESSFUL;
 #endif
 
   return r;

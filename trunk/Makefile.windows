@@ -1,0 +1,109 @@
+#-*-makefile-*-
+.PHONY: all clean hyperdbg
+
+DEFINE= -DHVM_ARCH_BITS=32 -DENABLE_HYPERDBG \
+	-DGUEST_WINDOWS -DWINDOWS_DRIVER \
+        -DVIDEO_DEFAULT_RESOLUTION_X=800 \
+        -DVIDEO_DEFAULT_RESOLUTION_Y=600 \
+	-DVIDEO_ADDRESS_MANUAL
+
+LD_DRIVER_FLAGS=-s -shared -Wl,--subsystem,native 		\
+		-Wl,--image-base,0x10000			\
+		-Wl,--stack,0x40000 -Wl,--file-alignment,0x1000 \
+		-Wl,--section-alignment,0x1000 			\
+		-Wl,--entry,_DriverEntry@8 -nostartfiles	\
+		-lntoskrnl -lhal -lgcc -lkernel32		\
+		-nostdlib
+
+CFLAGS = -Wno-multichar
+
+SRCS_ASM = core/i386/io-asm.S     \
+           core/i386/common-asm.S \
+           core/i386/reg-asm.S    \
+           core/i386/vmx-asm.S
+
+SRCS_CORE = core/pill_common.c  \
+	    core/pill_windows.c \
+	    core/vt.c \
+	    core/comio.c \
+	    core/snprintf.c \
+	    core/idt.c \
+	    core/x86.c \
+	    core/mmu.c \
+	    core/winxp.c \
+	    core/vmmstring.c \
+	    core/events.c \
+	    core/common.c \
+	    core/vmhandlers.c \
+	    core/vmx.c \
+	    core/process.c \
+	    core/network.c
+
+SRCS_HYPERDBG = hyperdbg/font_256.c \
+	        hyperdbg/gui.c \
+	        hyperdbg/hyperdbg_cmd.c \
+	        hyperdbg/hyperdbg_guest.c \
+	        hyperdbg/hyperdbg_host.c \
+	        hyperdbg/keyboard.c \
+	        hyperdbg/pci.c \
+	        hyperdbg/scancode.c \
+	        hyperdbg/sw_bp.c \
+	        hyperdbg/syms.c \
+	        hyperdbg/symsearch.c \
+	        hyperdbg/video.c \
+	        hyperdbg/xpvideo.c \
+	        hyperdbg/pager.c
+
+SRCS_LIBUDIS = libudis86/decode.c \
+	       libudis86/input.c \
+	       libudis86/itab.c \
+	       libudis86/syn-att.c \
+	       libudis86/syn.c \
+	       libudis86/syn-intel.c \
+	       libudis86/udis86.c
+
+OBJS_CORE     = $(SRCS_CORE:.c=.o)
+OBJS_ASM      = $(SRCS_ASM:.S=.o)
+OBJS_HYPERDBG = $(SRCS_HYPERDBG:.c=.o)
+OBJS_LIBUDIS  = $(SRCS_LIBUDIS:.c=.o)
+
+CC = gcc
+
+all: hyperdbg
+
+hyperdbg: hyperdbg.sys
+
+hyperdbg.sys: core/asm-offset.h $(OBJS_LIBUDIS) $(OBJS_ASM) $(OBJS_CORE) $(OBJS_HYPERDBG)
+	$(CC) $(DEFINE) -o $@ $^ $(LD_DRIVER_FLAGS)
+
+core/asm-offset.h: core/asm-offset.s
+	@(set -e; \
+	echo "/*"; \
+	echo " * DO NOT MODIFY."; \
+	echo " *"; \
+	echo " * This file was auto-generated from $<"; \
+	echo " *"; \
+	echo " */"; \
+	echo " "; \
+	echo "#ifndef __TEST_H__"; \
+	echo "#define __TEST_H__"; \
+	echo " "; \
+	sed -ne "/^->/{s:^->\([^ ]*\) [\$$#]*\([^ ]*\) \(.*\):#define \1 \2 /* \3 */:; s:->::; p;}"; \
+	echo " "; \
+	echo "#endif") <$< >$@
+
+core/asm-offset.s: core/asm-offset.c
+	$(CC) $(DEFINE) -S -o $@ $<
+
+core/i386/%.o: core/i386/%.S
+	$(CC) $(DEFINE) -c -o $@ $<
+
+%.o: %.c
+	$(CC) $(DEFINE) -c -Icore -Ihyperdbg -Ilibudis86 $(CFLAGS) -o $@ $<
+
+clean:
+	-rm $(OBJS_LIBUDIS)
+	-rm $(OBJS_ASM)
+	-rm $(OBJS_CORE)
+	-rm $(OBJS_HYPERDBG)
+	-rm core/asm-offset.h core/asm-offset.s

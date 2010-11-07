@@ -89,8 +89,8 @@ hvm_status VideoDealloc(void);
 hvm_bool VideoEnabled(void);
 
 void VideoSetResolution(Bit32u x, Bit32u y);
-void VideoSave();
-void VideoRestore();
+void VideoSave(void);
+void VideoRestore(void);
 void VideoWriteChar(Bit8u, unsigned int, unsigned int, unsigned int);
 void VideoWriteString(char*, unsigned int, unsigned int, unsigned int, unsigned int);
 void VideoClear(Bit32u color);

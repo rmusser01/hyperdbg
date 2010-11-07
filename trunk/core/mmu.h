@@ -28,12 +28,10 @@
 #include "x86.h"
 
 /* Memory-management defines */
-#define PAGE_SIZE          0x1000
-#ifndef PAGE_ALIGN
-#define PAGE_ALIGN(addr) (((Bit32u) (addr)) & ~(PAGE_SIZE - 1))
-#endif
+#define MMU_PAGE_SIZE        0x1000
+#define MMU_PAGE_ALIGN(addr) (((Bit32u) (addr)) & ~(MMU_PAGE_SIZE - 1))
 
-#define PAGE_OFFSET(a) ((hvm_address) (a) - (hvm_address) PAGE_ALIGN(a))
+#define MMU_PAGE_OFFSET(a) ((hvm_address) (a) - (hvm_address) MMU_PAGE_ALIGN(a))
 
 /* **** PAE **** */
 #ifdef ENABLE_PAE
@@ -92,18 +90,21 @@ hvm_status MmuFini(void);
 hvm_status MmuMapPhysicalPage(hvm_phy_address phy, hvm_address* pva, PPTE poriginal);
 hvm_status MmuUnmapPhysicalPage(hvm_address va, PTE original);
 
-#define MmuWriteVirtualRegion(cr3, va, buffer, size) MmuReadWriteVirtualRegion(cr3, va, buffer, size, TRUE)
-#define MmuReadVirtualRegion(cr3, va, buffer, size)  MmuReadWriteVirtualRegion(cr3, va, buffer, size, FALSE)
-
 hvm_status MmuReadWriteVirtualRegion(hvm_address cr3, hvm_address va, void* buffer, Bit32u size, hvm_bool isWrite);
-
-#define MmuWritePhysicalRegion(phy, buffer, size) MmuReadWritePhysicalRegion(phy, buffer, size, TRUE)
-#define MmuReadPhysicalRegion(phy, buffer, size)  MmuReadWritePhysicalRegion(phy, buffer, size, FALSE)
-
 hvm_status MmuReadWritePhysicalRegion(hvm_phy_address phy, void* buffer, Bit32u size, hvm_bool isWrite);
 
 hvm_status MmuGetPhysicalAddress(hvm_address cr3, hvm_address va, hvm_phy_address* pphy);
 hvm_bool   MmuIsAddressValid(hvm_address cr3, hvm_address va);
 hvm_bool   MmuIsAddressWritable(hvm_address cr3, hvm_address va);
 
+void       MmuVirtToPTE( hvm_address, hvm_address *);
+hvm_status MmuMapPhysicalSpace(hvm_address phy, Bit32u memSize, hvm_address* pva);
+hvm_status MmuUnmapPhysicalSpace(hvm_address firstPTEAddr, Bit32u memSize);
+
+#define    MmuWriteVirtualRegion(cr3, va, buffer, size) MmuReadWriteVirtualRegion(cr3, va, buffer, size, TRUE)
+#define    MmuReadVirtualRegion(cr3, va, buffer, size)  MmuReadWriteVirtualRegion(cr3, va, buffer, size, FALSE)
+
+#define    MmuWritePhysicalRegion(phy, buffer, size) MmuReadWritePhysicalRegion(phy, buffer, size, TRUE)
+#define    MmuReadPhysicalRegion(phy, buffer, size)  MmuReadWritePhysicalRegion(phy, buffer, size, FALSE)
+ 
 #endif	/* _MMU_H */

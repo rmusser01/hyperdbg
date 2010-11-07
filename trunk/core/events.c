@@ -23,10 +23,10 @@
 
 /* Module for handling generic events. */
 
-#include "types.h"
 #include "events.h"
 #include "common.h"
 #include "debug.h"
+#include "vmmstring.h"
 
 /* ################ */
 /* #### MACROS #### */
@@ -39,7 +39,7 @@
 /* ############### */
 
 typedef struct _EVENT {
-  EVENT_TYPE type;
+  HVM_EVENT_TYPE type;
 
   union {
     EVENT_CONDITION_HYPERCALL hypercall;
@@ -62,8 +62,8 @@ static EVENT events[N_EVENTS];
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static PEVENT   EventFindInternal(EVENT_TYPE type, void* pcondition, int condition_size);
-static hvm_bool EventCheckCondition(EVENT_TYPE type, void* c1, void* c2);
+static PEVENT   EventFindInternal(HVM_EVENT_TYPE type, void* pcondition, int condition_size);
+static hvm_bool EventCheckCondition(HVM_EVENT_TYPE type, void* c1, void* c2);
 
 /* ################ */
 /* #### BODIES #### */
@@ -79,7 +79,7 @@ hvm_status EventInit(void)
   return HVM_STATUS_SUCCESS;
 }
 
-hvm_bool EventSubscribe(EVENT_TYPE type, void* pcondition, int condition_size, EVENT_CALLBACK callback)
+hvm_bool EventSubscribe(HVM_EVENT_TYPE type, void* pcondition, int condition_size, EVENT_CALLBACK callback)
 {
   hvm_bool b;
   int i;
@@ -92,7 +92,7 @@ hvm_bool EventSubscribe(EVENT_TYPE type, void* pcondition, int condition_size, E
       continue;
 
     events[i].type = type;
-    memcpy(&(events[i].condition), pcondition, condition_size);
+    vmm_memcpy(&(events[i].condition), pcondition, condition_size);
     events[i].callback = callback;
 
     b = TRUE;
@@ -102,13 +102,14 @@ hvm_bool EventSubscribe(EVENT_TYPE type, void* pcondition, int condition_size, E
   return b;
 }
 
-hvm_bool EventUnsubscribe(EVENT_TYPE type, void* pcondition, int condition_size)
+hvm_bool EventUnsubscribe(HVM_EVENT_TYPE type, void* pcondition, int condition_size)
 {
   PEVENT p;
-
+  
   if (!pcondition) return FALSE;
 
   p = EventFindInternal(type, pcondition, condition_size);
+
   if (!p)
     return FALSE;
 
@@ -116,7 +117,7 @@ hvm_bool EventUnsubscribe(EVENT_TYPE type, void* pcondition, int condition_size)
   return TRUE;
 }
 
-EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, PEVENT_ARGUMENTS args, void* pcondition, int condition_size)
+EVENT_PUBLISH_STATUS EventPublish(HVM_EVENT_TYPE type, PEVENT_ARGUMENTS args, void* pcondition, int condition_size)
 {
   int i;
   hvm_bool b;
@@ -147,11 +148,10 @@ EVENT_PUBLISH_STATUS EventPublish(EVENT_TYPE type, PEVENT_ARGUMENTS args, void* 
     }
   }
 
-  return s
-;
+  return s;
 }
 
-hvm_bool EventHasType(EVENT_TYPE type)
+hvm_bool EventHasType(HVM_EVENT_TYPE type)
 {
   int i;
   hvm_bool b;
@@ -171,7 +171,7 @@ void EventUpdateExceptionBitmap(Bit32u* pbitmap)
 {
   int i;
 
-  for (i=0; i<sizeof(events)/sizeof(EVENT); i++) {  
+  for (i=0; i<sizeof(events)/sizeof(EVENT); i++) {
     if (events[i].type != EventException)
       continue;
 
@@ -184,7 +184,7 @@ void EventUpdateIOBitmaps(Bit8u* pIOBitmapA, Bit8u* pIOBitmapB)
   int i;
   Bit16u port;
 
-  for (i=0; i<sizeof(events)/sizeof(EVENT); i++) {  
+  for (i=0; i<sizeof(events)/sizeof(EVENT); i++) {
     if (events[i].type != EventIO)
       continue;
 
@@ -198,7 +198,7 @@ void EventUpdateIOBitmaps(Bit8u* pIOBitmapA, Bit8u* pIOBitmapB)
   }
 }
 
-static hvm_bool EventCheckCondition(EVENT_TYPE type, void* c1, void* c2)
+static hvm_bool EventCheckCondition(HVM_EVENT_TYPE type, void* c1, void* c2)
 {
   hvm_bool b;
 
@@ -254,25 +254,24 @@ static hvm_bool EventCheckCondition(EVENT_TYPE type, void* c1, void* c2)
     break;
   }
 
-  default: 
+  default:
     break;
   }
 
   return b;
 }
 
-static PEVENT EventFindInternal(EVENT_TYPE type, void* pcondition, int condition_size)
+static PEVENT EventFindInternal(HVM_EVENT_TYPE type, void* pcondition, int condition_size)
 {
   int i;
 
-  for (i=0; i<sizeof(events)/sizeof(EVENT); i++) {
-    if (events[i].type != type)
-      continue;
-
-    if (!memcmp(&(events[i].condition), pcondition, condition_size)) {
-      return &(events[i]);
+  for (i=0; i<sizeof(events)/sizeof(EVENT); i++)
+    {
+      if (events[i].type != type)
+	continue;
+      
+      if (!vmm_memcmp(&(events[i].condition), pcondition, condition_size))
+	return &(events[i]);
     }
-  }
-
   return NULL;
 }

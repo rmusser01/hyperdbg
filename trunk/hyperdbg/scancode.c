@@ -22,6 +22,7 @@
 */
 
 #include "scancode.h"
+#include "vmmstring.h"
 
 #define SCANCODE_CURSORUP	   72   /* Principal cursor keys */
 #define SCANCODE_CURSORLEFT	   75   /* (on numeric keypad)   */
@@ -138,7 +139,7 @@ char scancodes_map[255];
 
 void init_scancodes_map(void)
 {
-  memset(scancodes_map, 0, sizeof(scancodes_map));
+  vmm_memset(scancodes_map, 0, sizeof(scancodes_map));
 
   scancodes_map[SCANCODE_KEYPAD0] = '0';
   scancodes_map[SCANCODE_KEYPAD1] = '1';

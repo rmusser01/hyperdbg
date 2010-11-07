@@ -26,6 +26,7 @@
 
 #include "types.h"
 #include "msr.h"
+#include "common.h"
 
 /* Trap/fault mnemonics */
 #define TRAP_DIVIDE_ERROR      0
@@ -57,7 +58,7 @@
 //////////////
 typedef struct _RFLAGS
 {
-#if BITS_ARCH == 64
+#if HVM_ARCH_BITS == 64
   unsigned ReservedHi	:32;
 #endif
   unsigned Reserved1	:10;
@@ -261,31 +262,31 @@ typedef struct
 #pragma pack (pop)
 
 /* Access to 32-bit registers */
-Bit32u RegGetFlags();
-Bit32u RegGetCr0();
-Bit32u RegGetCr2();
-Bit32u RegGetCr3();
-Bit32u RegGetCr4();
-Bit32u RegGetIdtBase();
+Bit32u RegGetFlags(void);
+Bit32u RegGetCr0(void);
+Bit32u RegGetCr2(void);
+Bit32u RegGetCr3(void);
+Bit32u RegGetCr4(void);
+Bit32u RegGetIdtBase(void);
 
-void RegSetFlags(hvm_address v);
-void RegSetCr0(hvm_address v);
-void RegSetCr2(hvm_address v);
-void RegSetCr4(hvm_address v);
+void USESTACK RegSetFlags(hvm_address v);
+void USESTACK RegSetCr0(hvm_address v);
+void USESTACK RegSetCr2(hvm_address v);
+void USESTACK RegSetCr4(hvm_address v);
 
 /* Access to 16-bit registers */
-Bit16u RegGetCs();
-Bit16u RegGetDs();
-Bit16u RegGetEs();
-Bit16u RegGetFs();
-Bit16u RegGetGs();
-Bit16u RegGetSs();
-Bit16u RegGetTr();
-Bit16u RegGetLdtr();
-Bit16u RegGetIdtLimit();
+Bit16u RegGetCs(void);
+Bit16u RegGetDs(void);
+Bit16u RegGetEs(void);
+Bit16u RegGetFs(void);
+Bit16u RegGetGs(void);
+Bit16u RegGetSs(void);
+Bit16u RegGetTr(void);
+Bit16u RegGetLdtr(void);
+Bit16u RegGetIdtLimit(void);
 
-void RegSetIdtr(void *base, Bit32u limit);
-void RegRdtsc(Bit64u *pv);
+void USESTACK RegSetIdtr(void *base, Bit32u limit);
+void USESTACK RegRdtsc(Bit64u *pv);
 
 /* Segments-related stuff */
 Bit32u GetSegmentDescriptorBase(Bit32u gdt_base , Bit16u seg_selector);
@@ -294,11 +295,11 @@ Bit32u GetSegmentDescriptorLimit(Bit32u gdt_base, Bit16u selector);
 Bit32u GetSegmentDescriptorAR(Bit32u gdt_base, Bit16u selector);
 
 /* IO-access stuff */
-Bit8u  IoReadPortByte(Bit16u portno);
-Bit16u IoReadPortWord(Bit16u portno);
-Bit32u IoReadPortDword(Bit16u portno);
-void   IoWritePortByte(Bit16u portno, Bit8u value);
-void   IoWritePortWord(Bit16u portno, Bit16u value);
-void   IoWritePortDword(Bit16u portno, Bit32u value);
+Bit8u  USESTACK IoReadPortByte(Bit16u portno);
+Bit16u USESTACK IoReadPortWord(Bit16u portno);
+Bit32u USESTACK IoReadPortDword(Bit16u portno);
+void   USESTACK IoWritePortByte(Bit16u portno, Bit8u value);
+void   USESTACK IoWritePortWord(Bit16u portno, Bit16u value);
+void   USESTACK IoWritePortDword(Bit16u portno, Bit32u value);
 
 #endif /* _PILL_X86_H */

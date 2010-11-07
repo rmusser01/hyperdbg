@@ -55,11 +55,6 @@ hvm_bool vmm_isxdigit(char c)
   return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
 }
 
-hvm_bool vmm_isascii(char c)
-{
-  return (c >= 0 && c <= 127);
-}
-
 hvm_bool vmm_isalpha(char c)
 {
   return (vmm_islower(c) || vmm_isupper(c));
@@ -92,10 +87,45 @@ void vmm_memset(void *s, int c, Bit32u n)
   }
 }
 
+Bit32s vmm_memcmp(void *s1, void *s2, Bit32u n)
+{
+  Bit32u i;
+  unsigned char *p1 = (unsigned char*) s1;
+  unsigned char *p2 = (unsigned char*) s2;
+  
+  i = 0;
+  while(i < n) {
+    if(p1[i] != p2[i]) break;
+    i++;
+  }
+
+  if(i == n)
+    return 0;
+  else {
+    if(p1[i] < p2[i])
+      return -1;
+    else
+      return 1;
+  }
+}
+
+void *vmm_memcpy(void *dst, void *src, Bit32u n)
+{
+  Bit32u i = 0;
+  unsigned char *p1 = (unsigned char*) dst;
+  unsigned char *p2 = (unsigned char*) src;
+
+  while (i < n) {
+    p1[i] = p2[i];
+    i++;
+  }
+  return p1;
+
+}
+
 Bit32s vmm_strncmpi(unsigned char *str1, unsigned char *str2, Bit32u n)
 {
   Bit32u i;
-  unsigned char c1, c2;
 
   i = 0;
   while(i < n && str1[i] != 0 && str2[i] != 0) {
@@ -142,19 +172,24 @@ unsigned char *vmm_strncpy(unsigned char *dst, unsigned char *src, Bit32u n)
   Bit32u i;
 
   i = 0;
-  while (i < n && src[i] != 0)
-    dst[i] = src[i++];
+  while (i < n && src[i] != 0) {
+    dst[i] = src[i];
+    i++;
+  }
   return dst;
 }
 
 unsigned char *vmm_strncat(unsigned char *dst, unsigned char *src, Bit32u n)
 {
   Bit32u i = 0, len = vmm_strlen(dst);
-  while(i < n && src[i] != 0)
-    dst[len + i] = src[i++];
+  while(i < n && src[i] != 0) {
+    dst[len + i] = src[i];
+    i++;
+  }
   dst[len + i] = 0;
   return dst;
 }
+
 
 Bit32u vmm_strlen(unsigned char *str)
 {

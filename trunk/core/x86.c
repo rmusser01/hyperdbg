@@ -24,8 +24,12 @@
 #include "types.h"
 #include "debug.h"
 #include "x86.h"
-#include "winxp.h"
 #include "idt.h"
+#include "vmmstring.h"
+
+#ifdef GUEST_WINDOWS
+#include "winxp.h"
+#endif
 
 ////////////////////////////////////
 //  SEGMENT DESCRIPTOR OPERATORS  //
@@ -71,7 +75,7 @@ Bit32u GetSegmentDescriptorBase(Bit32u gdt_base, Bit16u seg_selector)
   Bit32u			base = 0;
   SEGMENT_DESCRIPTOR	segDescriptor = {0};
 	
-  RtlCopyBytes( &segDescriptor, (Bit32u *)(gdt_base + (seg_selector >> 3) * 8), 8 );
+  vmm_memcpy(&segDescriptor, (Bit32u *)(gdt_base + (seg_selector >> 3) * 8), 8);
   base = segDescriptor.BaseHi;
   base <<= 8;
   base |= segDescriptor.BaseMid;
@@ -85,7 +89,7 @@ Bit32u GetSegmentDescriptorDPL(Bit32u gdt_base, Bit16u seg_selector)
 {
   SEGMENT_DESCRIPTOR segDescriptor = {0};
 	
-  RtlCopyBytes(&segDescriptor, (Bit32u *)(gdt_base + (seg_selector >> 3) * 8), 8);
+  vmm_memcpy(&segDescriptor, (Bit32u *)(gdt_base + (seg_selector >> 3) * 8), 8);
 	
   return segDescriptor.DPL;
 }
@@ -119,18 +123,23 @@ Bit32u GetSegmentDescriptorAR(Bit32u gdt_base, Bit16u selector)
 Bit32u RegGetIdtBase()
 {
   IDTR tmp_idt;
-  Bit32u inmem_base, idtr_base, r;
-
+  Bit32u inmem_base, idtr_base;
+  inmem_base = 0;
   /* Read IDTR */
-  __asm { SIDT tmp_idt };
+  __asm__ __volatile__ (
+			"sidt %0\n"
+			:"=m"(tmp_idt)
+			::"memory"
+			);
   idtr_base = (tmp_idt.BaseHi << 16 | tmp_idt.BaseLo);
-
+#ifdef GUEST_WINDOWS
   /* Get IDT base from memory */
-  inmem_base = *(Bit32u*) WINDOWS_PIDT_BASE;
 
+  inmem_base = *(Bit32u*) WINDOWS_PIDT_BASE;
   if (idtr_base != inmem_base) {
     /* Virtualized! */
   }
+#endif /* GUEST_WINDOWS */
 
   return inmem_base;
 }

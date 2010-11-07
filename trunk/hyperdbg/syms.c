@@ -23,6 +23,7 @@
 
 #include "syms.h"
 
+#ifdef GUEST_WINDOWS
 SYMBOL syms[] = {
   {"KeStallExecutionProcessor@4", 0x00000590},
   {"KeQueryPerformanceCounter@4", 0x000005a8},
@@ -1558,3 +1559,8 @@ SYMBOL syms[] = {
 };
 
 const Bit32u NOS = sizeof(syms) / sizeof(SYMBOL);
+
+#elif defined GUEST_LINUX
+SYMBOL syms[] = {};
+const Bit32u NOS = 0;
+#endif

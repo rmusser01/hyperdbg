@@ -81,7 +81,7 @@ static void PagerReset()
 
 static void PagerShowPage(Bit32u page)
 {
-  Bit32u ii, len;
+  Bit32u ii;
 
   if(page >= PAGES) return;
 

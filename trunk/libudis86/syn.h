@@ -11,7 +11,7 @@
 /* #include <stdio.h> */
 #include "vmmstring.h"
 #include <stdarg.h>
-#include "types.h"
+#include "ltypes.h"
 
 extern const char* ud_reg_tab[];
 

@@ -42,7 +42,10 @@ PSYMBOL SymbolGetFromAddress(hvm_address addr)
 {
   PSYMBOL SearchedSym;
   Bit32u index;
-
+  if(NOS == 0) {
+    return  NULL;
+  }
+  
   if(!DicotomicSymbolSearch(addr, 0, NOS-1, &index)) {
     SearchedSym = NULL;
   } else {
@@ -56,7 +59,10 @@ PSYMBOL SymbolGetNearest(hvm_address addr)
 {
   PSYMBOL SearchedSym;
   Bit32u index;
-
+  if(NOS == 0) {
+    return  NULL;
+  }
+  
   DicotomicSymbolSearch(addr, 0, NOS-1, &index);
   SearchedSym = &syms[index];
 
@@ -75,13 +81,13 @@ PSYMBOL SymbolGetFromName(Bit8u* name)
     /* we use MAX because we have to check with the longer length, otherwise we
        could match, for example, KiFastCallEntry2 when looking for
        KiFastCallEntry */
-    if(vmm_strncmpi(SearchedSym->name, name, MAX(strlen(name), strlen(SearchedSym->name))) == 0)
+    if(vmm_strncmpi(SearchedSym->name, name, MAX(vmm_strlen(name), vmm_strlen(SearchedSym->name))) == 0)
       return SearchedSym;
   }
   return NULL;
 }
 
-/* Returns TRUE and sets Index to the index of the found entry if
+/* Returns TRUE and sets Index to the index of the found entries if
    found. Otherwise, returns FALSE and Index is undefined */
 static hvm_bool DicotomicSymbolSearch(hvm_address addr, Bit32s start, Bit32s end, Bit32u* index)
 {
@@ -96,7 +102,7 @@ static hvm_bool DicotomicSymbolSearch(hvm_address addr, Bit32s start, Bit32s end
       *index = mid;
       return TRUE;
     }
-    
+
     if(addr < (CurrentSym->addr + hyperdbg_state.win_state.kernel_base)) {
       end = mid - 1;
     } else {

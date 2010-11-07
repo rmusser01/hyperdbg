@@ -32,6 +32,6 @@ typedef struct _SYMBOL {
 } SYMBOL, *PSYMBOL;
 
 extern SYMBOL syms[];		/* Symbols array */
-extern const Bit32u NOS;	/* Number Of Symbols */
+extern const Bit32u NOS;	/* Number of symbols */
 
 #endif	/* _SYMS_H */

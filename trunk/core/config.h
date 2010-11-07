@@ -24,8 +24,8 @@
 #ifndef _CONFIG_H
 #define _CONFIG_H
 
-/* Comment the following line to disable debugging */
-/* #define DEBUG 1 */
+/* Comment out the following line to disable debugging */
+#define DEBUG
 
 /* Stack area reserved to the HVM */
 #define VMM_STACK_SIZE      0x8000

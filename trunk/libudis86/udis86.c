@@ -6,7 +6,11 @@
  * -----------------------------------------------------------------------------
  */
 
+#ifdef GUEST_WINDOWS
 #include <string.h>
+#elif defined GUEST_LINUX
+#include <linux/string.h>
+#endif
 
 #include "input.h"
 #include "extern.h"

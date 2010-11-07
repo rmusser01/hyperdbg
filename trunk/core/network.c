@@ -29,11 +29,11 @@
 #elif defined GUEST_LINUX
 #endif
 
-Bit16u ntohs(Bit16u v) {
+Bit16u vmm_ntohs(Bit16u v) {
   return ((v & 0xff00) >> 8) | ((v & 0xff) << 8);
 }
 
-Bit32u ntohl(Bit32u v) {
+Bit32u vmm_ntohl(Bit32u v) {
   return (
 	  (v & 0xff000000) >> 24 |
 	  (v & 0x00ff0000) >>  8 |
@@ -46,7 +46,7 @@ char *inet_ntoa(Bit32u a)
 {
   static char internal_buffer[16];
 
-  a = ntohl(a);
+  a = vmm_ntohl(a);
 
   vmm_snprintf(internal_buffer, sizeof(internal_buffer),
 	       "%d.%d.%d.%d",
@@ -62,11 +62,12 @@ char *inet_ntoa(Bit32u a)
 hvm_status NetworkBuildSocketList(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize)
 {
   hvm_status r;
-
+  r = HVM_STATUS_UNSUCCESSFUL;
+  
 #ifdef GUEST_WINDOWS
   r = WindowsBuildSocketList(cr3, buf, maxsize, psize);
 #elif defined GUEST_LINUX
-#error Unimplemented
+
 #endif
 
   return r;

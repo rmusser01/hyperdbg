@@ -30,6 +30,7 @@
 #include "common.h"
 #include "extern.h"    /* From libudis */
 #include "symsearch.h"
+
 #ifdef GUEST_WINDOWS
 #include "winxp.h"
 #endif
@@ -75,60 +76,60 @@ void VideoInitShell(void)
 
   /* 1st row */
   VideoWriteString("RAX=", 4, LIGHT_BLUE, 2, 1);
-  vmm_snprintf(tmp, 9, "%08hx", context.GuestContext.RAX);
+  vmm_snprintf(tmp, 9, "%08hx", context.GuestContext.rax);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 6, 1);
 
   VideoWriteString("RBX=", 4, LIGHT_BLUE, 15, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RBX);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.rbx);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 19, 1);
 
   VideoWriteString("RCX=", 4, LIGHT_BLUE, 28, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RCX);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.rcx);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 32, 1);
 	
   VideoWriteString("RDX=", 4, LIGHT_BLUE, 41, 1);
-  vmm_snprintf(tmp, 9, "%08hx", context.GuestContext.RDX);
+  vmm_snprintf(tmp, 9, "%08hx", context.GuestContext.rdx);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 45, 1);
 
   VideoWriteString("RSP=", 4, LIGHT_BLUE, 54, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RSP);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.rsp);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 58, 1);
 
   VideoWriteString("RBP=", 4, LIGHT_BLUE, 67, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RBP);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.rbp);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 71, 1);
 
   VideoWriteString("RIP=", 4, LIGHT_BLUE, 80, 1);
-  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RIP);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.rip);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 84, 1);
 
   /* 2nd row */
   VideoWriteString("RSI=", 4, LIGHT_BLUE, 2, 2);
-  vmm_snprintf(tmp, 9, "%08hx",  context.GuestContext.RSI);
+  vmm_snprintf(tmp, 9, "%08hx",  context.GuestContext.rsi);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 6, 2);
 
   VideoWriteString("RDI=", 4, LIGHT_BLUE, 15, 2);
-  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RDI);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.rdi);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 19, 2);
 
   VideoWriteString("CR0=", 4, LIGHT_BLUE, 28, 2);
-  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.CR0);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.cr0);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 32, 2);
 
   VideoWriteString("CR3=", 4, LIGHT_BLUE, 41, 2);
-  vmm_snprintf(tmp, 9, "%08hx",  context.GuestContext.CR3);
+  vmm_snprintf(tmp, 9, "%08hx",  context.GuestContext.cr3);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 45, 2);
 
   VideoWriteString("CR4=", 4, LIGHT_BLUE, 54, 2);
-  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.CR4);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.cr4);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 58, 2);
 
   VideoWriteString("CS=", 3, LIGHT_BLUE, 67, 2);
-  vmm_snprintf(tmp, 5, "%04hx",   context.GuestContext.CS);
+  vmm_snprintf(tmp, 5, "%04hx",   context.GuestContext.cs);
   VideoWriteString(tmp, 4, LIGHT_GREEN, 70, 2);
 	
   VideoWriteString("RFLAGS=", 7, LIGHT_BLUE, 80, 2);
-  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.RFLAGS);
+  vmm_snprintf(tmp, 9, "%08hx",   context.GuestContext.rflags);
   VideoWriteString(tmp, 8, LIGHT_GREEN, 87, 2);
 
   /* Draw delimiter lines */
@@ -219,7 +220,7 @@ void VideoRefreshOutArea(unsigned int color)
 
 void VideoPrintHeader(void)
 {
-  Bit32u i, numberofdash, pos, len;
+  Bit32u i, numberofdash, pos;
   char *name;
 
   name = "=[ HyperDbg ]=";
@@ -233,15 +234,15 @@ void VideoPrintHeader(void)
 
   VideoWriteChar('+', RED, SHELL_SIZE_X-1, 0);
   pos = (SHELL_SIZE_X/2) - (vmm_strlen(name)/2);
-#if GUEST_WINDOWS
+#ifdef GUEST_WINDOWS
   {
-    Bit32u l;
+    Bit32u l, len;
     hvm_address pep, pid, tid;
     hvm_status r;
     char str_tmp[64], str_pid[16], str_tid[16], str_name[16];
 
     /* PID */
-    r = WindowsFindProcessPid(context.GuestContext.CR3, &pid);
+    r = WindowsFindProcessPid(context.GuestContext.cr3, &pid);
     if (r == HVM_STATUS_SUCCESS) {
       vmm_snprintf(str_pid, sizeof(str_pid), "%.4x", pid);
     } else {
@@ -249,7 +250,7 @@ void VideoPrintHeader(void)
     }
 
     /* TID */
-    r = WindowsFindProcessTid(context.GuestContext.CR3, &tid);
+    r = WindowsFindProcessTid(context.GuestContext.cr3, &tid);
     if (r == HVM_STATUS_SUCCESS) {
       vmm_snprintf(str_tid, sizeof(str_tid), "%.4x", tid);
     } else {
@@ -257,7 +258,7 @@ void VideoPrintHeader(void)
     }
 
     /* Process name */
-    r = WindowsFindProcessName(context.GuestContext.CR3, str_name);
+    r = WindowsFindProcessName(context.GuestContext.cr3, str_name);
     if (r != HVM_STATUS_SUCCESS) {
       vmm_snprintf(str_name, sizeof(str_name), "N/A");
     }
@@ -285,16 +286,16 @@ void VideoShowDisassembled()
   Bit8u str_addr[10], instr[SHELL_SIZE_X-15], disasbuf[96];
   Bit8u* disasinst;
   PSYMBOL sym;
-  memset(str_addr, 0x20, 10);
-  memset(instr, 0x20, SHELL_SIZE_X-15);
+  vmm_memset(str_addr, 0x20, 10);
+  vmm_memset(instr, 0x20, SHELL_SIZE_X-15);
   y = 4;
   x = 2;
   i = 0;
   operand = 0;
   VideoResetOutMatrix();
   
-  if(MmuIsAddressValid(context.GuestContext.CR3, context.GuestContext.RIP)) {
-    addr = context.GuestContext.RIP;
+  if(MmuIsAddressValid(context.GuestContext.cr3, context.GuestContext.rip)) {
+    addr = context.GuestContext.rip;
   } else { /* FIXME: rewrite better */
     ComPrint("[HyperDbg] RIP not valid!\n");
     VideoWriteString("RIP not valid!", 14, RED, x, y);
@@ -307,35 +308,38 @@ void VideoShowDisassembled()
   ud_set_mode(&ud_obj, 32);
   ud_set_syntax(&ud_obj, UD_SYN_ATT);
 
-  MmuReadVirtualRegion(context.GuestContext.CR3, addr, disasbuf, sizeof(disasbuf)/sizeof(Bit8u));
+  MmuReadVirtualRegion(context.GuestContext.cr3, addr, disasbuf, sizeof(disasbuf)/sizeof(Bit8u));
   ud_set_input_buffer(&ud_obj, disasbuf, sizeof(disasbuf)/sizeof(Bit8u));
 
   while(ud_disassemble(&ud_obj)) {
-    sym = 0; /* reset symbol */
+    /* Reset symbol */
+    sym = 0;
     i = 0;
     vmm_snprintf(str_addr, 10, "%08hx:", tmpaddr);
-    //str_addr[8] = 0;
     VideoWriteString(str_addr, 9, LIGHT_BLUE, x, y);
-    /* check if the operand is an address */
-    /* FIXME: write better ;-) */
+
+    /* Check if the operand is an address */
+    /* FIXME: write it better ;-) */
     disasinst = (Bit8u*) ud_insn_asm(&ud_obj);
-    while(disasinst[i] != (Bit8u)'\0' && disasinst[i] != (Bit8u)' ') i++; /* reach the end or the first operand */
-    if(disasinst[i] != 0 && (vmm_strlen(disasinst) - (&disasinst[i] - disasinst)) == 11) { /* 11 is the size of 0x12345678 + 1 space (USE >= 11 to parse also inst 0x12345678, XXX */
-      /* check if it's likely to be an address */
+
+    /* Reach the end or the first operand */
+    while(disasinst[i] != (Bit8u)'\0' && disasinst[i] != (Bit8u)' ') i++; 
+
+    /* 11 is the size of 0x12345678 + 1 space (USE >= 11 to parse also inst 0x12345678, XXX */
+    if(disasinst[i] != 0 && (vmm_strlen(disasinst) - (&disasinst[i] - disasinst)) == 11) {
+      /* Check if it's likely to be an address */
       if(disasinst[i+1] == (Bit8u)'0' && disasinst[i+2] == 'x') {
 	if(vmm_strtoul(&disasinst[i+1], &operand)) { /* if it's convertible to a hvm_address */
 	  sym = SymbolGetFromAddress((hvm_address)operand);
 	}
       }
     }
+
     if(sym)
       vmm_snprintf(instr, SHELL_SIZE_X-15, " %-24s %s <%s>", ud_insn_hex(&ud_obj), ud_insn_asm(&ud_obj), sym->name);
     else
       vmm_snprintf(instr, SHELL_SIZE_X-15, " %-24s %s", ud_insn_hex(&ud_obj), ud_insn_asm(&ud_obj));
       
-    
-
-
     /* Is this the current instruction? */
     if(tmpaddr == addr) {
       VideoWriteString(instr, MIN(vmm_strlen(instr), SHELL_SIZE_X-15), RED, x+9, y);

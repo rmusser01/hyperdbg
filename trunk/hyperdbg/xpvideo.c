@@ -34,7 +34,7 @@
 /* Only build if /DXPVIDEO is specified */
 #ifdef XPVIDEO
 
-#include <ntddk.h>
+#include <ddk/ntddk.h>
 #include <ntdef.h>
 #include <Ntddvdeo.h>
 
@@ -75,7 +75,7 @@ hvm_status XpVideoGetWindowsXPDisplayData(hvm_address *addr, Bit32u *framebuffer
   /* Allocate some space for the name of our driver. This is a bit overkill... */
   stringBuf = ExAllocatePoolWithTag(NonPagedPool, 1024, 'lnoj');
   if(!stringBuf) {
-    WindowsLog("[xpvideo] can't allocate memory!");
+    GuestLog("[xpvideo] can't allocate memory!");
     return HVM_STATUS_UNSUCCESSFUL;
   }
 
@@ -91,9 +91,9 @@ hvm_status XpVideoGetWindowsXPDisplayData(hvm_address *addr, Bit32u *framebuffer
   /* Is this the default vga driver? */
   is_vgasave = XpVideoIsDriverVgaSave(&driverName);
   if(is_vgasave) {
-    WindowsLog("[xpvideo] Driver is standard VGA");
+    GuestLog("[xpvideo] Driver is standard VGA");
   } else {
-    WindowsLog("[xpvideo] Driver is NOT standard VGA");
+    GuestLog("[xpvideo] Driver is NOT standard VGA");
   }
 
   /* Now find its device object */
@@ -140,7 +140,7 @@ hvm_status XpVideoGetWindowsXPDisplayData(hvm_address *addr, Bit32u *framebuffer
     *stride = XpVideoGetRealStride(*width, vidModeInfo.ScreenStride / (vidModeInfo.BitsPerPlane / 8));
   }
 
-  WindowsLog("[xpvideo] using resolution %d x %d, stride %d", *width, *height, *stride);
+  GuestLog("[xpvideo] using resolution %d x %d, stride %d", *width, *height, *stride);
   
   /* Ignore the framebuffer size passed to us by the driver and just use the amount we need */
   *framebuffer_size = *height * *stride * (vidModeInfo.BitsPerPlane / 8);
@@ -173,13 +173,13 @@ NTSTATUS XpVideoFindDisplayMiniportDriverName(PUNICODE_STRING name) {
   InitializeObjectAttributes(&keyObject, &keyName, OBJ_CASE_INSENSITIVE, NULL, NULL);
   status = ZwOpenKey(&keyHandle, KEY_QUERY_VALUE, &keyObject);
   if(!NT_SUCCESS(status)) {
-    WindowsLog("[xpvideo] can't open key %ws", keyName.Buffer);
+    GuestLog("[xpvideo] can't open key %ws", keyName.Buffer);
     return status;
   }
 
   valueBuffer = (UCHAR *)ExAllocatePoolWithTag(NonPagedPool, 4096, 'lnoj');
   if(!valueBuffer) {
-    WindowsLog("[xpvideo] can't allocate registry value buffer");
+    GuestLog("[xpvideo] can't allocate registry value buffer");
     ZwClose(keyHandle);
     return STATUS_UNSUCCESSFUL;
   }
@@ -187,7 +187,7 @@ NTSTATUS XpVideoFindDisplayMiniportDriverName(PUNICODE_STRING name) {
   RtlInitUnicodeString(&keyValueName, L"\\Device\\Video0");
   status = ZwQueryValueKey(keyHandle, &keyValueName, KeyValueFullInformation, valueBuffer, 4096, &resultLen);
   if(!NT_SUCCESS(status)) {
-    WindowsLog("[xpvideo] cant query value %ws", keyValueName.Buffer);
+    GuestLog("[xpvideo] cant query value %ws", keyValueName.Buffer);
     ExFreePool(valueBuffer);
     ZwClose(keyHandle);
     return status;
@@ -212,7 +212,7 @@ NTSTATUS XpVideoFindDisplayMiniportDriverName(PUNICODE_STRING name) {
   valueString.Length = len;
   RtlAppendUnicodeToString(&valueString, L"\\Video");
 
-  WindowsLog("[xpvideo] video key value is %ws", valueString.Buffer);
+  GuestLog("[xpvideo] video key value is %ws", valueString.Buffer);
 
   /* Now open that key */
   RtlZeroMemory(&keyObject, sizeof(keyObject));
@@ -220,7 +220,7 @@ NTSTATUS XpVideoFindDisplayMiniportDriverName(PUNICODE_STRING name) {
   InitializeObjectAttributes(&keyObject, &keyName, OBJ_CASE_INSENSITIVE, NULL, NULL);
   status = ZwOpenKey(&keyHandle, KEY_QUERY_VALUE, &keyObject);
   if(!NT_SUCCESS(status)) {
-    WindowsLog("[xpvideo] can't open key %ws", keyName.Buffer);
+    GuestLog("[xpvideo] can't open key %ws", keyName.Buffer);
     ExFreePool(valueBuffer);
     return status;
   }
@@ -228,7 +228,7 @@ NTSTATUS XpVideoFindDisplayMiniportDriverName(PUNICODE_STRING name) {
   RtlInitUnicodeString(&keyValueName, L"Service");
   status = ZwQueryValueKey(keyHandle, &keyValueName, KeyValueFullInformation, valueBuffer, 4096, &resultLen);
   if(!NT_SUCCESS(status)) {
-    WindowsLog("[xpvideo] cant query value %ws", keyValueName.Buffer);
+    GuestLog("[xpvideo] cant query value %ws", keyValueName.Buffer);
     ExFreePool(valueBuffer);
     ZwClose(keyHandle);
     return status;
@@ -237,12 +237,12 @@ NTSTATUS XpVideoFindDisplayMiniportDriverName(PUNICODE_STRING name) {
   valueInfo = (KEY_VALUE_FULL_INFORMATION *)valueBuffer;
   RtlInitUnicodeString(&valueString, (PCWSTR)(valueBuffer + valueInfo->DataOffset));
 
-  WindowsLog("[xpvideo] \\Device\\Video0 service name is '%ws'", valueString.Buffer);
+  GuestLog("[xpvideo] \\Device\\Video0 service name is '%ws'", valueString.Buffer);
 
   RtlAppendUnicodeToString(name, L"\\Driver\\");
   RtlAppendUnicodeToString(name, valueString.Buffer);
 
-  WindowsLog("[xpvideo] full driver path is %ws", name->Buffer);
+  GuestLog("[xpvideo] full driver path is %ws", name->Buffer);
 
   ExFreePool(valueBuffer);
   ZwClose(keyHandle);
@@ -272,7 +272,7 @@ NTSTATUS XpVideoDoDeviceIoControl(PDEVICE_OBJECT device, ULONG ioctl, PVOID inpu
     &iostatus);
 
   if (irp == NULL) {
-    WindowsLog("[xpvideo] can't create IRP!");
+    GuestLog("[xpvideo] can't create IRP!");
     return STATUS_INSUFFICIENT_RESOURCES;
   }
 
@@ -289,7 +289,7 @@ NTSTATUS XpVideoDoDeviceIoControl(PDEVICE_OBJECT device, ULONG ioctl, PVOID inpu
   }
 
   if(!NT_SUCCESS(status)) {
-    WindowsLog("[xpvideo] DeviceIoControl call failed");
+    GuestLog("[xpvideo] DeviceIoControl call failed");
   }
 
   return status;
@@ -321,7 +321,7 @@ NTSTATUS XpVideoGetVideoMemoryAddress(PDEVICE_OBJECT device, PHYSICAL_ADDRESS *v
   if(NT_SUCCESS(status)) {
     *vidMemPhys = MmGetPhysicalAddress(vidMemInfo.FrameBufferBase);
     *size = vidMemInfo.FrameBufferLength;
-    WindowsLog("[xpvideo] Framebuffer physical address 0x%.8x, size %x", vidMemPhys, *size);
+    GuestLog("[xpvideo] Framebuffer physical address 0x%.8x, size %x", vidMemPhys, *size);
   }
 
   /* Now ask driver to unmap - we don't need it anymore */
@@ -345,7 +345,7 @@ NTSTATUS XpVideoGetDeviceObject(PUNICODE_STRING driverName, PDEVICE_OBJECT *devi
   /* Open driver by reference to it's name. This is undocumented! */
   status = ObReferenceObjectByName(driverName, OBJ_CASE_INSENSITIVE, NULL, 0, IoDriverObjectType, KernelMode, NULL, (PVOID *)&driverObject);
   if(status != STATUS_SUCCESS) {
-    WindowsLog("[xpvideo] Can't find object %ws", driverName->Buffer);
+    GuestLog("[xpvideo] Can't find object %ws", driverName->Buffer);
     return status;
   }
 

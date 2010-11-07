@@ -31,22 +31,31 @@
 //  Log  //
 ///////////
 
-#include <ntddk.h>
+#ifdef GUEST_WINDOWS
+  #include <ddk/ntddk.h>
+  #define GuestLog(fmt, ...) do { DbgPrint("[vmm] " fmt "\n", ## __VA_ARGS__); } while(0)
+#elif defined GUEST_LINUX
+  #include <linux/kernel.h>
+  #define GuestLog(fmt, ...) do { printk(KERN_DEBUG "[vmm] " fmt "\n", ## __VA_ARGS__); } while(0)
+#else
+#error Invalid guest
+#endif
 
-#define WindowsLog(fmt, ...) do { DbgPrint("[vmm] " fmt "\n", __VA_ARGS__); } while(0)
 #define NullLog(fmt, ...)    do { } while(0)
 #define SerialLog(fmt, ...)						\
   do {									\
     if (ComIsInitialized()) {						\
-      ComPrint("[vmm] " fmt "\n", __VA_ARGS__);				\
+      ComPrint(("[vmm] " fmt "\n"), ## __VA_ARGS__);			\
     }									\
   } while(0)
 
 /* Modify this macro to use a different logging method */
 #ifdef DEBUG
-#define Log(fmt, ...) SerialLog(fmt, __VA_ARGS__)
-#else
+#define Log(fmt, ...) SerialLog(fmt, ## __VA_ARGS__)
+#elif defined GUEST_LINUX
 #define Log(fmt, ...)
+#else
+#error Invalid guest
 #endif
 
 #endif /* _PILL_DEBUG_H */
