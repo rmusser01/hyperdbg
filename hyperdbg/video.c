@@ -24,12 +24,16 @@
 #ifdef GUEST_WINDOWS
 
 #include <ddk/ntddk.h>
+#define VIDEO_WRITE(value, address) *(Bit32u *)address = value
+#define VIDEO_READ(address) *(Bit32u *)address
 
 #elif defined GUEST_LINUX
 
 #include <linux/mm.h>
+#include <linux/io.h>
 #include "mmu.h"
-
+#define VIDEO_WRITE(value, address) iowrite32(value, (void *)address)
+#define VIDEO_READ(address) ioread32((void *)address)
 #endif
 
 #include "hyperdbg.h"
@@ -40,6 +44,7 @@
 
 #ifdef XPVIDEO
 #include "xpvideo.h"
+
 #endif
 
 /* ################ */
@@ -135,11 +140,10 @@ hvm_status VideoAlloc(void)
     video_backup[i] = GUEST_MALLOC(FONT_X * SHELL_SIZE_X * sizeof(Bit32u));
     if(!video_backup[i]) return HVM_STATUS_UNSUCCESSFUL;
   }
-  Log("Mapping video memory...");
   
   /* Map video memory */
 #ifdef GUEST_LINUX  
-  MmuMapPhysicalSpace(pa.u.LowPart, framebuffer_size, (hvm_address*) &video_mem);
+  video_mem = (void *)ioremap_nocache(video_address, framebuffer_size);
 #elif defined GUEST_WINDOWS
   video_mem = (Bit32u*) MmMapIoSpace(pa, framebuffer_size, MmWriteCombined);
 #endif
@@ -153,9 +157,9 @@ hvm_status VideoAlloc(void)
      HyperDbg. -jon
   */
   int x, y;
-  for(x=0; x<100; x++) {
-    for(y=0; y<100; y++) {
-      *(video_mem + y * video_stride + x) = 0xFFFFFFFF;
+  for(y=0; y<100; y++) {
+    for(x=0; x<100; x++) {
+      VIDEO_WRITE(0xFFFFFFFF, (void *)(video_mem + y * video_stride + x));
     }
   }
 #endif
@@ -251,10 +255,12 @@ void VideoWriteChar(Bit8u c, unsigned int color, unsigned int x, unsigned int y)
 
       if(is_pixel_set) { 
 	/* Let's draw it! */
-	video_mem[offset_screen_x + offset_screen_y] = color;
+	//video_mem[offset_screen_x + offset_screen_y] = color;
+	VIDEO_WRITE(color, &video_mem[offset_screen_x + offset_screen_y]);
       } else { 
 	/* Let's paint it black! */
-	video_mem[offset_screen_x + offset_screen_y] = BGCOLOR;
+	//	video_mem[offset_screen_x + offset_screen_y] = BGCOLOR;
+	VIDEO_WRITE(BGCOLOR, &video_mem[offset_screen_x + offset_screen_y]);
       }
     }
   }
@@ -266,7 +272,8 @@ void VideoClear(Bit32u color)
 
   for(j = 0; j < FONT_Y * SHELL_SIZE_Y; j++) {
     for(i = 0; i < FONT_X * SHELL_SIZE_X; i++) {
-      video_mem[(j*video_stride)+i] = color;
+      // video_mem[(j*video_stride)+i] = color;
+      VIDEO_WRITE(color, &video_mem[(j*video_stride)+i]);
     }
   }
 }
@@ -274,12 +281,13 @@ void VideoClear(Bit32u color)
 void VideoSave(void)
 {
   int i,j;
+
   for(j = 0; j < FONT_Y * SHELL_SIZE_Y; j++) {
     for(i = 0; i < FONT_X * SHELL_SIZE_X; i++) {
-      video_backup[j][i] = video_mem[(j*video_stride)+i];
+      //video_backup[j][i] = video_mem[(j*video_stride)+i];
+      video_backup[j][i] = VIDEO_READ(&video_mem[(j*video_stride)+i]);
     }
   }
-  
 }
 
 void VideoRestore(void)
@@ -288,7 +296,8 @@ void VideoRestore(void)
 
   for(j = 0; j < FONT_Y * SHELL_SIZE_Y; j++) {
     for(i = 0; i < FONT_X * SHELL_SIZE_X; i++) {
-      video_mem[(j*video_stride)+i] = video_backup[j][i];
+      //      video_mem[(j*video_stride)+i] = video_backup[j][i];
+      VIDEO_WRITE(video_backup[j][i], &video_mem[(j*video_stride)+i]);
     }
   }
 }

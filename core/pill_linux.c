@@ -118,7 +118,7 @@ void __exit DriverUnload(void)
   GuestLog("[vmm-unload] Freeing memory regions");
   
   hvm_x86_ops.vt_finalize();
-  MmuFini();			/* Finalize the MMU (e.g., deallocate the host's PT) */       
+  /*  MmuFini(); */			/* Finalize the MMU (e.g., deallocate the host's PT) still not used under linux */       
   GuestLog("[vmm-unload] Driver unloaded");
 }
 
@@ -168,12 +168,14 @@ int __init DriverEntry(void)
     goto error;
   }
   
-  /* Initialize the MMU */
-  if (!HVM_SUCCESS(MmuInit(&HostCR3))) {
-    GuestLog("Failed to initialize MMU");
-    goto error;
-  }
+  /* Initialize the MMU: Under linux we still use the kernel AS */
+/*   if (!HVM_SUCCESS(MmuInit(&HostCR3))) { */
+/*     GuestLog("Failed to initialize MMU"); */
+/*     goto error; */
+/*   } */
 
+  HostCR3 = RegGetCr3();
+  
   /* Initialize guest-specific stuff */
   if (!HVM_SUCCESS(InitGuest())) {
     GuestLog("Failed to initialize guest-specific stuff");
