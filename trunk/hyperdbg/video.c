@@ -177,7 +177,8 @@ hvm_status VideoDealloc(void)
   
   if (video_mem) {
 #ifdef GUEST_LINUX
-    MmuUnmapPhysicalSpace((hvm_address) video_mem, framebuffer_size);
+    //MmuUnmapPhysicalSpace((hvm_address) video_mem, framebuffer_size);
+    iounmap((void *) video_mem);
 #elif defined GUEST_WINDOWS
     MmUnmapIoSpace(video_mem, framebuffer_size);
 #endif
