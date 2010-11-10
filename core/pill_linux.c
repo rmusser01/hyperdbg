@@ -128,8 +128,10 @@ int __init DriverEntry(void)
   CR4_REG cr4;
 
   /* Initialize debugging port (COM_PORT_ADDRESS, see comio.h) */
-  PortInit();
-  ComInit();
+#ifdef DEBUG
+    PortInit();
+    ComInit();
+#endif
 
   GuestLog("Driver Routines");
   GuestLog("---------------");
