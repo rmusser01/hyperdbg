@@ -94,6 +94,7 @@ void VideoRestore(void);
 void VideoWriteChar(Bit8u, unsigned int, unsigned int, unsigned int);
 void VideoWriteString(char*, unsigned int, unsigned int, unsigned int, unsigned int);
 void VideoClear(Bit32u color);
-
+hvm_address VideoGetAddress(void);
+Bit32u VideoGetFrameBufferSize(void);
 #endif	/* _VIDEO_H */
 

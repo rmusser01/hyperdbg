@@ -81,24 +81,6 @@ void InitVMMIDT(PIDT_ENTRY pidt)
   }
 }
 
-hvm_status InitPlugin(void)
-{
-#ifdef ENABLE_HYPERDBG
-  /* Initialize the guest module of HyperDbg */
-  if(HyperDbgGuestInit() != HVM_STATUS_SUCCESS) {
-    GuestLog("ERROR: HyperDbg GUEST initialization error");
-    return HVM_STATUS_UNSUCCESSFUL;
-  }
-  /* Initialize the host module of HyperDbg */
-  if(HyperDbgHostInit() != HVM_STATUS_SUCCESS) {
-    GuestLog("ERROR: HyperDbg HOST initialization error");
-    return HVM_STATUS_UNSUCCESSFUL;
-  }
-#endif
-  
-  return HVM_STATUS_SUCCESS;
-}
-
 hvm_status FiniPlugin(void)
 {
 #ifdef ENABLE_HYPERDBG

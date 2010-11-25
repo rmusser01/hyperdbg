@@ -53,9 +53,7 @@
 /* Common to both PAE and non-PAE systems */
 #define VIRTUAL_PT_BASE     0xC0000000 
 
-#ifdef GUEST_WINDOWS
 static void *hostpt = NULL;
-#endif
 
 /* ########################## */
 /* #### LOCAL PROTOTYPES #### */
@@ -77,16 +75,24 @@ static hvm_status MmuFindUnusedPDE(hvm_address* pdwLogical);
 
 /* Initialize the MMU. Allocate the page table for the host, and define the CR3
    value that will be used when the CPU is executing in root mode */
-#ifdef GUEST_WINDOWS
+
+hvm_address MmuGetHostPT(void)
+{
+  return (hvm_address)hostpt;
+}
+
 hvm_status MmuInit(hvm_address *pcr3)
 {
   hvm_status r;
   hvm_phy_address phy;
   hvm_address cr3;
-
+  
   cr3 = RegGetCr3();
-
+#ifdef GUEST_WINDOWS
   hostpt = ExAllocatePoolWithTag(NonPagedPool, MMU_PAGE_SIZE, 'gbdh');
+#elif defined GUEST_LINUX
+  hostpt = kmalloc(MMU_PAGE_SIZE, GFP_KERNEL);
+#endif
   
   if (!hostpt) {
     GuestLog("[mmu-init] Failed to allocate non-paged pool for page table");
@@ -114,7 +120,7 @@ hvm_status MmuInit(hvm_address *pcr3)
     GuestLog("[mmu-init] Failed to read page table at 0x%.8x (CR3: 0x%.8x)", (hvm_address) hostpt, cr3);
     goto error;
   }
-  
+
   return HVM_STATUS_SUCCESS;
   
  error:
@@ -122,29 +128,30 @@ hvm_status MmuInit(hvm_address *pcr3)
 
 #ifdef GUEST_WINDOWS
     ExFreePoolWithTag(hostpt, 'gbdh');
+#elif defined GUEST_LINUX
+    kfree(hostpt);
 #endif
 
     hostpt = NULL;
   }
   return HVM_STATUS_UNSUCCESSFUL;
 }
-#endif
 
 /* Finalize the MMU. Deallocates the page table used by the CPU when running in
    root mode. */
-#ifdef GUEST_WINDOWS
 hvm_status MmuFini(void)
 {
   if (hostpt) {
 #ifdef GUEST_WINDOWS
     ExFreePoolWithTag(hostpt, 'gbdh');
+#elif defined GUEST_LINUX
+    kfree(hostpt);
 #endif
     hostpt = NULL;
   }
   
   return HVM_STATUS_SUCCESS;
 }
-#endif
 
 hvm_bool MmuIsAddressWritable(hvm_address cr3, hvm_address va)
 {

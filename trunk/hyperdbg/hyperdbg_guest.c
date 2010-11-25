@@ -86,7 +86,7 @@ hvm_status HyperDbgGuestInit(void)
 #error Invalid HyperDBG guest!
 #endif
 
-  GuestLog("[HyperDbg] Initialized!");
+  GuestLog("[HyperDbg] Guest initialization ok!");
 
   return HVM_STATUS_SUCCESS;
 }

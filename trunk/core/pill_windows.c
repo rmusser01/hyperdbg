@@ -34,6 +34,7 @@ static hvm_address HostCR3;
 /* Plugin & guest initialization/finalization */
 static hvm_status InitGuest(PDRIVER_OBJECT DriverObject);
 static hvm_status FiniGuest(void);
+static hvm_status InitPlugin(void);
 
 /* ################# */
 /* #### GLOBALS #### */
@@ -222,6 +223,25 @@ NTSTATUS DDKAPI DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Registr
   hvm_x86_ops.vt_finalize();
 
   return STATUS_UNSUCCESSFUL;
+}
+
+static hvm_status InitPlugin(void)
+{
+#ifdef ENABLE_HYPERDBG
+  /* Initialize the guest module of HyperDbg */
+  if(HyperDbgGuestInit() != HVM_STATUS_SUCCESS) {
+    GuestLog("ERROR: HyperDbg GUEST initialization error");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+
+  /* Initialize the host module of HyperDbg */
+  if(HyperDbgHostInit() != HVM_STATUS_SUCCESS) {
+    GuestLog("ERROR: HyperDbg HOST initialization error");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+#endif
+  
+  return HVM_STATUS_SUCCESS;
 }
 
 static hvm_status InitGuest(PDRIVER_OBJECT DriverObject)

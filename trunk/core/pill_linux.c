@@ -35,6 +35,7 @@ static hvm_address HostCR3;
 /* Plugin & guest initialization/finalization */
 static hvm_status InitGuest(void);
 static hvm_status FiniGuest(void);
+static hvm_status InitPlugin(void);
 
 /* ################ */
 /* #### BODIES #### */
@@ -118,7 +119,7 @@ void __exit DriverUnload(void)
   GuestLog("[vmm-unload] Freeing memory regions");
   
   hvm_x86_ops.vt_finalize();
-  /*  MmuFini(); */			/* Finalize the MMU (e.g., deallocate the host's PT) still not used under linux */       
+  MmuFini();			/* Finalize the MMU (e.g., deallocate the host's PT) still not used under linux */       
   GuestLog("[vmm-unload] Driver unloaded");
 }
 
@@ -169,14 +170,21 @@ int __init DriverEntry(void)
     GuestLog("Failed to initialize VT");
     goto error;
   }
-  
-  /* Initialize the MMU: Under linux we still use the kernel AS */
-/*   if (!HVM_SUCCESS(MmuInit(&HostCR3))) { */
-/*     GuestLog("Failed to initialize MMU"); */
-/*     goto error; */
-/*   } */
 
-  HostCR3 = RegGetCr3();
+#ifdef ENABLE_HYPERDBG
+  /* Initialize the guest module of HyperDbg */
+  if(HyperDbgGuestInit() != HVM_STATUS_SUCCESS) {
+    GuestLog("ERROR: HyperDbg GUEST initialization error");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+#endif
+  
+  /* Initialize the MMU */
+  if (!HVM_SUCCESS(MmuInit(&HostCR3))) {
+    GuestLog("Failed to initialize MMU");
+    goto error;
+  }
+  GuestLog("Using private CR3: %08x", HostCR3);
   
   /* Initialize guest-specific stuff */
   if (!HVM_SUCCESS(InitGuest())) {
@@ -211,6 +219,18 @@ int __init DriverEntry(void)
   return STATUS_UNSUCCESSFUL;
 }
 
+static hvm_status InitPlugin(void)
+{
+#ifdef ENABLE_HYPERDBG
+  /* Initialize the host module of HyperDbg */
+  if(HyperDbgHostInit() != HVM_STATUS_SUCCESS) {
+    GuestLog("ERROR: HyperDbg HOST initialization error");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+#endif
+  
+  return HVM_STATUS_SUCCESS;
+}
 
 static hvm_status InitGuest(void)
 {

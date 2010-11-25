@@ -31,6 +31,7 @@
 
 #include <linux/mm.h>
 #include <linux/io.h>
+#include <linux/ioport.h> // <---- request_mem_region
 #include "mmu.h"
 #define VIDEO_WRITE(value, address) iowrite32(value, (void *)address)
 #define VIDEO_READ(address) ioread32((void *)address)
@@ -128,7 +129,10 @@ hvm_status VideoAlloc(void)
 {
   PHYSICAL_ADDRESS pa;
   Bit32u i;
-  
+#ifdef GUEST_LINUX
+  Bit32u j, k, tmp;
+#endif
+
   pa.u.HighPart = 0;
   pa.u.LowPart  = video_address;
 
@@ -142,21 +146,41 @@ hvm_status VideoAlloc(void)
   }
   
   /* Map video memory */
-#ifdef GUEST_LINUX  
+#ifdef GUEST_LINUX
+  if (check_mem_region(video_address, framebuffer_size)) {
+    GuestLog("Video memory already in use!");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+  if(!request_mem_region(video_address, framebuffer_size, "hdbg_video")) { /* Must find a way to hide it from /proc */
+    GuestLog("Requesting mem region for video failed!");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
   video_mem = (void *)ioremap_nocache(video_address, framebuffer_size);
 #elif defined GUEST_WINDOWS
   video_mem = (Bit32u*) MmMapIoSpace(pa, framebuffer_size, MmWriteCombined);
 #endif
   
-  if (!video_mem)
-       return HVM_STATUS_UNSUCCESSFUL;
+  if (!video_mem) {
+    GuestLog("IoRemap failed!");
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+
+#ifdef GUEST_LINUX
+  /* We need to read from the newly mapped video memory to force it's mapping
+     *before* we call MmuInit */
+  for(k=0; k<VIDEO_DEFAULT_RESOLUTION_Y; k++) {
+    for(j=0; j<VIDEO_DEFAULT_RESOLUTION_X; j++) {
+      tmp = VIDEO_READ((void *)(video_mem + k * video_stride + j));
+    }
+  }
+#endif
   
 #if 0
   /* Debug code to draw a 100x100 white square at the top left of the screen.
      This can be used to test the video settings without actually breaking into
      HyperDbg. -jon
   */
-  int x, y;
+  //int x, y;
   for(y=0; y<100; y++) {
     for(x=0; x<100; x++) {
       VIDEO_WRITE(0xFFFFFFFF, (void *)(video_mem + y * video_stride + x));
@@ -165,6 +189,16 @@ hvm_status VideoAlloc(void)
 #endif
 
   return HVM_STATUS_SUCCESS;
+}
+
+hvm_address VideoGetAddress(void)
+{
+  return (hvm_address)video_mem;
+}
+
+Bit32u VideoGetFrameBufferSize(void)
+{
+  return framebuffer_size;
 }
 
 hvm_status VideoDealloc(void)

@@ -101,6 +101,8 @@ void       MmuVirtToPTE( hvm_address, hvm_address *);
 hvm_status MmuMapPhysicalSpace(hvm_address phy, Bit32u memSize, hvm_address* pva);
 hvm_status MmuUnmapPhysicalSpace(hvm_address firstPTEAddr, Bit32u memSize);
 
+hvm_address MmuGetHostPT(void);
+
 #define    MmuWriteVirtualRegion(cr3, va, buffer, size) MmuReadWriteVirtualRegion(cr3, va, buffer, size, TRUE)
 #define    MmuReadVirtualRegion(cr3, va, buffer, size)  MmuReadWriteVirtualRegion(cr3, va, buffer, size, FALSE)
 
