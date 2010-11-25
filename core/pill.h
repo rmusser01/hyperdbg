@@ -41,7 +41,6 @@
 #include "hyperdbg_host.h"
 #endif
 
-hvm_status InitPlugin(void);
 hvm_status FiniPlugin(void);
 
 #ifdef GUEST_WINDOWS
