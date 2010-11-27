@@ -751,8 +751,8 @@ static void CmdShowInfo(PHYPERDBG_CMD pcmd)
 
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    ***********************************************************                   ");
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *                                                         *                   ");
-  vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *                     HyperDbg " HYPERDBG_VERSION "                   *                   ");
-  vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *         " HYPERDBG_URL "         *                   ");
+  vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *                     HyperDbg %d                   *                   ", HYPERDBG_VERSION);
+  vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *            " HYPERDBG_URL "           *                   ");
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *          Coded by: martignlo, roby and joystick         *                   ");
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *      {lorenzo.martignoni,roberto.paleari}@gmail.com     *                   ");
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *             joystick@security.dico.unimi.it             *                   ");

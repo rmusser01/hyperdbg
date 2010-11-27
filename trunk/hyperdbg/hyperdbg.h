@@ -24,7 +24,10 @@
 #ifndef _HYPERDBG_H
 #define _HYPERDBG_H
 
+#ifndef HYPERDBG_VERSION
 #define HYPERDBG_VERSION  "20100325"
+#endif
+
 #define HYPERDBG_URL      "http://code.google.com/p/hyperdbg/"
 
 #include "types.h"
