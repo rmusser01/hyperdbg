@@ -5,8 +5,8 @@
 = Compilation =
 To compile HyperDbg and the analysis infrastructure you need different setups whether you want to compile it under Windows or Linux. Please see the appropriate wiki page:
 
- * [http://code.google.com/p/hyperdbg/wiki/Linux#Compilation]
- * [http://code.google.com/p/hyperdbg/wiki/Windows#Compilation]
+ * [http://code.google.com/p/hyperdbg/wiki/Linux#Compilation Linux]
+ * [http://code.google.com/p/hyperdbg/wiki/Windows#Compilation Windows]
 
 To compile HyperDbg simply run:
 
@@ -28,6 +28,8 @@ build /czgw
 after building !HyperGui, you can just ship !HyperGui.exe and hyperdbg.sys on the
 target machine and double click on HyperGui.exe. !HyperGui.exe also offers a
 command line interface.
+
+*NOTE*: we are soon going to port HyperGui to gcc too!
 
 = symbol2c.py =
 
