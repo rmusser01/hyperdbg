@@ -5,10 +5,8 @@
 = Compilation =
 To compile HyperDbg and the analysis infrastructure you need different setups whether you want to compile it under Windows or Linux. Please see the appropriate wiki page:
 
- * [http://code.google.com/p/hyperdbg/wiki/Linux#Compilation Linux]
- * [http://code.google.com/p/hyperdbg/wiki/Windows#Compilation Windows]
-
-
+ * [Linux]
+ * [Windows]
 
 = Video issues =
 
