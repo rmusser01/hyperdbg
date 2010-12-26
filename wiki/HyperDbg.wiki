@@ -19,7 +19,8 @@ the F12 hot-key is pressed or when a debug event occurs.
 The current version of HyperDbg is a prototype and will evolve drastically in
 the future. Currently the debugger allows to set breakpoints, to single step
 the execution of the kernel, to inspect the memory of the operating system and
-of a particular process. However, the debugger currently does not distinguish
+of a particular process. Furthermore, HyperDbg include some VM-Introspection techniques that allows to gather useful information about the state of its guest OS such as the list of the running processes, loaded modules and drivers and network connections. 
+However, the debugger currently does not distinguish
 between threads, has limited support for kernel's symbols, and has does not
 clone shared pages before setting a breakpoint. Future version of the debugger
 will be based on an enhanced version of the hypervisor that guarantees complete
@@ -30,7 +31,7 @@ HyperDbg currently only supports:
  * systems with PS/2 keyboards
  * systems with Intel VT-x
  * systems running 32-bit OSes and applications
- * Windows XP (SP2).
+ * Windows XP *and* Linux (still experimental).
 
 HyperDbg renders the GUI by writing directly to the memory of the video
 card. Some video cards are known to give problems. The debugger does not work
