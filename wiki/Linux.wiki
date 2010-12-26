@@ -1,4 +1,4 @@
-HyperDbg is almost completely OS-Independent. However, some of its part aren't (e.g.: the installation driver). In this page we will keep and updated record of the development status of linux support. 
+HyperDbg is almost completely OS-Independent. However, some of its part aren't (e.g.: the installation driver). In this page we will keep and updated record of the development status of Linux version. 
 
 = Linux Support =
 
