@@ -2,6 +2,10 @@
 
 = CHANGELOG =
 
+== 26 Dec 2010 ==
+
+We switched from WDK compiler to GCC and we now support Linux (still experimental). See [Linux] and [Windows] renewed compilation instructions!
+
 == 3 Aug 2010 ==
 
 === New Features: ===
