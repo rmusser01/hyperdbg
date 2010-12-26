@@ -24,7 +24,7 @@ So far we have tested it on different hardware and emulated machines running the
 $ make -f Makefile.windows
 }}}
 
-Please refer to this page: [http://code.google.com/p/hyperdbg/wiki/Video] if you are experiencing issues with the videocard.
+Please refer to the [Video] page if you are experiencing issues with the videocard.
 
 == Known Bugs && Limitations ==
 
