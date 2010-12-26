@@ -2,16 +2,34 @@ HyperDbg is almost completely OS-Independent. However, some of its part aren't (
 
 = Linux Support =
 
-Currently, the svn version of HyperDbg can be compiled with GCC. To do that, you need to have the proper kernel headers installed on your system.
-
-We have tested it on these distro/kernels:
+So far, linux support in HyperDbg is still experimental and far from being complete.
+However, we have tested it on these distro/kernels:
 
  * Debian *squeeze* 32bit/2.6.26.2
  * Debian *squeeze* 32bit/2.6.30.4
  * Debian *sid* 32bit/2.6.32.5
 
-At the moment, there's no support for PAE, so no _bigmem_ kernels so far.
+At the moment, there's no support for PAE, so no _bigmem_ kernels.
 
-== Known Bugs ==
+== Compilation == 
+
+ # Download HyperDbg from the repository, like explained here: [http://code.google.com/p/hyperdbg/source/checkout]
+ # Edit Makefile.linux with your favorite editor and find the following definitions:
+{{{
+-DVIDEO_DEFAULT_RESOLUTION_X=
+-DVIDEO_DEFAULT_RESOLUTION_Y=
+-DVIDEO_ADDRESS_MANUAL
+}}}
+ # Modify them to your needs. If you eliminate the -DVIDEO_ADDRESS_MANUAL row HyperDbg will try to automatically retrieve your video card address.
+ # Copy Makefile.linux over Kbuild
+ # Compile with the following command:
+{{{
+$ make -f Makefile.linux
+}}}
+
+== Known Bugs && Limitations ==
 
  * As for Windows, trying to use HyperDbg on a linux system where an accelerated video driver is being used will most probably lead to a failure
+ * We do not detect video resolution automatically
+ * No support for symbols
+ * No introspection techniques implemented
