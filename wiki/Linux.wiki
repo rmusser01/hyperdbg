@@ -17,7 +17,7 @@ At the moment, there's no support for PAE, so no _bigmem_ kernels.
 {{{
 # apt-get install linux-headers-$(uname -r)
 }}}
- # Download HyperDbg from the repository, like explained here: [http://code.google.com/p/hyperdbg/source/checkout]
+ # Download HyperDbg code like explained [http://code.google.com/p/hyperdbg/source/checkout here]
  # Edit Makefile.linux with your favorite editor and find the following definitions:
 {{{
 -DVIDEO_DEFAULT_RESOLUTION_X=
