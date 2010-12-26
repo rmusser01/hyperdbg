@@ -1,0 +1,17 @@
+HyperDbg is almost completely OS-Independent. However, some of its part aren't (e.g.: the installation driver). In this page we will keep and updated record of the development status of linux support. 
+
+= Linux Support =
+
+Currently, the svn version of HyperDbg can be compiled with GCC. To do that, you need to have the proper kernel headers installed on your system.
+
+We have tested it on these distro/kernels:
+
+ * Debian *squeeze* 32bit/2.6.26.2
+ * Debian *squeeze* 32bit/2.6.30.4
+ * Debian *sid* 32bit/2.6.32.5
+
+At the moment, there's no support for PAE, so no _bigmem_ kernels so far.
+
+== Known Bugs ==
+
+ * As for Windows, trying to use HyperDbg on a system where a accelerated video driver is being used will most probably lead to a failure
