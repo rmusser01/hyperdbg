@@ -29,7 +29,7 @@ after building !HyperGui, you can just ship !HyperGui.exe and hyperdbg.sys on th
 target machine and double click on HyperGui.exe. !HyperGui.exe also offers a
 command line interface.
 
-*NOTE*: we are soon going to port HyperGui to gcc too!
+*NOTE*: we are soon going to port !HyperGui to gcc too!
 
 = symbol2c.py =
 
