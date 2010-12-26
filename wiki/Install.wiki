@@ -1,77 +1,19 @@
 #labels Featured
 <wiki:toc max_depth="1" />
 
-*WARNING: the following instructions refer to the current stable version (i.e.:[http://code.google.com/p/hyperdbg/downloads/detail?name=hyperdbg_20100325.zip&can=2&q= hyperdbg_20100325.zip]) be aware that, if you are using the current svn version, something may differ.*
 
 = Compilation =
-To compile HyperDbg and the analysis infrastructure you need the Microsoft
-Windows Driver Kit (WDK). You can download the WDK from:
+To compile HyperDbg and the analysis infrastructure you need different setups whether you want to compile it under Windows or Linux. Please see the appropriate wiki page:
 
-  http://www.microsoft.com/whdc/driver/wdk/
-
-Unfortunately, this version of HyperDbg is unable to automatically detect the
-user defined resolution. Thus, you need to choose the desired resolution at
-compile-time.
+ * [http://code.google.com/p/hyperdbg/wiki/Linux#Compilation]
+ * [http://code.google.com/p/hyperdbg/wiki/Windows#Compilation]
 
 To compile HyperDbg simply run:
 
-{{{
-build_code.cmd hyperdbg <xresolution> <yresolution>
-}}}
-
-As an example, to compile for a target machine with a resolution of 800x600 use
-the syntax:
-
-{{{
-build_code.cmd hyperdbg 800 600
-}}}
-
 = Video issues =
 
-If automatic video card detection does not work on your system (e.g., detection
-will not work if you are going to test HyperDbg on Bochs), please disable
-automatic video card detection *before compiling*, by uncommenting the
-following line in hyperdbg/video.c:
+Please check out the Video wiki page if you are experiencing problems with your video card and HyperDbg [http://code.google.com/p/hyperdbg/wiki/Video]
 
-{{{
-#define VIDEO_ADDRESS_MANUAL
-}}}
-
-and manually set the address of the video card memory by defining the
-`DEFAULT_VIDEO_ADDRESS` macro, like below:
-
-{{{
-#define DEFAULT_VIDEO_ADDRESS 0xdeadbeef // where 0xdeadbeef is the address on your machine
-}}}
-
-To find the appropriate value for this macro, you just need to go to 'Control
-Panel' and double-click on 'System'. Then, switch to the 'Hardware' tab and
-click on Hardware Devices'. From there, locate the entry of your video card,
-right-click on it and select 'Properties'. Go to the 'Resources' tab and find
-'Memory Interval', the reported value is the one that you need to insert in the
-code. It is possible to find multiple entries labeled as 'Memory Interval'; if
-this is the case, select the bigger interval, it will look like something like
-this:
-
-{{{
-Memory Interval   0xE0000000 - 0xE0FFFFFF
-}}}
-
-If you have a linux installation on the same machine and feel more confident
-with linux tools, just run from a terminal the command:
-
-{{{
-$ lspci -vvv
-}}}
-
-once located the entry relative to your video card, you will find a line
-similar to this:
-
-{{{
-Region 1: Memory at d0000000 (32-bit, prefetchable) [size=128M]
-}}}
-
-{{{d0000000}}} is the address you need to set in the code.
 
 = !HyperGui =
   
