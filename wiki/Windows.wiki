@@ -1,0 +1,11 @@
+HyperDbg is almost completely OS-Independent. However, some of its part aren't (e.g.: the installation driver). In this page we will keep and updated record of the development status of Windows version.
+
+= Windows Support =
+
+Windows XP is the first system HyperDbg was developed for, but even if it is still under development, this version of HyperDbg is stabler than the one used under Linux.
+
+So far we have tested it on different hardware and emulated machines running the following versions of Windows:
+ * Windows XP SP2
+ * Windows XP SP3
+
+== Compilation == 
