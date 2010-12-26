@@ -14,4 +14,4 @@ At the moment, there's no support for PAE, so no _bigmem_ kernels so far.
 
 == Known Bugs ==
 
- * As for Windows, trying to use HyperDbg on a system where a accelerated video driver is being used will most probably lead to a failure
+ * As for Windows, trying to use HyperDbg on a linux system where an accelerated video driver is being used will most probably lead to a failure
