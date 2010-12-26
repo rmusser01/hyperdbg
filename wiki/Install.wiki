@@ -8,7 +8,7 @@ To compile HyperDbg and the analysis infrastructure you need different setups wh
  * [http://code.google.com/p/hyperdbg/wiki/Linux#Compilation Linux]
  * [http://code.google.com/p/hyperdbg/wiki/Windows#Compilation Windows]
 
-To compile HyperDbg simply run:
+
 
 = Video issues =
 
