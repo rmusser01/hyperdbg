@@ -13,6 +13,10 @@ At the moment, there's no support for PAE, so no _bigmem_ kernels.
 
 == Compilation == 
 
+ # If you don't have them already, download headers for your kernel:
+{{{
+# apt-get install linux-headers-$(uname -r)
+}}}
  # Download HyperDbg from the repository, like explained here: [http://code.google.com/p/hyperdbg/source/checkout]
  # Edit Makefile.linux with your favorite editor and find the following definitions:
 {{{
