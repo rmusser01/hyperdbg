@@ -27,6 +27,9 @@ At the moment, there's no support for PAE, so no _bigmem_ kernels.
 $ make -f Makefile.linux
 }}}
 
+Please refer to this page: [http://code.google.com/p/hyperdbg/wiki/Video] if you are experiencing issues with the videocard.
+
+
 == Known Bugs && Limitations ==
 
  * As for Windows, trying to use HyperDbg on a linux system where an accelerated video driver is being used will most probably lead to a failure
