@@ -10,8 +10,7 @@ To compile HyperDbg and the analysis infrastructure you need different setups wh
 
 = Video issues =
 
-Please check out the Video wiki page if you are experiencing problems with your video card and HyperDbg [http://code.google.com/p/hyperdbg/wiki/Video]
-
+Please check out the [Video] wiki page if you are experiencing problems with your video card and HyperDbg.
 
 = !HyperGui =
   
