@@ -31,7 +31,7 @@ HyperDbg currently only supports:
  * systems with PS/2 keyboards
  * systems with Intel VT-x
  * systems running 32-bit OSes and applications
- * Windows XP *and* Linux (still experimental).
+ * Windows XP *and* Linux (still experimental, click [http://code.google.com/p/hyperdbg/wiki/Linux here] for more info).
 
 HyperDbg renders the GUI by writing directly to the memory of the video
 card. Some video cards are known to give problems. The debugger does not work
