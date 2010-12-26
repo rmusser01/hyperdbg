@@ -8,4 +8,25 @@ So far we have tested it on different hardware and emulated machines running the
  * Windows XP SP2
  * Windows XP SP3
 
-== Compilation == 
+== Compilation ==
+
+ # Download and install `MinGW` and `MSYS` [http://sourceforge.net/projects/mingw/files/Automated%20MinGW%20Installer/mingw-get-inst/mingw-get-inst-20101030/ here]
+ # Download HyperDbg code like explained here [http://code.google.com/p/hyperdbg/source/checkout here]
+ # Edit Makefile.windows with your favorite editor and find the following definitions:
+{{{
+-DVIDEO_DEFAULT_RESOLUTION_X=
+-DVIDEO_DEFAULT_RESOLUTION_Y=
+-DVIDEO_ADDRESS_MANUAL
+}}}
+ # Modify them to your needs. If you eliminate the -DVIDEO_ADDRESS_MANUAL row HyperDbg will try to automatically retrieve your video card address.
+ # Compile with the following command:
+{{{
+$ make -f Makefile.windows
+}}}
+
+Please refer to this page: [http://code.google.com/p/hyperdbg/wiki/Video] if you are experiencing issues with the videocard.
+
+== Known Bugs && Limitations ==
+
+ * Trying to use HyperDbg on a Windows system where an accelerated video driver is being used will most probably lead to a failure
+ * The option xpauto (-DXPVIDEO) is not currently working: see issue #4
