@@ -2,6 +2,9 @@
 We currently use the following setup for the development and testing of HyperDbg
 
 = Compiling =
+
+*NOTE: the following instructions refer to older versions of HyperDbg, please refer to renewed instructions if you want to compile the SVN version: [Linux] [Windows]*
+
 To compile HyperDbg code, we usually upload the code into a Virtual Box virtual machine running Windows XP. To compile the code, you need to install the [http://www.microsoft.com/whdc/devtools/wdk/wdkpkg.mspx Windows Driver Kit].
 
 We believe that the quickest way to share the code between the development machine and the one used to compile is to use Virtual Box's shared folders. To compile, open a *Windows XP x86 Free Build Environment* shell, move to the shared directory where HyperDbg code resides ($HDBG), and type:
