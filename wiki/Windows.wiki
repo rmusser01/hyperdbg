@@ -11,7 +11,7 @@ So far we have tested it on different hardware and emulated machines running the
 == Compilation ==
 
  # Download and install `MinGW` and `MSYS` [http://sourceforge.net/projects/mingw/files/Automated%20MinGW%20Installer/mingw-get-inst/mingw-get-inst-20101030/ here]
- # Download HyperDbg code like explained here [http://code.google.com/p/hyperdbg/source/checkout here]
+ # Download HyperDbg code like explained [http://code.google.com/p/hyperdbg/source/checkout here]
  # Edit Makefile.windows with your favorite editor and find the following definitions:
 {{{
 -DVIDEO_DEFAULT_RESOLUTION_X=
