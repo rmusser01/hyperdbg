@@ -1,8 +1,8 @@
-HyperDbg is almost completely OS-Independent. However, some of its part aren't (e.g.: the installation driver). In this page we will keep and updated record of the development status of Windows version.
+HyperDbg is almost completely OS-Independent. However, some of its part aren't (e.g., the installation driver). In this page we will keep an updated record of the development status of the Windows version.
 
 = Windows Support =
 
-Windows XP is the first system HyperDbg was developed for, but even if it is still under development, this version of HyperDbg is stabler than the one used under Linux.
+Windows XP is the first system HyperDbg was developed for. Even if still under development, this version of HyperDbg is more stable than the one for Linux.
 
 So far we have tested it on different hardware and emulated machines running the following versions of Windows:
  * Windows XP SP2
@@ -11,7 +11,7 @@ So far we have tested it on different hardware and emulated machines running the
 == Compilation ==
 
  # Download and install `MinGW` and `MSYS` [http://sourceforge.net/projects/mingw/files/Automated%20MinGW%20Installer/mingw-get-inst/mingw-get-inst-20101030/ here]
- # Download HyperDbg code like explained [http://code.google.com/p/hyperdbg/source/checkout here]
+ # Download HyperDbg code as explained [http://code.google.com/p/hyperdbg/source/checkout here]
  # Edit Makefile.windows with your favorite editor and find the following definitions:
 {{{
 -DVIDEO_DEFAULT_RESOLUTION_X=
@@ -24,7 +24,7 @@ So far we have tested it on different hardware and emulated machines running the
 $ make -f Makefile.windows
 }}}
 
-Please refer to the [Video] page if you are experiencing issues with the videocard.
+Please refer to the [Video] page if you are experiencing issues with the video card.
 
 == Known Bugs && Limitations ==
 
