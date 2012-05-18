@@ -2,6 +2,24 @@
 
 = CHANGELOG =
 
+== 18 May 2012 ==
+
+=== Bug Fixes: ===
+Some minor bug fixes.
+
+=== Support for new guests: ===
+ * Windows 7 (tested on Home Basic / Home Premium): http://goo.gl/DgmxI
+ * Linux Kernel 3.2 without PAE (tested on Debian): http://goo.gl/GSIjp
+
+=== New Features: ===
+ * 16 entries cyclic command history
+ * memory dump and disassembler commands are now CR3 specific
+ * breakpoints can be set as permanent and CR3 dependent
+ * breakpoints listing
+ * VM-Introspection for Win 7: IPv4/v6, Processes, Drivers
+ * VM-Introspection for Linux: IPv4, Processes (Modules are WIP)
+ * experimental features to mangle with Win 7 scheduler
+
 == 26 Dec 2010 ==
 
 We switched from WDK compiler to GCC and we now support Linux (still experimental). See [Linux] and [Windows] renewed compilation instructions!
