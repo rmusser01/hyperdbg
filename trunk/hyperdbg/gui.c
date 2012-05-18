@@ -30,10 +30,7 @@
 #include "common.h"
 #include "extern.h"    /* From libudis */
 #include "symsearch.h"
-
-#ifdef GUEST_WINDOWS
-#include "winxp.h"
-#endif
+#include "process.h"
 
 /* ################# */
 /* #### GLOBALS #### */
@@ -220,7 +217,11 @@ void VideoRefreshOutArea(unsigned int color)
 
 void VideoPrintHeader(void)
 {
-  Bit32u i, numberofdash, pos;
+  Bit32u i, numberofdash, pos, len;
+  hvm_address pid, tid;
+  hvm_status r;
+  char str_tmp[64], str_pid[16], str_tid[16], str_name[36];
+  
   char *name;
 
   name = "=[ HyperDbg ]=";
@@ -234,45 +235,41 @@ void VideoPrintHeader(void)
 
   VideoWriteChar('+', RED, SHELL_SIZE_X-1, 0);
   pos = (SHELL_SIZE_X/2) - (vmm_strlen(name)/2);
-#ifdef GUEST_WINDOWS
-  {
-    Bit32u l, len;
-    hvm_address pep, pid, tid;
-    hvm_status r;
-    char str_tmp[64], str_pid[16], str_tid[16], str_name[16];
 
-    /* PID */
-    r = WindowsFindProcessPid(context.GuestContext.cr3, &pid);
-    if (r == HVM_STATUS_SUCCESS) {
-      vmm_snprintf(str_pid, sizeof(str_pid), "%.4x", pid);
-    } else {
-      vmm_snprintf(str_pid, sizeof(str_pid), "N/A");
-    }
-
-    /* TID */
-    r = WindowsFindProcessTid(context.GuestContext.cr3, &tid);
-    if (r == HVM_STATUS_SUCCESS) {
-      vmm_snprintf(str_tid, sizeof(str_tid), "%.4x", tid);
-    } else {
-      vmm_snprintf(str_tid, sizeof(str_tid), "N/A");
-    }
-
-    /* Process name */
-    r = WindowsFindProcessName(context.GuestContext.cr3, str_name);
-    if (r != HVM_STATUS_SUCCESS) {
-      vmm_snprintf(str_name, sizeof(str_name), "N/A");
-    }
-
-    vmm_memset(str_tmp, 0, sizeof(str_tmp));
-    vmm_snprintf(str_tmp, sizeof(str_tmp), 
-		 "=[pid: %s; tid: %s; name: %s]=", str_pid, str_tid, str_name);
-    VideoWriteString(str_tmp, vmm_strlen(str_tmp), LIGHT_GREEN, 2, 0);
-    /* Check if we have to move 'name' a little more to the right */
-    len = vmm_strlen(str_tmp) + 3;
-    if(len > pos && len < SHELL_SIZE_X - vmm_strlen(name))
-      pos = len;
+  /* PID */
+  r = ProcessFindProcessPid(context.GuestContext.cr3, &pid);
+  if(r == HVM_STATUS_SUCCESS) {
+    vmm_snprintf(str_pid, sizeof(str_pid), "%.4x", pid);
   }
-#endif
+  else {
+    vmm_snprintf(str_pid, sizeof(str_pid), "N/A");
+  }
+
+  /* TID */
+  r = ProcessFindProcessTid(context.GuestContext.cr3, &tid);
+  if(r == HVM_STATUS_SUCCESS) {
+    vmm_snprintf(str_tid, sizeof(str_tid), "%.4x", tid);
+  }
+  else {
+    vmm_snprintf(str_tid, sizeof(str_tid), "N/A");
+  }
+
+  /* Process name */
+  vmm_memset(str_name, 0, 36);
+  r = ProcessGetNameByPid(context.GuestContext.cr3, pid, str_name);
+  if (r != HVM_STATUS_SUCCESS) {
+    vmm_snprintf(str_name, sizeof(str_name), "N/A");
+  }
+
+  vmm_memset(str_tmp, 0, sizeof(str_tmp));
+  vmm_snprintf(str_tmp, sizeof(str_tmp), 
+	       "=[pid: %s; tid: %s; name: %s]=", str_pid, str_tid, str_name);
+  VideoWriteString(str_tmp, vmm_strlen(str_tmp), LIGHT_GREEN, 2, 0);
+  /* Check if we have to move 'name' a little more to the right */
+  len = vmm_strlen(str_tmp) + 3;
+  if(len > pos && len < SHELL_SIZE_X - vmm_strlen(name))
+    pos = len;
+
   VideoWriteString(name, vmm_strlen(name), WHITE, pos, 0);
 }
 

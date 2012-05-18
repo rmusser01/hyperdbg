@@ -228,6 +228,67 @@ static Bit32u vmm_power(Bit32u base, Bit32u exp)
   else return (Bit32u) (base * vmm_power(base, exp-1));
 }
 
+int vmm_atoi(const char* str)
+{
+  int exp(int x, int y)
+  {
+    int res;
+    if (y==0)
+      return 1;
+
+    for (res=x ; y>1; y--)
+      res= res*x;
+    return res;
+  }
+  
+  int i,len;
+  int res=0;
+  
+  /* Get string length */
+  for (len=0 ; str[len]!='\0' ; len++);
+  
+  /* convert every character */
+  
+  for (i=0 ; i<len ; i++)
+    {
+      switch (str[i])
+	{
+	case '0':
+	  break;
+	case '1':
+	  res= res + exp(10,len-(i+1));
+	  break;
+	case '2':
+	  res= res + 2 * exp(10,len-(i+1));
+	  break;
+	case '3':
+	  res= res + 3 * exp(10,len-(i+1));
+	  break;
+	case '4':
+	  res= res + 4 * exp(10,len-(i+1));
+	  break;
+	case '5':
+	  res= res + 5 * exp(10,len-(i+1));
+	  break;
+	case '6':
+	  res= res + 6 * exp(10,len-(i+1));
+	  break;
+	case '7':
+	  res= res + 7 * exp(10,len-(i+1));
+	  break;
+	case '8':
+	  res= res + 8 * exp(10,len-(i+1));
+	  break;
+	case '9':
+	  res= res + 9 * exp(10,len-(i+1));
+	  break;
+	default:
+	  return 0;
+	}
+    }
+  return res;
+}
+
 static unsigned char vmm_chartohex(char c)
 {
   switch(c) {

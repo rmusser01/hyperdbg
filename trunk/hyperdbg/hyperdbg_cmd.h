@@ -26,6 +26,32 @@
 
 #include "hyperdbg.h"
 
+/* ################ */
+/* #### MACROS #### */
+/* ################ */
+
+#define HYPERDBG_CMD_CHAR_SW_BP          'b'
+#define HYPERDBG_CMD_CHAR_SW_PERM_BP     'B'
+#define HYPERDBG_CMD_CHAR_CONTINUE       'c'
+#define HYPERDBG_CMD_CHAR_DISAS          'd'
+#define HYPERDBG_CMD_CHAR_DELETE_SW_BP   'D'
+#define HYPERDBG_CMD_CHAR_LIST_BP        'L'
+#define HYPERDBG_CMD_CHAR_HELP           'h'
+#define HYPERDBG_CMD_CHAR_INFO           'i'
+#define HYPERDBG_CMD_CHAR_SYMBOL_NEAREST 'n'
+#define HYPERDBG_CMD_CHAR_SHOWMODULES    'm'
+#define HYPERDBG_CMD_CHAR_SHOWPROCESSES  'p'
+#define HYPERDBG_CMD_CHAR_SHOWREGISTERS  'r'
+#define HYPERDBG_CMD_CHAR_SHOWSOCKETS    'w'
+#define HYPERDBG_CMD_CHAR_SINGLESTEP     's'
+#define HYPERDBG_CMD_CHAR_BACKTRACE      't'
+#define HYPERDBG_CMD_CHAR_SYMBOL         'S'
+#define HYPERDBG_CMD_CHAR_DUMPMEMORY     'x'
+#define HYPERDBG_CMD_CHAR_UNLINK_PROC    'f'
+#define HYPERDBG_CMD_CHAR_RELINK_PROC    'u'
+
+#define CHAR_IS_SPACE(c) (c==' ' || c=='\t' || c=='\f')
+
 hvm_bool HyperDbgProcessCommand(Bit8u *cmd);
 
 #endif	/* _HYPERDBG_CMD_H */

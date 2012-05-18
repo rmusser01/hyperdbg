@@ -36,7 +36,7 @@
 #include "debug.h"
 #include "vt.h"
 #include "video.h"
-
+#include "mmu.h"
 
 /* ################# */
 /* #### GLOBALS #### */
@@ -71,6 +71,10 @@ hvm_status HyperDbgGuestInit(void)
   hyperdbg_state.initialized = TRUE;
   hyperdbg_state.enabled = FALSE;
   hyperdbg_state.singlestepping = FALSE;
+  hyperdbg_state.TF_on = FALSE;
+  hyperdbg_state.IF_on = FALSE;
+  hyperdbg_state.console_mode = TRUE;
+  hyperdbg_state.hasPermBP = FALSE;
   hyperdbg_state.ntraps = 0;
   
   /* Init guest-specific fields */

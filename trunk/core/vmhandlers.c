@@ -33,6 +33,8 @@
 /* When this variable is TRUE, we are single stepping over an I/O
    instruction */
 static hvm_bool isIOStepping = FALSE;
+static hvm_bool TF_on;
+static hvm_bool IF_on;
 
 EVENT_PUBLISH_STATUS HypercallSwitchOff(PEVENT_ARGUMENTS args)
 {
@@ -151,6 +153,9 @@ void HandleIO(Bit16u port, hvm_bool isoutput, Bit8u size, hvm_bool isstring, hvm
     /* Re-exec faulty instruction */
     context.GuestContext.resumerip = context.GuestContext.rip;
 
+    TF_on = (context.GuestContext.rflags & FLAGS_TF_MASK) != 0 ? TRUE : FALSE;
+    IF_on = (context.GuestContext.rflags & FLAGS_IF_MASK) != 0 ? TRUE : FALSE;
+
     /* Enable single-step, but don't trap current instruction */
     context.GuestContext.rflags = context.GuestContext.rflags | FLAGS_TF_MASK | FLAGS_RF_MASK;
   }
@@ -166,9 +171,13 @@ void HandleVMCALL(void)
   event.hypernum = context.GuestContext.rax;
   s = EventPublish(EventHypercall, NULL, &event, sizeof(event));
 
-  if (s == EventPublishNone) {
-    /* Unexisting hypercall */
-    Log("Unimplemented hypercall #%.8x", context.GuestContext.rax);
+  if (s == EventPublishNone || s == EventPublishPass) {
+    /* Unexisting hypercall: must inject #UD into guest OS */
+    hvm_x86_ops.hvm_inject_hw_exception(TRAP_INVALID_OP, HVM_DELIVER_NO_ERROR_CODE);
+    
+    Log("Invalid opcode exception injected");
+
+    context.GuestContext.resumerip = context.GuestContext.rip;
   }
 }
 
@@ -177,7 +186,7 @@ void HandleVMLAUNCH(void)
 {
   /* The interruption error code should be undefined, so we just copy the one
      passed by the CPU */
-  hvm_x86_ops.hvm_inject_hw_exception(TRAP_INVALID_OP, 0);  
+  hvm_x86_ops.hvm_inject_hw_exception(TRAP_INVALID_OP, HVM_DELIVER_NO_ERROR_CODE);
 
   /* Re-exec faulty instruction */
   context.GuestContext.resumerip = context.GuestContext.rip;
@@ -223,8 +232,16 @@ void HandleNMI(Bit32u trap, Bit32u error_code, Bit32u qualification)
 	 that trap), and no plugin handled it. We can safely disable
 	 single-stepping */
 
-      /* TODO: Check if TF was not enabled by the guest before!!! */
+      if(IF_on) {
+	context.GuestContext.rflags = FLAGS_TO_ULONG(context.GuestContext.rflags) | FLAGS_IF_MASK;
+      }
+      if(TF_on) {
+	context.GuestContext.rflags = FLAGS_TO_ULONG(context.GuestContext.rflags) | FLAGS_TF_MASK;
+      }
+      else {
       context.GuestContext.rflags = FLAGS_TO_ULONG(context.GuestContext.rflags) & ~FLAGS_TF_MASK;
+      }
+
     } else {
       /* Pass hw exception to the guest OS */
       hvm_x86_ops.hvm_inject_hw_exception(trap, error_code);

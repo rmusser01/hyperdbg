@@ -74,7 +74,7 @@ typedef struct _RFLAGS
   unsigned OF		:1;
   unsigned DF		:1;
   unsigned IF		:1;		// Interrupt flag
-  unsigned TF		:1;		// Task flag
+  unsigned TF		:1;		// Trap flag
   unsigned SF		:1;		// Sign flag
   unsigned ZF		:1;		// Zero flag
   unsigned Reserved3	:1;
@@ -92,6 +92,7 @@ typedef struct _RFLAGS
 #define FLAGS_SF_MASK (1 << 7)
 #define FLAGS_TF_MASK (1 << 8)
 #define FLAGS_IF_MASK (1 << 9)
+#define FLAGS_OF_MASK (1 << 11)
 #define FLAGS_RF_MASK (1 << 16)
 #define FLAGS_TO_ULONG(f) (*(hvm_address*)(&f))
 

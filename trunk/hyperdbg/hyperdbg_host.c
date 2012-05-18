@@ -35,6 +35,11 @@
 #include "sw_bp.h"
 #include "vt.h"
 #include "symsearch.h"
+#include "mmu.h"
+
+#ifdef GUEST_WINDOWS
+#include "winxp.h"
+#endif
 
 /* ################ */
 /* #### MACROS #### */
@@ -64,6 +69,17 @@ static EVENT_PUBLISH_STATUS HyperDbgHypercallUser(PEVENT_ARGUMENTS args);
 static void HyperDbgEnter(void);
 static void HyperDbgCommandLoop(void);
 
+/* ##################### */
+/* #### GLOBAL VARS #### */
+/* ##################### */
+
+#define DUMP_BUFFER_SIZE 100
+
+Bit8u keyboard_history[16][256];
+unsigned int history_index = 0;
+hvm_bool history_full = FALSE;
+int current_cmd = 0;
+
 /* ################ */
 /* #### BODIES #### */
 /* ################ */
@@ -73,21 +89,7 @@ static void HyperDbgCommandLoop(void);
    further parameters can be specified in other registers or on the stack */
 static EVENT_PUBLISH_STATUS HyperDbgHypercallUser(PEVENT_ARGUMENTS args)
 {
-  hvm_address request_number;
-  request_number = context.GuestContext.rbx;
-
-  Log("[HyperDbg] Request from non-root mode 0x%x", request_number);
-  
-  switch(request_number) {
-  case 0x00:
-    /* Do some stuff */
-    break;
-  default:
-    Log("[HyperDbg] Unknown call request 0x%x!", request_number);
-    break;
-  }
-  
-  return EventPublishHandled;
+  return EventPublishPass;
 }
 
 /* Not used right now */
@@ -113,7 +115,7 @@ static void HyperDbgEnter(void)
       Log("[HyperDbg] Cannot allocate video memory!");
   }
 
-  Log("[HyperDbg] Entering HyperDbg command loop");
+  Log("[HyperDbg] Entering HyperDbg command loop"); 
 
   HyperDbgCommandLoop();
 
@@ -126,7 +128,7 @@ static void HyperDbgCommandLoop(void)
 {
   hvm_address flags;
   Bit8u c, keyboard_buffer[256];
-  int i;
+  Bit32s i;
   hvm_bool isMouse, exitLoop;
   exitLoop = FALSE;
     
@@ -134,20 +136,36 @@ static void HyperDbgCommandLoop(void)
   flags = RegGetFlags();
   /* Disable interrupts (only if they were enabled) */
   RegSetFlags(flags & ~FLAGS_IF_MASK);
+
+#if 0
+  /* Debug code for mmu read/write testing. Inject a infinite loop on guest. */
+  char *buf = "\xeb\xfe";
+
+  Log("[HyperDbgCommandLoop] Try to inject a infinite loop on guest");
+  Log("[HyperDbgCommandLoop] Guest cr3 is 0x%08hx",context.GuestContext.cr3);
+  Log("[HyperDbgCommandLoop] Have to replace guest resumeip with loop code, stored in buffer %08hx", buf);
+
+  MmuWriteVirtualRegion(context.GuestContext.cr3, context.GuestContext.rip, buf, 2);
+  context.GuestContext.resumerip = context.GuestContext.rip;
+
+#endif
   
   if (VideoEnabled()) {
     /* Backup video memory */
+
     if (!hyperdbg_state.singlestepping)
       VideoSave();
+
     VideoInitShell();
   }
   
   /* We are not currently single-stepping */
-  hyperdbg_state.singlestepping = FALSE;
-  
-  i = 0;
+  hyperdbg_state.singlestepping = FALSE;  
+
+  /* Initialize kbd buffer */
   vmm_memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
-  
+ 
+  i = 0;
   while (1) {
     if (KeyboardReadKeystroke(&c, FALSE, &isMouse) != HVM_STATUS_SUCCESS) {
       /* Sleep for some time, just to avoid full busy waiting */
@@ -181,9 +199,51 @@ static void HyperDbgCommandLoop(void)
 
     case '\n':
       /* End of command */
+      
+      vmm_memset(keyboard_history[history_index], 0, sizeof(keyboard_history[history_index]));
+      vmm_strncpy((unsigned char *)(&keyboard_history[history_index]), (unsigned char *)(&keyboard_buffer), 256);
+      
+      if(history_index == 15 && !history_full) {
+	history_full = TRUE;
+      }
+
+      history_index = (history_index + 1)%16;
+      current_cmd = history_index;
+      if(history_index == 0) current_cmd = 16;
+
       exitLoop = HyperDbgProcessCommand(keyboard_buffer);
       i = 0;
       vmm_memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
+      break;
+
+    case 0x3:
+      /* Up Arrow */
+      if(history_full || current_cmd > 0) {
+	if(current_cmd <= 0)
+	  current_cmd = 16;
+	else
+	  current_cmd = (current_cmd - 1)%16;
+	
+	vmm_memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
+	VideoUpdateShell(keyboard_buffer);
+	vmm_strncpy((unsigned char *)(&keyboard_buffer), (unsigned char *)(&keyboard_history[current_cmd]), 256);
+	i = (int) vmm_strlen(keyboard_buffer);
+	VideoUpdateShell(keyboard_buffer);
+      }
+      break;
+
+    case 0x4:
+      /* Down Arrow */
+      if(history_full || current_cmd < history_index) {
+	current_cmd = (current_cmd + 1)%16;
+	
+	vmm_memset(keyboard_buffer, 0, sizeof(keyboard_buffer));
+
+	VideoUpdateShell(keyboard_buffer);
+	vmm_strncpy((unsigned char *)(&keyboard_buffer), (unsigned char *)(&keyboard_history[current_cmd]), 256);
+	i = (int) vmm_strlen(keyboard_buffer);
+	VideoUpdateShell(keyboard_buffer);
+      }
       break;
 
     case '\t':
@@ -216,7 +276,7 @@ static void HyperDbgCommandLoop(void)
   }
 
   /* Restore original flags */
-/*   RegSetFlags(flags); */
+  /* RegSetFlags(flags); */
 }
 
 /* Invoked for write operations to the keyboard I/O port */
@@ -256,24 +316,117 @@ static EVENT_PUBLISH_STATUS HyperDbgIOHandler(PEVENT_ARGUMENTS args)
 
 static EVENT_PUBLISH_STATUS HyperDbgSwBpHandler(PEVENT_ARGUMENTS args)
 {
-  hvm_bool ours;
+  hvm_bool isCr3Dipendent, isPerm, useless;
+  hvm_address ours_cr3, flags, uselesss;
 
-  /* DeleteSwBp will check if this bp has been setup by us and eventually reset it */
-  Log("[HyperDbg] checking bp @%.8x", context.GuestContext.rip);
-  ours = SwBreakpointDelete(context.GuestContext.cr3, context.GuestContext.rip);
-  if(!ours) { /* Pass it to the guest */
-    return EventPublishPass;
+#ifdef GUEST_WIN_7
+  hvm_status r;
+  Bit8u success = 0;
+#endif
+
+  if(hyperdbg_state.console_mode) {
+
+    if(context.GuestContext.rip == hyperdbg_state.unlink_bp_addr) {
+
+#ifdef GUEST_WIN_7
+      r = Windows7UnlinkProc(hyperdbg_state.target_cr3, hyperdbg_state.target_pep, hyperdbg_state.target_kthread, &hyperdbg_state.dispatcher_ready_index, &success);
+      if(r != HVM_STATUS_SUCCESS) Log("Error on scheduling BP");
+
+      if(success) {
+      /* Remove breakpoint for unlinking */
+	r = MmuWriteVirtualRegion(context.GuestContext.cr3, hyperdbg_state.unlink_bp_addr, &hyperdbg_state.opcode_backup_unlink, sizeof(Bit8u));
+      }
+      /* emulate pop %edi */
+      r = MmuReadVirtualRegion(context.GuestContext.cr3, context.GuestContext.rsp, &context.GuestContext.rdi, sizeof(context.GuestContext.rdi));
+      if(r != HVM_STATUS_SUCCESS) Log("[HyperDbg] Special BP failed. Unable to read rsp head.");
+      context.GuestContext.rsp += 4;
+
+      context.GuestContext.resumerip = hyperdbg_state.unlink_bp_addr+1;
+#endif
+    }
+    else if(context.GuestContext.rip == hyperdbg_state.relink_bp_addr) {
+
+#ifdef GUEST_WIN_7          
+      if(context.GuestContext.rax + context.GuestContext.rcx == hyperdbg_state.dispatcher_ready_index) {
+      
+	/* Relink target kthread */
+	r = Windows7RelinkProc(context.GuestContext.cr3, hyperdbg_state.target_kthread, hyperdbg_state.dispatcher_ready_index);
+      
+	/* Remove breakpoint for relinking */
+	r = MmuWriteVirtualRegion(context.GuestContext.cr3, hyperdbg_state.relink_bp_addr, &hyperdbg_state.opcode_backup_relink, sizeof(Bit8u));
+      }
+
+      /* emulate push %edi */
+      context.GuestContext.rsp -= 4;
+      r = MmuWriteVirtualRegion(context.GuestContext.cr3, context.GuestContext.rsp, &context.GuestContext.rdi, sizeof(context.GuestContext.rdi));
+
+      context.GuestContext.resumerip = hyperdbg_state.relink_bp_addr+1;
+#endif
+    }
+    else {
+
+      Log("[HyperDbg] checking bp @%.8x", context.GuestContext.rip);
+      /* We need to check also the cr3, because guest can use CopyOnWrite */
+      if(SwBreakpointGetBPInfo(context.GuestContext.cr3, context.GuestContext.rip, &isCr3Dipendent, &isPerm, &ours_cr3)) {
+
+	Log("[HyperDbg] bp is ours, %s %s", isPerm?"permanent":"", isCr3Dipendent?"and cr3dipendent":"");	
+	/* Update guest RIP to re-execute the faulty instruction */
+	context.GuestContext.resumerip = context.GuestContext.rip;
+
+	if(!isPerm) {
+
+	  if(isCr3Dipendent && context.GuestContext.cr3 != ours_cr3) {
+	    /* It's not the context we want, so we simply exec this istruction and reinsert BP, like a perm BP with wrong cr3 */
+	    /* Log("[HyperDbg] bp is ours but cr3 is wrong...ours is 0x%08hx", ours_cr3); */
+	    goto PermBP;
+	  }
+
+	  SwBreakpointDelete(context.GuestContext.cr3, context.GuestContext.rip);
+
+	  HyperDbgEnter();
+	}
+	else {
+PermBP:
+	  if(!isCr3Dipendent || (isCr3Dipendent && context.GuestContext.cr3 == ours_cr3)) {
+	    SwBreakpointDeletePerm(context.GuestContext.cr3, context.GuestContext.rip);
+	    HyperDbgEnter();
+	  }
+
+	  if(SwBreakpointGetBPInfo(context.GuestContext.cr3, context.GuestContext.rip, &useless, &useless, &uselesss)) {
+	  
+	    SwBreakpointDelete(ours_cr3, context.GuestContext.rip);
+
+	    /* Fetch guest EFLAGS */
+	    flags = context.GuestContext.rflags;
+	  
+	    /* Enable single-step, but don't trap current instruction */
+	    flags |= FLAGS_TF_MASK;
+	    flags |= FLAGS_RF_MASK;
+	    /* Temporarly disable interrupts in the guest so that the single-stepping instruction isn't interrupted */
+	    flags &= ~FLAGS_IF_MASK;
+	    /* Store info on old flags */
+	    hyperdbg_state.TF_on = (context.GuestContext.rflags & FLAGS_TF_MASK) != 0 ? TRUE : FALSE;
+	    hyperdbg_state.IF_on = (context.GuestContext.rflags & FLAGS_IF_MASK) != 0 ? TRUE : FALSE;
+	    /* When catch #DB, we have to check if we are in this case */
+	    hyperdbg_state.hasPermBP = TRUE;
+	    hyperdbg_state.previous_codeaddr = context.GuestContext.rip;
+	    hyperdbg_state.isPermBPCr3Dipendent = isCr3Dipendent;
+	    hyperdbg_state.bp_cr3 = ours_cr3;
+
+	    context.GuestContext.rflags = flags;
+	  }
+	}
+      }
+      else return EventPublishPass;
+
+      Log("[HyperDbg] Done!");
+    }
   }
+  else { 
 
-  Log("[HyperDbg] bp is ours, resetting GUEST_RIP to %.8x", context.GuestContext.rip);
-
-  /* Update guest RIP to re-execute the faulty instruction */
-  context.GuestContext.resumerip = context.GuestContext.rip;
-
-  Log("[HyperDbg] Done!");
-
-  HyperDbgEnter();
-
+    /* This is a BP set by an hypercall */
+  }
+ 
   return EventPublishHandled;
 }
 
@@ -284,31 +437,45 @@ static EVENT_PUBLISH_STATUS HyperDbgDebugHandler(PEVENT_ARGUMENTS args)
   /* Check if we are single-stepping or not. This is needed because #DB
      exceptions are also generated by the core mechanisms that handles I/O
      instructions */
-  if (!hyperdbg_state.singlestepping)
+  if (!hyperdbg_state.singlestepping && !hyperdbg_state.hasPermBP)
     return EventPublishPass;
 
-  /* FIXME: unset iff TF has not been set by the guest */
-  /* Unset TF and hide it to the guest */
+  /* Restore EFLAGS and hide it to the guest */
   flags = context.GuestContext.rflags;
-  flags &= ~FLAGS_TF_MASK; 
+  
+  if(hyperdbg_state.IF_on) {
+    flags |= FLAGS_IF_MASK;
+  }
+  if(hyperdbg_state.TF_on) {
+    flags |= FLAGS_TF_MASK;
+  }
+  else {
+    flags &= ~FLAGS_TF_MASK;
+  }
   context.GuestContext.rflags = flags;
 
   /* Update guest RIP to re-execute the faulty instruction */
   context.GuestContext.resumerip = context.GuestContext.rip;
 
-  HyperDbgEnter();
+  if(hyperdbg_state.singlestepping) {
+    HyperDbgEnter();
 
-  /* Let's set RF to 1 so that we won't trap when really executing the instruction */
-  flags = context.GuestContext.rflags;
-  flags |= FLAGS_RF_MASK;
-  context.GuestContext.rflags = flags;
+    /* Let's set RF to 1 so that we won't trap when really executing the instruction */
+    flags = context.GuestContext.rflags;
+    flags |= FLAGS_RF_MASK;
+    context.GuestContext.rflags = flags;
+  }
+
+  /* Enable this if you have problem with permanent BPs */
+  /* if(hyperdbg_state.hasPermBP) { */
+  /*   Log("[HyperDbg] Set again breakpoint (cr3 0x%08x, addr 0x%08hx) at index %d", hyperdbg_state.bp_cr3, hyperdbg_state.previous_codeaddr, SwBreakpointSet(hyperdbg_state.bp_cr3, hyperdbg_state.previous_codeaddr, TRUE, hyperdbg_state.isPermBPCr3Dipendent)); */
+  /* } */
 
   return EventPublishHandled;
 }
 
 EVENT_PUBLISH_STATUS HyperDbgIO(void)
 {
-  
   return EventPublishHandled;
 }
 

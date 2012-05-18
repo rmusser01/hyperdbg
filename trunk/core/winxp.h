@@ -24,11 +24,11 @@
 #ifndef _PILL_WINXP_H
 #define _PILL_WINXP_H
 
-#include <ddk/ntddk.h>
-
 #include "types.h"
 #include "process.h"
 #include "network.h"
+
+#include <ddk/ntddk.h>
 
 /* Default segment selectors */
 #define WINDOWS_DEFAULT_DS 0x23
@@ -36,6 +36,95 @@
 
 /* In-memory location of IDT base address */
 #define WINDOWS_PIDT_BASE  0xffdff038
+
+/* Structure offsets */
+
+#ifdef GUEST_WIN_7
+
+#define OFFSET_EPROCESS_QUANTUMRESET     0x061
+#define OFFSET_EPROCESS_UNIQUEPID        0x0b4
+#define OFFSET_EPROCESS_ACTIVELINKS      0x0b8
+#define OFFSET_EPROCESS_IMAGEFILENAME    0x16c
+#define OFFSET_EPROCESS_FLAGS            0x270
+#define OFFSET_EPROCESS_EXITSTATUS       0x274 
+
+#define OFFSET_KPROCESS_STATE            0x000
+
+#define OFFSET_KPROCESS_THREADLISTHEAD   0x02c
+#define OFFSET_KPROCESS_READYLISTHEAD    0x044
+
+#define OFFSET_ETHREAD_CID               0x22c
+
+#define OFFSET_KTHREAD_STATE             0x068
+#define OFFSET_KTHREAD_WAITLISTENTRY     0x074
+#define OFFSET_KTHREAD_QUEUELISTENTRY    0x120
+#define OFFSET_KTHREAD_PROCESS           0x150
+#define OFFSET_KTHREAD_QUANTUMRESET      0x197
+#define OFFSET_KTHREAD_THREADLISTENTRY   0x1e0
+
+#define KTHREAD_STATE_RUNNING            0x002
+#define KTHREAD_STATE_READY              0x001
+
+#define OFFSET_EPROCESS_PEB              0x1a8
+
+#define OFFSET_PEB_LDRDATA               0x00c
+
+/* scheduling offsets */
+
+#define OFFSET_PRCB_CURRENT_THREAD      0x0004
+#define OFFSET_PRCB_NEXT_THREAD         0x0008
+#define OFFSET_PRCB_IDLE_THREAD         0x000c
+
+/* LIST_ENTRY struct */
+#define OFFSET_PRCB_WAITLISTHEAD        0x31e0
+/* 32 bits bitmap */
+#define OFFSET_PRCB_READYSUMMARY        0x31ec
+/* array of 32 _LIST_ENTRY struct */
+#define OFFSET_PRCB_DISPATCHER_READY    0x3220
+/* _SINGLE_LIST_ENTRY struct */
+#define OFFSET_PRCB_DEFERRED_READY      0x31f4
+
+/* tcpip.sys internal offsets for Win 7 32 bit */
+
+#define SOCKETS                        0x00000
+#define UDP                            0x00001
+
+#define OFFSET_PARTITION_TABLE         0xf7020
+#define OFFSET_PARTITION_COUNTER       0xf7026
+
+#define OFFSET_PART_ENTRY_MAXNUM       0x00008
+#define OFFSET_PART_ENTRY_HASHTABLE    0x00020
+
+#define OFFSET_IPINFO_PORTS            0x00024
+#define OFFSET_IPINFO_PEPROCESS        0x00160
+#define OFFSET_IPINFO_IPADDRESSES     -0x00004
+#define OFFSET_REMOTE_IP               0x00008
+#define OFFSET_LOCAL_IP                0x00080
+#define OFFSET_IPv6_1                 -0x00008
+#define OFFSET_IPv6_2                  0x0000c
+
+#define OFFSET_TCP_PORT_POOL_PTR       0xf77a0
+#define OFFSET_UDP_PORT_POOL_PTR       0xf7a5c
+
+#define OFFSET_BITMAP_SIZE             0x00050
+#define OFFSET_BITMAP_PTR              0x00054
+#define OFFSET_PAGES_ARRAY             0x00058
+#define OFFSET_SOCKET_LOCAL_PORT      -0x00002
+#define OFFSET_SOCKET_REMOTE_PORT      0x0000c
+#define OFFSET_SOCKET_PEPROCESS       -0x00028
+
+#define OFFSET_SOCKET_IPv6_1          -0x00038
+#define OFFSET_SOCKET_IPv6_2           0x0000c
+
+#define OFFSET_UDP_LOCAL_PORT         -0x00004
+#define OFFSET_UDP_PEPROCESS          -0x00034
+
+#define OFFSET_LISTEN_LOCAL_IP         0x00080
+
+#define OFFSET_UDP_IPv6_1             -0x00038
+#define OFFSET_UDP_IPv6_2              0x0000c
+
+#else /* GUEST_WINDOWS XP */
 
 /* Structure offsets */
 #define OFFSET_EPROCESS_UNIQUEPID      0x084
@@ -53,7 +142,8 @@
 #define OFFSET_KTHREAD_QUEUELISTENTRY  0x118
 #define OFFSET_KTHREAD_THREADLISTENTRY 0x1b0
 
-#define KTHREAD_STATE_RUNNING          0x02
+#define KTHREAD_STATE_RUNNING          0x002
+#define OFFSET_KPROCESS_THREADLISTHEAD 0x050
 
 #define OFFSET_EPROCESS_ACTIVELINKS    0x088
 #define OFFSET_EPROCESS_PEB            0x1b0
@@ -72,6 +162,8 @@
 #define OFFSET_ADDRESS_OBJECT_PROTOCOL   0x032
 #define OFFSET_ADDRESS_OBJECT_PID        0x148
 #define OFFSET_ADDRESS_OBJECT_CREATETIME 0x158
+
+#endif
 
 /* Bits */
 #define EPROCESS_FLAGS_EXITING (1 << 2)
@@ -270,7 +362,9 @@ hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid);
 hvm_status WindowsFindProcessName(hvm_address cr3, char* name);
 hvm_status WindowsGetNextProcess(hvm_address cr3, PROCESS_DATA* pprev, PROCESS_DATA* pnext);
 hvm_status WindowsGetNextModule(hvm_address cr3, MODULE_DATA* pprev, MODULE_DATA* pnext);
-
+hvm_status Windows7UnlinkProc(hvm_address cr3, hvm_address target_pep, hvm_address target_kthread, unsigned int *dispatcher_index, Bit8u *success);
+hvm_status Windows7RelinkProc(hvm_address cr3, hvm_address target_kthread, hvm_address dispatcher_index);
+hvm_status Windows7FindTargetInfo(hvm_address cr3, hvm_address *target_pep, hvm_address *target_kthread);
 /* Network-related functions */
 hvm_status WindowsBuildSocketList(hvm_address cr3, SOCKET* buf, Bit32u maxsize, Bit32u *psize);
 

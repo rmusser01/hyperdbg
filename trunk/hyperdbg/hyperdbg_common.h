@@ -28,6 +28,8 @@
 
 #define HYPERDBG_MAGIC_SCANCODE     88	/* F12 */
 
+#define MAXSWBPS 100
+
 /* Information related to the state of the internal Linux guest */
 typedef struct {
   /* TODO! */
@@ -50,6 +52,19 @@ typedef struct {
   /* This variable is TRUE when guest single-stepping is enabled */
   hvm_bool singlestepping;
 
+  /* These variable is TRUE(the first) and used when we have set a permanent breakpoint */
+  hvm_bool hasPermBP;
+  hvm_address previous_codeaddr;
+  hvm_bool isPermBPCr3Dipendent;
+  hvm_address bp_cr3;
+  
+  /* These variables are needed for right alteration of EFLAGS in singlestepping */
+  hvm_bool TF_on;
+  hvm_bool IF_on;
+
+  /* This variable is TRUE when HyperDbg running in console mode */
+  hvm_bool console_mode;
+
   /* The interrupt vector that the PIC maps to the keyboard IRQ */
   Bit8u keyb_vector;
 
@@ -60,6 +75,20 @@ typedef struct {
     WIN_STATE   win_state;
     LINUX_STATE linux_state;
   };
+
+  /* Variables for process freeze */
+  hvm_address target_cr3;
+  hvm_address target_kthread;
+  hvm_address target_pep;
+  hvm_address unlink_bp_addr;
+  hvm_address relink_bp_addr;
+  unsigned int dispatcher_ready_index;
+  Bit8u opcode_backup_unlink;
+  Bit8u opcode_backup_relink;
+
+  /* Variables for process BPs and singlestepping */
+  hvm_address bp_addr_target;
+
 } HYPERDBG_STATE;
 
 extern HYPERDBG_STATE hyperdbg_state;

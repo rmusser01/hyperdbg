@@ -36,6 +36,7 @@ Bit32s         vmm_strncmpi(unsigned char *str1, unsigned char *str2, Bit32u n);
 Bit32u         vmm_strlen(unsigned char *str);
 hvm_bool       vmm_strtoul(char *str, Bit32u *out);
 void           vmm_memset(void *s, int c, Bit32u n);
+int            vmm_atoi(const char* str);
 
 int            vmm_snprintf(char* c, size_t s, const char* cc, ...);
 int            vmm_vsnprintf(char* c, size_t s, const char* cc, va_list l);

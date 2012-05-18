@@ -55,6 +55,7 @@
 #define IER_RESERVED1                   (1 << 6)
 #define IER_RESERVED2                   (1 << 7)
 
+//static Bit16u  DebugComPort = 0;
 static Bit16u  DebugComPort = 0;
 static Bit32u  ComSpinLock;	/* Spin lock that guards accesses to the COM port */
 
@@ -63,7 +64,6 @@ void ComInit()
 #ifdef GUEST_LINUX
   /* FIXME: check if serial port has already been initialized */
   /* and restore the original guest encoding (port + 3) upon an enter */
-
   IoWritePortByte(DebugComPort + 1, 0x00);    // Disable all interrupts
   IoWritePortByte(DebugComPort + 3, 0x80);    // Enable DLAB (set baud rate divisor)
   IoWritePortByte(DebugComPort + 0, 0x03);    // Set divisor to 3 (lo byte) 38400 baud
@@ -71,9 +71,12 @@ void ComInit()
   IoWritePortByte(DebugComPort + 3, 0x03);    // 8 bits, no parity, one stop bit
   IoWritePortByte(DebugComPort + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
   IoWritePortByte(DebugComPort + 4, 0x0B);    // IRQs enabled, RTS/DSR set
+#else
+#warning "Windows serial support is currently not working properly in VmWare Workstation 8"
 #endif
 
   CmInitSpinLock(&ComSpinLock);
+
  }
 
 void ComPrint(const char* fmt, ...)
@@ -81,19 +84,16 @@ void ComPrint(const char* fmt, ...)
   va_list args;
   char str[1024] = {0};
   unsigned int i;
-  
+
   CmAcquireSpinLock(&ComSpinLock);
   
   va_start(args, fmt);
   vmm_vsnprintf(str, sizeof(str), fmt, args);
   va_end(args);  
-  
   for (i = 0; i < vmm_strlen(str); i++)
     PortSendByte(str[i]);
-  
   CmReleaseSpinLock(&ComSpinLock);
 }
-
 
 Bit8u ComIsInitialized()
 {

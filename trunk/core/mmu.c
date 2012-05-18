@@ -85,9 +85,11 @@ hvm_status MmuInit(hvm_address *pcr3)
 {
   hvm_status r;
   hvm_phy_address phy;
-  hvm_address cr3;
-  
+  hvm_address cr3, pde_addr;
+  PTE pde;
+    
   cr3 = RegGetCr3();
+
 #ifdef GUEST_WINDOWS
   hostpt = ExAllocatePoolWithTag(NonPagedPool, MMU_PAGE_SIZE, 'gbdh');
 #elif defined GUEST_LINUX
@@ -121,6 +123,17 @@ hvm_status MmuInit(hvm_address *pcr3)
     goto error;
   }
 
+#ifdef ENABLE_PAE
+  // FIXME
+#else  
+  /* Fix entry 0x300 of PD with new cr3. Indeed, this entry must map the PD
+     itself, as it's the one used to map Page Tables into Virtual Memory */
+  pde_addr = (hvm_address) (GET32L(phy) + (0x300 * sizeof(PTE)));
+  r = MmuReadPhysicalRegion(pde_addr, &pde, sizeof(PTE));
+  pde.PageBaseAddr = (CR3_ALIGN((hvm_address) GET32L(phy)) >> 12);
+  r = MmuWritePhysicalRegion(pde_addr, &pde, 4);
+#endif
+  
   return HVM_STATUS_SUCCESS;
   
  error:
@@ -207,7 +220,7 @@ hvm_status MmuGetPhysicalAddress(hvm_address cr3, hvm_address va, hvm_phy_addres
   }
 
   *pphy = FRAME_TO_PHY(pte.PageBaseAddr) + MMU_PAGE_OFFSET(va);
-  
+
   return HVM_STATUS_SUCCESS;
 }
 
@@ -221,12 +234,13 @@ hvm_status MmuMapPhysicalPage(hvm_phy_address phy, hvm_address* pva, PPTE pentry
   MmuPrint("[MMU] MmuMapPhysicalPage() Searching for unused PTE...\n");
   r = MmuFindUnusedPTE(&dwLogicalAddress);
   MmuPrint("[MMU] MmuMapPhysicalPage() Unused PTE found at %.8x\n", dwLogicalAddress);
-  
+
   if (r != HVM_STATUS_SUCCESS)
     return HVM_STATUS_UNSUCCESSFUL;
   
 #ifdef GUEST_WINDOWS
-  dwEntryAddress = VIRTUAL_PT_BASE + (VA_TO_PTE(dwLogicalAddress) * sizeof(PTE));
+  dwEntryAddress = VIRTUAL_PT_BASE + ((( VA_TO_PDE(dwLogicalAddress) ) << 12) |  (VA_TO_PTE(dwLogicalAddress) * sizeof(PTE)));
+  //  dwEntryAddress = VIRTUAL_PT_BASE + (VA_TO_PTE(dwLogicalAddress) * sizeof(PTE));
 #elif defined GUEST_LINUX 
   /* DIRTY HACK: we call this again to avoid refactoring of FindUnusedPTE */
   MmuPrint("dwLogicalAddress: %08x", dwLogicalAddress);
@@ -267,8 +281,8 @@ hvm_status MmuUnmapPhysicalPage(hvm_address va, PTE entryOriginal)
 
   /* Restore original PTE */
 #ifdef GUEST_WINDOWS
-  // FIXME: check if this also works on Linux
-  pentry = (PPTE) (VIRTUAL_PT_BASE + (VA_TO_PTE(va) * sizeof(PTE)));
+  pentry = (PPTE) (VIRTUAL_PT_BASE + (((VA_TO_PDE(va) ) << 12 ) |  (VA_TO_PTE(va) * sizeof(PTE))));
+  // pentry = (PPTE) (VIRTUAL_PT_BASE + (VA_TO_PTE(va) * sizeof(PTE)));
 #elif defined GUEST_LINUX
   MmuVirtToPTE(va, (hvm_address*) &pentry);
 #endif
@@ -295,6 +309,7 @@ hvm_status MmuReadWritePhysicalRegion(hvm_phy_address phy, void* buffer, Bit32u 
   r = MmuMapPhysicalPage(phy, &dwLogicalAddress, &entryOriginal);
   if (r != HVM_STATUS_SUCCESS)
     return HVM_STATUS_UNSUCCESSFUL;
+  
   dwLogicalAddress += MMU_PAGE_OFFSET(phy);
   
   if (!isWrite) {
@@ -322,8 +337,8 @@ hvm_status MmuReadWriteVirtualRegion(hvm_address cr3, hvm_address va, void* buff
   Bit32u i, n;
 
   i = 0;
-  MmuPrint("[MMU] MmuReadWriteVirtualRegion() cr3: %.8x va: %.8x size: %.8x isWrite? %d\n",
-	   CR3_ALIGN(cr3), va, size, isWrite);
+
+  MmuPrint("[MMU] MmuReadWriteVirtualRegion() cr3: %.8x va: %.8x size: %.8x isWrite? %d\n", CR3_ALIGN(cr3), va, size, isWrite);
 
   while (va+i < va+size) {
     n = MIN(size-i, MMU_PAGE_SIZE - MMU_PAGE_OFFSET(va+i));
@@ -331,9 +346,10 @@ hvm_status MmuReadWriteVirtualRegion(hvm_address cr3, hvm_address va, void* buff
     if (r != HVM_STATUS_SUCCESS)
       return HVM_STATUS_UNSUCCESSFUL;
 
-    MmuPrint("[MMU] MmuReadWriteVirtualRegion() Reading phy %.8x (write? %d)\n",
-	     phy, isWrite);
-    r = MmuReadWritePhysicalRegion(phy, (void*) ((hvm_address)buffer+i), n, isWrite);    
+    MmuPrint("[MMU] MmuReadWriteVirtualRegion() Reading phy %.8x (write? %d)\n", phy, isWrite);
+
+    r = MmuReadWritePhysicalRegion(phy, (void*) ((hvm_address)buffer+i), n, isWrite);
+    
     MmuPrint("[MMU] MmuReadWriteVirtualRegion() Read! Success? %d\n", (r == HVM_STATUS_SUCCESS));
 
     if (r != HVM_STATUS_SUCCESS)
@@ -388,7 +404,7 @@ static hvm_status MmuGetPageEntry (hvm_address cr3, hvm_address va, PPTE ppte, h
   }
   
   MmuPrint("[MMU] MmuGetPageEntry() PDE read. Present? %d Large? %d\n", p.Present, p.LargePage);
-  
+
   if (!p.Present)
     return HVM_STATUS_UNSUCCESSFUL;
   
@@ -475,7 +491,8 @@ static hvm_status MmuFindUnusedPTE(hvm_address* pdwLogical)
     if (!PDE_TO_VALID(dwPDE))
       continue;
     
-    dwPTEAddr = VIRTUAL_PT_BASE + (VA_TO_PTE(dwCurrentAddress) * sizeof(PTE));
+    //    dwPTEAddr = VIRTUAL_PT_BASE + (VA_TO_PTE(dwCurrentAddress) * sizeof(PTE));
+    dwPTEAddr = (VIRTUAL_PT_BASE + ((( VA_TO_PDE(dwCurrentAddress) ) << 12 ) | (VA_TO_PTE(dwCurrentAddress) * sizeof(PTE))));
     dwPTE = READ_PTE(dwPTEAddr);
 
     if (PDE_TO_VALID(dwPTE)) {
@@ -500,151 +517,6 @@ static hvm_bool MmuGetCr0WP(void)
   CR0_TO_ULONG(cr0_reg) = RegGetCr0();
 
   return (cr0_reg.WP != 0);
-}
-
-/* FIXME: please refactor */
-static hvm_status MmuFindUnusedPTEs(hvm_address* pdwLogical, int goal)
-{
-  hvm_address dwCurrentAddress, dwPTEAddr, start, end;
-  int r = 0;
-#ifdef GUEST_WINDOWS
-  hvm_address dwPDEAddr;
-  start = MMU_PAGE_SIZE; 
-  end   = 0x80000000;
-#elif defined GUEST_LINUX
-  start = PAGE_OFFSET;
-  end   = 0xfffff000;
-#endif
-
-  for (dwCurrentAddress=start; (dwCurrentAddress < end)&&(r<goal); dwCurrentAddress += MMU_PAGE_SIZE){
-    /* Check if memory page at logical address 'dwCurrentAddress' is free */
-#ifdef GUEST_LINUX
-    Bit32u dwPTE;
-    MmuVirtToPTE(dwCurrentAddress, &dwPTEAddr);
-    if (dwPTEAddr == 0){
-      r = 0;
-      *pdwLogical = 0;
-      continue;
-    }
-#elif defined GUEST_WINDOWS
-#ifdef ENABLE_PAE
-    Bit64u dwPDE, dwPTE;
-    dwPDEAddr = VIRTUAL_PD_BASE + ((VA_TO_PDE(dwCurrentAddress) | (VA_TO_PDPTE(dwCurrentAddress) << 9)) * sizeof(PTE));
-#else
-    Bit32u dwPDE, dwPTE;
-    dwPDEAddr = VIRTUAL_PD_BASE + (VA_TO_PDE(dwCurrentAddress) * sizeof(PTE));
-#endif
-      
-    dwPDE = READ_PTE(dwPDEAddr);
-    if (!PDE_TO_VALID(dwPDE)){
-      r = 0;
-      *pdwLogical= (hvm_address) NULL;
-      continue;
-    }  
-    dwPTEAddr = VIRTUAL_PT_BASE + (VA_TO_PTE(dwCurrentAddress) * sizeof(PTE));
-#endif
-
-    dwPTE = READ_PTE(dwPTEAddr);
-    if (PDE_TO_VALID(dwPTE)) {
-      /* Skip *valid* PTEs */
-      r= 0;
-      *pdwLogical = 0;
-      continue;
-      
-    }
-    
-    /* Found!*/
-    /* Take the address of the every first free PTE */
-    if (r==0)
-      *pdwLogical = dwCurrentAddress;
-    r++;
-  } /* for(;;) */
-
-  if ( (r == goal) || (pdwLogical!=NULL) )
-    return HVM_STATUS_SUCCESS;
-  else
-    return HVM_STATUS_UNSUCCESSFUL;
-}
-
-hvm_status MmuUnmapPhysicalSpace(hvm_address va, Bit32u memSize){
-  int i, numOfPages;
-  hvm_address dwEntryAddress;
-  PPTE pentry;
-
-  numOfPages= memSize/MMU_PAGE_SIZE;
-  if(memSize % MMU_PAGE_SIZE != 0)
-    numOfPages++;
-
-  for ( i=0; i< numOfPages; i++ ){
-#ifdef GUEST_WINDOWS
-    dwEntryAddress = VIRTUAL_PT_BASE + (VA_TO_PTE(va + i*(MMU_PAGE_SIZE))*sizeof(PTE));
-#elif defined GUEST_LINUX
-    MmuVirtToPTE(va + i*(MMU_PAGE_SIZE), &dwEntryAddress);
-#endif
-    
-    /* make each PTE non-valid by setting the Present Bit*/
-    pentry= (PPTE) dwEntryAddress;
-    if ((i==0) || (i== numOfPages-1)){
-      Log("[&PTE:%.8x] Unmapping from phy_address %.8x", dwEntryAddress, pentry->PageBaseAddr);
-    }
-    pentry->Present= 0;
-  }
-  
-  hvm_x86_ops.mmu_tlb_flush();
-  
-  return HVM_STATUS_SUCCESS;
-}
-
-hvm_status MmuMapPhysicalSpace(hvm_address phy, Bit32u memSize, hvm_address* pva){ 
-  int numOfPages, i;
-  hvm_address dwEntryAddress, dwLogicalAddress = 0;
-  PPTE pentry;
-  
-  numOfPages = memSize/MMU_PAGE_SIZE;
-  if(memSize % MMU_PAGE_SIZE != 0)
-    numOfPages++;
-
-  /* Seek for enough unused PTEs in the current process */
-  if (!HVM_SUCCESS(MmuFindUnusedPTEs(&dwLogicalAddress, numOfPages))){
-    Log("[MMU] MmuMapPhysicalSpace() mapping of %iB from %.8x failed\n", memSize, phy);  
-    return HVM_STATUS_UNSUCCESSFUL;
-  }
-   
-  /* Map physical space to obtained logical addresses */ 
-  for(i = 0; i < numOfPages; i++){
-#ifdef GUEST_WINDOWS
-    dwEntryAddress = VIRTUAL_PT_BASE + (VA_TO_PTE(dwLogicalAddress + i*(MMU_PAGE_SIZE))*sizeof(PTE));
-#elif defined GUEST_LINUX    
-    MmuVirtToPTE(dwLogicalAddress + i*MMU_PAGE_SIZE, &dwEntryAddress);
-#endif
-
-#if 0
-    if (i ==0) Log("[MMU] [MmuMapPhysicalSpace] first usable PTE found at %.8x; &PTE:%.8x", dwLogicalAddress, dwEntryAddress);   
-    if (i == numOfPages-1) Log("[MMU] [MmuMapPhysicalSpace] last usable PTE found at %.8x; &PTE:%.8x", dwLogicalAddress, dwEntryAddress);   
-#endif
-    
-    pentry = (PPTE) dwEntryAddress;
-  
-    /* Replace PT entry */
-    pentry->Present         = 1;
-    pentry->Writable        = 1;
-    pentry->Owner           = 1;
-    pentry->WriteThrough    = 0;
-    pentry->CacheDisable    = 0;
-    pentry->Accessed        = 0;
-    pentry->Dirty           = 0;
-    pentry->LargePage       = 0;
-    pentry->Global          = 0;
-    pentry->ForUse1         = 0;
-    pentry->ForUse2         = 0;
-    pentry->ForUse3         = 0;
-    pentry->PageBaseAddr    = PHY_TO_FRAME(phy + i*(MMU_PAGE_SIZE));
-  }
-  
-  hvm_x86_ops.mmu_tlb_flush();
-
-  *pva = dwLogicalAddress;
-  return HVM_STATUS_SUCCESS;
 }
 
 #if 0

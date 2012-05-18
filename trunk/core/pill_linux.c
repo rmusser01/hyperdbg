@@ -22,6 +22,9 @@
 
 #include "pill.h"
 #include <asm/io.h>
+#include "linux.h"
+#include <linux/module.h>
+#include <linux/kobject.h>
 module_init(DriverEntry);
 module_exit(DriverUnload);
 
@@ -137,7 +140,6 @@ int __init DriverEntry(void)
   GuestLog("Driver Routines");
   GuestLog("---------------");
   GuestLog("   Driver Entry:  %.8x", (hvm_address) DriverEntry);
-  GuestLog("   Driver Unload: %.8x", (hvm_address) DriverUnload);
   GuestLog("   StartVT:       %.8x", (hvm_address) StartVT);
   GuestLog("   VMMEntryPoint: %.8x", (hvm_address) hvm_x86_ops.hvm_handle_exit);
 
@@ -196,6 +198,11 @@ int __init DriverEntry(void)
   if (!HVM_SUCCESS(InitPlugin())) {
     GuestLog("Failed to initialize plugin");
     goto error;
+  }
+
+  if (!HVM_SUCCESS(LinuxInitStructures())) {
+	GuestLog("Failed to initialize data structures");
+	goto error;
   }
 
   DoStartVT();

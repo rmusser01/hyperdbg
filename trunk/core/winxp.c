@@ -34,7 +34,6 @@
 
 #define SHAREDUSERDATA 0x7ffe0000
 #define KUSER_SHARED_DATA_PHYPAGES_OFFSET 0x2e8
-
 #define SystemModuleInformation 11
 
 /* ############### */
@@ -49,10 +48,14 @@ static struct {
   PEPROCESS PsInitialSystemProcess;
 } WindowsSymbols;
 
-static hvm_address WindowsFindPsLoadedModuleList(PDRIVER_OBJECT DriverObject);
+#ifdef GUEST_WIN_7
+static hvm_status  Windows7FindNetworkConnections(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
+static hvm_status  Windows7FindNetworkData(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize, unsigned int type);
+#else
 static hvm_status  WindowsFindNetworkConnections(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
 static hvm_status  WindowsFindNetworkSockets(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
-
+#endif
+static hvm_address WindowsFindPsLoadedModuleList(PDRIVER_OBJECT DriverObject);
 
 /* ################ */
 /* #### BODIES #### */
@@ -62,6 +65,20 @@ static hvm_status  WindowsFindNetworkSockets(hvm_address cr3, SOCKET *buf, Bit32
 hvm_status WindowsInit(PDRIVER_OBJECT DriverObject)
 {
   UNICODE_STRING u;
+
+  hvm_address fs;
+
+  __asm__ __volatile__ (
+
+			"push %%eax\n"
+			"mov %%fs:0x20, %%eax\n"
+			"mov %%eax, %0\n"
+			"pop %%eax\n"
+			:"=m"(fs)
+			::"memory"
+			);
+
+  Log("fs is 0x%x", fs);
 
   RtlInitUnicodeString(&u, L"NtQuerySystemInformation");
   WindowsSymbols.NtQuerySystemInformation = (NTQUERYSYSTEMINFORMATION) MmGetSystemRoutineAddress(&u);  
@@ -73,6 +90,7 @@ hvm_status WindowsInit(PDRIVER_OBJECT DriverObject)
   RtlInitUnicodeString(&u, L"PsInitialSystemProcess");
   WindowsSymbols.PsInitialSystemProcess= (PEPROCESS) *((PEPROCESS*) MmGetSystemRoutineAddress(&u));
   if (WindowsSymbols.PsInitialSystemProcess == 0) return HVM_STATUS_UNSUCCESSFUL;
+  
   return HVM_STATUS_SUCCESS;
 }
 
@@ -179,7 +197,7 @@ hvm_status  WindowsFindModuleByName(hvm_address cr3, Bit8u *name, MODULE_DATA *p
       break;
     } else if (r != HVM_STATUS_SUCCESS) {
       /* Some error occurred */
-      Log("[WinXP] Can't read traverse modules list");
+      Log("[Win] Can't read traverse modules list");
       break;
     }
 
@@ -315,7 +333,7 @@ hvm_status WindowsFindProcess(hvm_address cr3, hvm_address* ppep)
       /* No more processes */
       break;
     } else if (r != HVM_STATUS_SUCCESS) {
-      Log("[WinXP] Can't read next process. Current process: %.8x", next.pobj);
+      Log("[Win] Can't read next process. Current process: %.8x", next.pobj);
       break;
     }
 
@@ -348,6 +366,20 @@ hvm_status WindowsFindProcessPid(hvm_address cr3, hvm_address* ppid)
   return HVM_STATUS_SUCCESS;
 }
 
+hvm_status WindowsFindProcessName(hvm_address cr3, char* name)
+{
+  hvm_address pep;
+  hvm_status r;
+
+  r = WindowsFindProcess(cr3, &pep);
+  if (r != HVM_STATUS_SUCCESS) return r;
+
+  r = MmuReadVirtualRegion(cr3, pep + OFFSET_EPROCESS_IMAGEFILENAME, name, 16);
+  if (r != HVM_STATUS_SUCCESS) return r;
+
+  return HVM_STATUS_SUCCESS;
+}
+
 hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid)
 {
   hvm_address pep, kthread_current, kthread_head;
@@ -363,7 +395,7 @@ hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid)
      the one that is currently running */
 
   /* Get a pointer to the KTHREAD structure of the first thread in the list */
-  r = MmuReadVirtualRegion(cr3, pep + FIELD_OFFSET(KPROCESS, ThreadListHead), &kthread_head, sizeof(kthread_head));
+  r = MmuReadVirtualRegion(cr3, pep + OFFSET_KPROCESS_THREADLISTHEAD, &kthread_head, sizeof(kthread_head));
   if (r != HVM_STATUS_SUCCESS) return r;
 
   kthread_head = kthread_head - OFFSET_KTHREAD_THREADLISTENTRY;
@@ -383,7 +415,7 @@ hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid)
     /* Go on with the next thread */
     r = MmuReadVirtualRegion(cr3, kthread_current + OFFSET_KTHREAD_THREADLISTENTRY, &le, sizeof(le));
     if (r != HVM_STATUS_SUCCESS) {
-      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", kthread_current + OFFSET_KTHREAD_THREADLISTENTRY);
+      Log("[Win] Can't read LIST_ENTRY at offset %.8x, base %.8x", kthread_current + OFFSET_KTHREAD_THREADLISTENTRY, kthread_current);
       break;
     }
 
@@ -403,20 +435,6 @@ hvm_status WindowsFindProcessTid(hvm_address cr3, hvm_address* ptid)
   return found ? HVM_STATUS_SUCCESS : HVM_STATUS_UNSUCCESSFUL;
 }
 
-hvm_status WindowsFindProcessName(hvm_address cr3, char* name)
-{
-  hvm_address pep;
-  hvm_status r;
-
-  r = WindowsFindProcess(cr3, &pep);
-  if (r != HVM_STATUS_SUCCESS) return r;
-
-  r = MmuReadVirtualRegion(cr3, pep + OFFSET_EPROCESS_IMAGEFILENAME, name, 16);
-  if (r != HVM_STATUS_SUCCESS) return r;
-
-  return HVM_STATUS_SUCCESS;
-}
-
 hvm_status WindowsGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext)
 {
   hvm_status r;
@@ -434,7 +452,7 @@ hvm_status WindowsGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_
 
     r = MmuReadVirtualRegion(cr3, pprev->pobj + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le));
     if (r != HVM_STATUS_SUCCESS) {
-      Log("[WinXP] Can't read LIST_ENTRY at offset %.8x", pprev->pobj + OFFSET_EPROCESS_ACTIVELINKS);
+      Log("[Win] Can't read LIST_ENTRY at offset %.8x", pprev->pobj + OFFSET_EPROCESS_ACTIVELINKS);
       return HVM_STATUS_UNSUCCESSFUL;
     }
 
@@ -499,7 +517,527 @@ hvm_status WindowsGetNextModule(hvm_address cr3, PMODULE_DATA pprev, PMODULE_DAT
   return HVM_STATUS_SUCCESS;
 }
 
-static hvm_status  WindowsFindNetworkConnections(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize)
+
+#ifdef GUEST_WIN_7
+hvm_status Windows7FindTargetInfo(hvm_address cr3, hvm_address *target_pep, hvm_address *target_kthread) {
+
+  hvm_status r;
+  hvm_address kthread_head, kthread_current, thread_pep, pid;
+  char process_name[32];
+  LIST_ENTRY le;
+  Bit8u thread_state;
+
+  WindowsFindProcess(cr3, target_pep);
+    
+  /* Traverse KTHREAD list of the process */
+  r = MmuReadVirtualRegion(cr3, (*target_pep) + OFFSET_KPROCESS_THREADLISTHEAD, &kthread_head, sizeof(kthread_head));
+  if(r != HVM_STATUS_SUCCESS) {
+
+    Log("[Win] Can't read ThreadListHead of EPROCESS 0x%08hx, fail on va 0x%08hx", *target_pep, (*target_pep) + OFFSET_KPROCESS_THREADLISTHEAD);
+    return r;
+  }
+  kthread_head = kthread_current = kthread_head - OFFSET_KTHREAD_THREADLISTENTRY;
+
+  Log("[Win] KTHREAD head is at va 0x%08hx", kthread_head);
+  
+  do {
+
+    MmuReadVirtualRegion(cr3, kthread_current + OFFSET_KTHREAD_PROCESS, &thread_pep, sizeof(hvm_address));
+    MmuReadVirtualRegion(cr3, kthread_current + OFFSET_KTHREAD_THREADLISTENTRY, &le, sizeof(le));
+
+    if(thread_pep == (*target_pep)) {
+
+      Log("[Win] KTHREAD 0x%08hx", kthread_current);
+
+      *target_kthread = kthread_current;
+
+      vmm_memset(process_name, 0, sizeof(process_name));
+      r = MmuReadVirtualRegion(cr3, thread_pep + OFFSET_EPROCESS_IMAGEFILENAME, &process_name, sizeof(process_name));
+      if(r != HVM_STATUS_SUCCESS) vmm_strncpy(process_name, "UNKNOWN", 7);
+      Log("[Win] ----> PEPROCESS:   0x%08hx/%s", thread_pep, process_name);
+      MmuReadVirtualRegion(cr3, thread_pep + OFFSET_EPROCESS_UNIQUEPID, &pid, sizeof(pid));
+      MmuReadVirtualRegion(cr3, kthread_current + OFFSET_KTHREAD_STATE, &thread_state, sizeof(thread_state));
+      Log("[Win] ----> Process PID: 0x%x", pid);
+      Log("[Win] ----> Flink:       0x%08hx", le.Flink);
+      Log("[Win] ----> Blink:       0x%08hx", le.Blink);
+      Log("[Win] ----> State:       %d", thread_state);
+    }
+    kthread_current = (hvm_address)le.Flink - OFFSET_KTHREAD_THREADLISTENTRY;
+  } while(kthread_current != kthread_head);
+
+  Log("[Win] Finish visit of process's ThreadList.");
+
+  return HVM_STATUS_SUCCESS;
+}
+
+hvm_status Windows7UnlinkProc(hvm_address cr3, hvm_address target_pep, hvm_address target_kthread, unsigned int *dispatcher_index, Bit8u *success)
+{
+  hvm_address thread_pep, kthread_current, kthread_head, kthread_running, kthread_next;
+  hvm_address kprcb, ready_list_entry;
+  hvm_address pid;
+  hvm_status  r;
+  LIST_ENTRY  le, dispatcher_ready_array[32];
+  SINGLE_LIST_ENTRY sle;
+  char process_name[32], bitmap_binary_str[33];
+  Bit8u thread_state;
+  Bit32u ready_summary;
+  unsigned int j;
+
+  /* Unlink EPROCESS */
+  /* MmuReadVirtualRegion(cr3, pep + OFFSET_EPROCESS_ACTIVELINKS, &le, sizeof(le)); */
+  /* MmuWriteVirtualRegion(cr3, (hvm_address)le.Blink, &le.Flink, sizeof(hvm_address)); */
+  /* MmuWriteVirtualRegion(cr3, (hvm_address)le.Flink + sizeof(hvm_address), &le.Blink, sizeof(hvm_address)); */
+
+  /* check KTHREADs of interesting process */
+
+  if(context.GuestContext.rax == target_kthread){
+      
+    Log("[Win] Denied running of target process!!! Switch to idle.");
+
+    context.GuestContext.rax = 0;
+
+    *dispatcher_index = context.GuestContext.rdi;
+
+    *success = 1;
+      
+    /* If we want to use custom GDT, this code is wrong */
+    __asm__ __volatile__ (
+
+			  "push %%eax\n"
+			  "mov %%fs:0x20, %%eax\n"
+			  "mov %%eax, %0\n"
+			  "pop %%eax\n"
+			  :"=m"(kprcb)
+			  ::"memory"
+			  );
+
+    r = MmuReadVirtualRegion(cr3, kprcb + OFFSET_PRCB_DISPATCHER_READY, &dispatcher_ready_array, sizeof(dispatcher_ready_array));
+    if (r != HVM_STATUS_SUCCESS) {
+      Log("[Win] Can't read LIST_ENTRY array at offset %.8x, base %.8x", kprcb + OFFSET_PRCB_DISPATCHER_READY, kprcb);
+      return r;
+    }
+
+    r = MmuReadVirtualRegion(cr3, kprcb + OFFSET_PRCB_READYSUMMARY, &ready_summary, sizeof(ready_summary));
+    if (r != HVM_STATUS_SUCCESS) {
+      Log("[Win] Can't read ready_summary bitmap at va %08hx", kprcb + OFFSET_PRCB_READYSUMMARY);
+      return r;
+    }
+
+    r = MmuReadVirtualRegion(cr3, kprcb + OFFSET_PRCB_CURRENT_THREAD, &kthread_running, sizeof(kthread_running));
+    if (r != HVM_STATUS_SUCCESS) {
+      Log("[Win] Can't read current thread ptr from va 0x%08hx...", kprcb + OFFSET_PRCB_CURRENT_THREAD);
+      return r;
+    }
+
+    r = MmuReadVirtualRegion(cr3, kprcb + OFFSET_PRCB_NEXT_THREAD, &kthread_next, sizeof(kthread_next));
+    if (r != HVM_STATUS_SUCCESS) {
+      Log("[Win] Can't read next thread ptr from va 0x%08hx...", kprcb + OFFSET_PRCB_NEXT_THREAD);
+      return r;
+    }
+  }
+
+  return HVM_STATUS_SUCCESS;
+}
+
+hvm_status Windows7RelinkProc(hvm_address cr3, hvm_address target_kthread, unsigned int dispatcher_index)
+{
+  hvm_status r;
+  hvm_address kprcb;
+  LIST_ENTRY dispatcher_entry;
+  hvm_address buffer;
+
+  hvm_address thread_pep, kthread_current, kthread_head;
+  hvm_address ready_list_entry;
+  hvm_address pid;
+  LIST_ENTRY  le, dispatcher_ready_array[32];
+  char process_name[32];
+  Bit8u thread_state;
+  unsigned int j;
+
+  /* If we want to use custom GDT, this code is wrong */
+  __asm__ __volatile__ (
+
+			"push %%eax\n"
+			"mov %%fs:0x20, %%eax\n"
+			"mov %%eax, %0\n"
+			"pop %%eax\n"
+			:"=m"(kprcb)
+			::"memory"
+			);
+
+  r = MmuReadVirtualRegion(cr3, kprcb + OFFSET_PRCB_DISPATCHER_READY + dispatcher_index*sizeof(LIST_ENTRY), &dispatcher_entry, sizeof(dispatcher_entry));
+  if (r != HVM_STATUS_SUCCESS) {
+    Log("[Win] Can't read LIST_ENTRY (ready dispatcher entry) at va 0x%08hx (0x%08hx+0x%08hx*%0d)", kprcb + OFFSET_PRCB_DISPATCHER_READY + dispatcher_index*sizeof(LIST_ENTRY), kprcb + OFFSET_PRCB_DISPATCHER_READY, dispatcher_index, sizeof(LIST_ENTRY));
+    return r;
+  }
+
+  buffer = target_kthread + OFFSET_KTHREAD_WAITLISTENTRY;
+  
+  kthread_head = (hvm_address)dispatcher_entry.Flink - OFFSET_KTHREAD_WAITLISTENTRY;
+  kthread_current = kthread_head;
+  do {
+    r = MmuReadVirtualRegion(cr3, kthread_current + OFFSET_KTHREAD_WAITLISTENTRY, &le, sizeof(le));
+    if (r != HVM_STATUS_SUCCESS) {
+      Log("[Win] Can't read LIST_ENTRY at offset %.8x, base %.8x", kthread_current + OFFSET_KTHREAD_WAITLISTENTRY, kthread_current);
+      return r;
+    }
+
+    if((hvm_address)(le.Flink) - OFFSET_KTHREAD_WAITLISTENTRY == kthread_head)
+      MmuWriteVirtualRegion(cr3, kthread_current + OFFSET_KTHREAD_WAITLISTENTRY, &buffer, sizeof(hvm_address));
+
+    kthread_current = (hvm_address)(le.Flink) - OFFSET_KTHREAD_WAITLISTENTRY;
+
+  }while(kthread_current != kthread_head);
+
+  /* Insert target thread as new head */
+
+  /* Overwrite Blink of list head */
+  buffer = target_kthread + OFFSET_KTHREAD_WAITLISTENTRY;
+  r = MmuWriteVirtualRegion(cr3, (hvm_address)dispatcher_entry.Flink + sizeof(hvm_address), &buffer, sizeof(hvm_address));
+  if (r != HVM_STATUS_SUCCESS) {
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+
+  /* Overwrite Flink of dispatcher entry */
+  r = MmuWriteVirtualRegion(cr3, kprcb + OFFSET_PRCB_DISPATCHER_READY + dispatcher_index*sizeof(LIST_ENTRY), &buffer, sizeof(hvm_address));
+  if (r != HVM_STATUS_SUCCESS) {
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+
+  /* Overwrite Flink of target kthread */
+  buffer = (hvm_address)dispatcher_entry.Flink;
+  r = MmuWriteVirtualRegion(cr3, target_kthread + OFFSET_KTHREAD_WAITLISTENTRY, &buffer, sizeof(hvm_address));
+  if (r != HVM_STATUS_SUCCESS) {
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+
+  /* Overwrite Blink of target kthread */
+  buffer = kprcb + OFFSET_PRCB_DISPATCHER_READY + dispatcher_index*sizeof(LIST_ENTRY);
+  r = MmuWriteVirtualRegion(cr3, target_kthread + OFFSET_KTHREAD_WAITLISTENTRY + sizeof(hvm_address), &buffer, sizeof(hvm_address));
+  if (r != HVM_STATUS_SUCCESS) {
+    return HVM_STATUS_UNSUCCESSFUL;
+  }
+
+  return HVM_STATUS_SUCCESS;
+}
+
+hvm_status Windows7FindNetworkConnections(hvm_address cr3, SOCKET* buf, Bit32u maxsize, Bit32u *psize) {
+
+  hvm_status r;
+  hvm_address partition_table, partition_entry_array, partition_entry, tmp;
+  hvm_address phash, pipinfo, peprocess, pipaddresses;
+  Bit32u i, j, k, h, npart, nmaxhash, hash_index, tcp_conn_found = 0;
+  Bit32u local_ip, remote_ip, pid, ports, ipv6;
+  Bit16u local_port, remote_port, local_ipv6[8], remote_ipv6[8];
+  MODULE_DATA tcp_module;
+
+  r = WindowsFindModuleByName(cr3, "tcpip.sys", &tcp_module);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  /* Read number of partition entry */
+  r = MmuReadVirtualRegion(cr3, tcp_module.baseaddr + OFFSET_PARTITION_COUNTER, &npart, sizeof(npart));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  /* Read partition table */
+  r = MmuReadVirtualRegion(cr3, tcp_module.baseaddr + OFFSET_PARTITION_TABLE, &partition_entry_array, sizeof(hvm_address));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+ 
+  /* For all partitions */
+  for(j = 0; j < npart; j++) {
+
+    /* Read partition_entry va */
+    r = MmuReadVirtualRegion(cr3, partition_entry_array + 0x48*j + sizeof(hvm_address), &partition_entry, sizeof(hvm_address));
+    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+    r = MmuReadVirtualRegion(cr3, partition_entry + OFFSET_PART_ENTRY_HASHTABLE, &phash, sizeof(hvm_address));
+    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+    r = MmuReadVirtualRegion(cr3, partition_entry + OFFSET_PART_ENTRY_MAXNUM, &nmaxhash, sizeof(nmaxhash));
+    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+    /* For all entries in hash table */
+    for(hash_index = 0; hash_index < nmaxhash; hash_index++) {
+
+      r = MmuReadVirtualRegion(cr3, phash + hash_index * (2*sizeof(hvm_address)), &pipinfo, sizeof(hvm_address));
+      if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	  
+      /* If the pointer is the hash entry itself, skip */
+      while(pipinfo && pipinfo != phash+hash_index*(2*sizeof(hvm_address))) {
+
+	/* found a valid IPInfo structure */
+
+	r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_IPINFO_PEPROCESS, &peprocess, sizeof(hvm_address));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	r = MmuReadVirtualRegion(cr3, peprocess + OFFSET_EPROCESS_UNIQUEPID, &pid, sizeof(pid));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_IPINFO_PORTS, &ports, sizeof(ports));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	remote_port = (ports & 0xffff0000) >> 16;
+	local_port = ports & 0x0000ffff;
+
+	r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_IPv6_1, &tmp, sizeof(hvm_address));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	r = MmuReadVirtualRegion(cr3, tmp + OFFSET_IPv6_2, &ipv6, sizeof(ipv6));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	if(ipv6 != 0x17) ipv6 = 0;
+	else Log("[HyperDbg] Ipv6 connection at pipinfo 0x%08hx!!!", pipinfo); 
+
+	r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_IPINFO_IPADDRESSES, &pipaddresses, sizeof(hvm_address));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	r = MmuReadVirtualRegion(cr3, pipaddresses + OFFSET_REMOTE_IP, &tmp, sizeof(hvm_address));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	if(ipv6) {
+
+	  for(k = 0, h = 0; k < 0xe; k+=2, h++) {
+	    r = MmuReadVirtualRegion(cr3, tmp + k, &remote_ipv6[h], sizeof(remote_ipv6[0]));
+	    if(r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	  }
+	}
+	else {
+
+	  r = MmuReadVirtualRegion(cr3, tmp, &remote_ip, sizeof(remote_ip));
+	  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	}
+
+	r = MmuReadVirtualRegion(cr3, pipaddresses, &pipaddresses, sizeof(hvm_address));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	if(ipv6) {
+
+	  for(k = 0, h = 0; k < 0xe; k+=2, h++) {
+	    r = MmuReadVirtualRegion(cr3, pipaddresses + OFFSET_LOCAL_IP + k, &local_ipv6[h], sizeof(remote_ipv6[0]));
+	    if(r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	  }
+	}
+	else {
+	  r = MmuReadVirtualRegion(cr3, pipaddresses + OFFSET_LOCAL_IP, &local_ip, sizeof(local_ip));
+	  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	}
+	if(tcp_conn_found < maxsize) {
+	      
+	  vmm_memset(&buf[tcp_conn_found], 0, sizeof(SOCKET));
+	  buf[tcp_conn_found].state       = SocketStateEstablished;
+	  buf[tcp_conn_found].local_port  = vmm_ntohs(local_port);
+	  buf[tcp_conn_found].remote_port = vmm_ntohs(remote_port);
+	  buf[tcp_conn_found].pid         = pid;
+	  buf[tcp_conn_found].protocol    = 6; /* TCP */
+
+	  if(ipv6) {
+
+	    for(k = 0; k < 8; k++)
+	      buf[tcp_conn_found].local_ipv6[k] = local_ipv6[k];
+
+	    for(k = 0; k < 8; k++)
+	      buf[tcp_conn_found].remote_ipv6[k] = remote_ipv6[k];
+
+	    buf[tcp_conn_found].local_ip = -1;
+	    buf[tcp_conn_found].remote_ip = -1;	    
+	  }
+	  else {
+	    buf[tcp_conn_found].local_ip  = local_ip;
+	    buf[tcp_conn_found].remote_ip = remote_ip;
+	  }
+
+	  tcp_conn_found++;
+	}
+	
+	r = MmuReadVirtualRegion(cr3, pipinfo, &pipinfo, sizeof(hvm_address));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+      }
+    }
+  }
+
+  *psize = tcp_conn_found;
+
+  Log("[HyperDbg] Search of TCP connections finished. Found: %d", tcp_conn_found);
+
+  return HVM_STATUS_SUCCESS;
+}
+
+hvm_status Windows7FindNetworkData(hvm_address cr3, SOCKET* buf, Bit32u maxsize, Bit32u *psize, unsigned int type) {
+
+  hvm_status r;
+  hvm_address tmp, port_pool, pbitmap, pipinfo, peprocess;
+  unsigned int i, j, k, h, skip, bitmap_size, page_number, page_offset, data_found = 0;
+  Bit32u local_ip, pid;
+  Bit16u local_port, remote_port, local_ipv6[8];
+  Bit8u  bitmap_byte, ipv6;
+  MODULE_DATA tcp_module;
+
+  r = WindowsFindModuleByName(cr3, "tcpip.sys", &tcp_module);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  if(type == UDP) r = MmuReadVirtualRegion(cr3, tcp_module.baseaddr + OFFSET_UDP_PORT_POOL_PTR, &port_pool, sizeof(hvm_address));
+  else r = MmuReadVirtualRegion(cr3, tcp_module.baseaddr + OFFSET_TCP_PORT_POOL_PTR, &port_pool, sizeof(hvm_address));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  r = MmuReadVirtualRegion(cr3, port_pool + OFFSET_BITMAP_PTR, &pbitmap, sizeof(hvm_address));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  r = MmuReadVirtualRegion(cr3, port_pool + OFFSET_BITMAP_SIZE, &bitmap_size, sizeof(bitmap_size));
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  skip = 1; 
+  /* Iterate at byte granularity */
+  bitmap_size /= 8;
+  for(i = 0; i < bitmap_size; i++) {
+
+    r = MmuReadVirtualRegion(cr3, pbitmap + i, &bitmap_byte, sizeof(bitmap_byte));
+    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+    
+    for(j = skip; j < 8; j++) {
+
+      if((bitmap_byte >> j) & 0x01) {
+      
+	page_number = ((i*8+j) >> 8) & 0x00ff;
+	page_offset =     (i*8+j)    & 0x00ff;
+
+	r = MmuReadVirtualRegion(cr3, port_pool + OFFSET_PAGES_ARRAY + page_number * sizeof(hvm_address), &pipinfo, sizeof(hvm_address));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	r = MmuReadVirtualRegion(cr3, pipinfo + 0x14, &pipinfo, sizeof(hvm_address));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	r = MmuReadVirtualRegion(cr3, (pipinfo + (page_offset << 0x03) + 0x04), &pipinfo, sizeof(hvm_address));
+	if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	while(pipinfo) {
+
+	  /* Zeroing low 2 bytes */
+	  pipinfo &= 0xfffffffc;
+
+	  if(type == UDP) r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_UDP_LOCAL_PORT, &local_port, sizeof(local_port));
+	  else r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_SOCKET_LOCAL_PORT, &local_port, sizeof(local_port));
+	  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	  if(type == SOCKETS) {
+	    r = MmuReadVirtualRegion(cr3, pipinfo - 0x08, &tmp, sizeof(hvm_address));
+	    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	    r = MmuReadVirtualRegion(cr3, tmp + OFFSET_SOCKET_REMOTE_PORT, &remote_port, sizeof(remote_port));
+	    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	  }
+
+	  if(type == UDP) {
+
+	    r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_UDP_IPv6_1, &tmp, sizeof(hvm_address));
+	    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	    r = MmuReadVirtualRegion(cr3, tmp + OFFSET_UDP_IPv6_2, &ipv6, sizeof(ipv6));
+	    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	  }
+	  else {
+
+	    r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_IPv6_1, &tmp, sizeof(hvm_address));
+	    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	    r = MmuReadVirtualRegion(cr3, tmp + OFFSET_IPv6_2, &ipv6, sizeof(ipv6));
+	    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	  }
+	  
+	  if(ipv6 != 0x17) ipv6 = 0;
+
+	  if(type == UDP) r = MmuReadVirtualRegion(cr3, pipinfo - 0x14, &tmp, sizeof(hvm_address));
+	  else r = MmuReadVirtualRegion(cr3, pipinfo - 0x0c, &tmp, sizeof(hvm_address));
+	  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	  if(tmp != 0) {
+	  
+	    if(ipv6) {
+
+	      for(k = 0, h = 0; k < 0xe; k+=2, h++){
+		r = MmuReadVirtualRegion(cr3, tmp + OFFSET_LISTEN_LOCAL_IP + k, &local_ipv6[h], sizeof(local_ipv6[0]));
+		if(r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	      }
+	    }
+	    else r = MmuReadVirtualRegion(cr3, tmp + OFFSET_LISTEN_LOCAL_IP, &local_ip, sizeof(local_ip));
+	    if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	  }
+	  else {
+	    
+	    if(ipv6) local_ipv6[0] = local_ipv6[1] = local_ipv6[2] = local_ipv6[3] = local_ipv6[4] = local_ipv6[5] = local_ipv6[6] = local_ipv6[7] = 0;
+	    else local_ip = 0;
+	  }
+
+	  if(type == UDP) r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_UDP_PEPROCESS, &peprocess, sizeof(hvm_address));
+	  else r = MmuReadVirtualRegion(cr3, pipinfo + OFFSET_SOCKET_PEPROCESS, &peprocess, sizeof(hvm_address));
+	  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	  r = MmuReadVirtualRegion(cr3, peprocess + OFFSET_EPROCESS_UNIQUEPID, &pid, sizeof(pid));
+	  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+	  if(data_found < maxsize && pid > 0) {
+	    
+	    /* NOTE: it appears that an IPInfo struct is created in the bitmap
+	       when a connection is ESTABLISHED but with PID == 0. We skim them off
+	       as we already have it in the other structure. */
+
+	    vmm_memset(&buf[data_found], 0, sizeof(SOCKET));
+	    buf[data_found].state       = SocketStateListen;
+	    buf[data_found].local_port  = vmm_ntohs(local_port);
+	    buf[data_found].pid         = pid;
+	    buf[data_found].protocol    = type==UDP ? 17 : 6;
+
+	    if(type == SOCKETS) buf[data_found].remote_port = vmm_ntohs(remote_port);
+
+	    if(ipv6) {
+
+	      for(k = 0; k < 8; k++)
+		buf[data_found].local_ipv6[k]   = local_ipv6[k];
+
+	      buf[data_found].local_ip = -1;
+	    }
+	    else {
+	      buf[data_found].local_ip  = local_ip;
+	    }
+
+	    data_found++;
+	  }
+
+	  r = MmuReadVirtualRegion(cr3, pipinfo, &pipinfo, sizeof(hvm_address));
+	  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+	}
+      }
+    }
+    skip = 0;
+  }
+
+  *psize = data_found;
+
+  Log("[HyperDbg] Search of %s finished. Found: %d", type==UDP?"UDP connections":"sockets", data_found);
+  
+  return HVM_STATUS_SUCCESS;
+}
+
+hvm_status Windows7BuildSocketList(hvm_address cr3, SOCKET* buf, Bit32u maxsize, Bit32u *psize)
+{
+  hvm_status r;
+  unsigned int n1, n2, n3;
+
+  r = Windows7FindNetworkConnections(cr3, buf, maxsize, &n1);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+
+  r = Windows7FindNetworkData(cr3, buf + n1, maxsize - n1, &n2, SOCKETS);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;
+  
+  r = Windows7FindNetworkData(cr3, buf + n1 + n2, maxsize - (n1+n2), &n3, UDP);
+  if (r != HVM_STATUS_SUCCESS) return HVM_STATUS_UNSUCCESSFUL;  
+
+  *psize = (n1+n2+n3);
+
+  return r;
+}
+
+#else
+
+static hvm_status WindowsFindNetworkConnections(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize)
 {
   hvm_status r;
   hvm_address table_base, table_entry;
@@ -529,11 +1067,10 @@ static hvm_status  WindowsFindNetworkConnections(hvm_address cr3, SOCKET *buf, B
       /* Invalid entry */
       continue;
     }
-
+    
     r = MmuReadVirtualRegion(cr3, table_entry, &obj, sizeof(obj));
     if (r != HVM_STATUS_SUCCESS) 
       continue;
-
     vmm_memset(&buf[j], 0, sizeof(SOCKET));
 
     buf[j].state       = SocketStateEstablished;
@@ -547,7 +1084,6 @@ static hvm_status  WindowsFindNetworkConnections(hvm_address cr3, SOCKET *buf, B
   }
 
   *psize = j;
-
   return HVM_STATUS_SUCCESS;
 }
 
@@ -637,3 +1173,5 @@ hvm_status WindowsBuildSocketList(hvm_address cr3, SOCKET* buf, Bit32u maxsize, 
 
   return HVM_STATUS_SUCCESS;
 }
+
+#endif

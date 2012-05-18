@@ -221,7 +221,7 @@ Bit8u KeyboardScancodeToKeycode(Bit8u c)
     handled = TRUE;
   }
 
-  if (handled)
+  if(handled)
     return 0;
 
   /* Try  the scancode to the corresponding keycode */

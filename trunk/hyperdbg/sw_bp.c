@@ -29,7 +29,10 @@
 
 typedef struct _SW_BP {
   hvm_address Addr;
+  hvm_address cr3;
   Bit8u OldOpcode;
+  hvm_bool isPerm;
+  hvm_bool isCr3Dipendent;
 } SW_BP, *PSW_BP;
 
 /* ################# */
@@ -49,17 +52,26 @@ Bit32u GetFirstFree(void);
 /* ################ */
 
 /* If it returns MAXSWBPS, we have a full-error */
-Bit32u SwBreakpointSet(hvm_address cr3, hvm_address address)
+Bit32u SwBreakpointSet(hvm_address cr3, hvm_address address, hvm_bool isPerm, hvm_bool isCr3Dipendent)
 {
   Bit32u index;
   PSW_BP ptr;
   Bit8u  op;
   hvm_status r;
+  hvm_address found_cr3;
+  hvm_bool useless;
+
+  if(SwBreakpointGetBPInfo(cr3, address, &useless, &useless, &found_cr3) && cr3 == found_cr3)
+    return -1;
 
   index = GetFirstFree();
   if(index == MAXSWBPS) return MAXSWBPS;
+
   ptr = &sw_bps[index];
   ptr->Addr = address;
+  ptr->cr3 = cr3;
+  ptr->isPerm = isPerm;
+  ptr->isCr3Dipendent = isCr3Dipendent;
 
   r = MmuReadVirtualRegion(cr3, address, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
   if (r != HVM_STATUS_SUCCESS)
@@ -73,18 +85,55 @@ Bit32u SwBreakpointSet(hvm_address cr3, hvm_address address)
   return index;
 }
 
-hvm_bool SwBreakpointDelete(hvm_address cr3, hvm_address address)
+hvm_bool SwBreakpointGetBPInfo(hvm_address cr3, hvm_address address, hvm_bool *isCr3Dipendent, hvm_bool *isPerm, hvm_address *ours_cr3)
 {
   Bit32u i;
-  PSW_BP ptr;
-  hvm_status r;
 
   i = 0;
   while(i < MAXSWBPS && sw_bps[i].Addr != address) i++;
 
   if(i == MAXSWBPS) {
     /* No breakpoint at this address */
-    return FALSE; 
+    return FALSE;
+  }
+
+  *isCr3Dipendent = sw_bps[i].isCr3Dipendent;
+  *isPerm = sw_bps[i].isPerm;
+  *ours_cr3 = sw_bps[i].cr3;
+  return TRUE;
+}
+
+hvm_bool SwBreakpointDeletePerm(hvm_address cr3, hvm_address address)
+{
+  Bit32u i;
+  PSW_BP ptr;
+  hvm_status r;
+
+  i = 0;
+  while(i < MAXSWBPS && (sw_bps[i].Addr != address || (sw_bps[i].isCr3Dipendent && sw_bps[i].cr3 != cr3))) i++;
+
+  /* Restore the old code */
+  ptr = &sw_bps[i];
+  r = MmuWriteVirtualRegion(cr3, address, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
+  if (r != HVM_STATUS_SUCCESS)
+    return FALSE;
+
+  return TRUE;
+}
+
+hvm_bool SwBreakpointDelete(hvm_address cr3, hvm_address address)
+{
+  Bit32u i;
+  PSW_BP ptr;
+  hvm_status r;
+
+  Log("[HyperDbg] Delete BP (cr3 0x%08hx, addr 0x%08hx)", cr3, address);
+
+  i = 0;
+  while(i < MAXSWBPS && (sw_bps[i].Addr != address)) i++;
+
+  if(i == MAXSWBPS) {
+    return FALSE;
   }
 
   /* Restore the old code */
@@ -95,11 +144,14 @@ hvm_bool SwBreakpointDelete(hvm_address cr3, hvm_address address)
 
   ptr->Addr = 0;
   ptr->OldOpcode = 0;
+  ptr->cr3 = 0;
+  ptr->isCr3Dipendent = FALSE;
+  ptr->isPerm = FALSE;
 
   return TRUE;
 }
 
-hvm_bool SwBreakpointDeleteById(hvm_address cr3, hvm_address id)
+hvm_bool SwBreakpointDeleteById(hvm_address id)
 {
   PSW_BP ptr;
   hvm_status r;
@@ -108,12 +160,15 @@ hvm_bool SwBreakpointDeleteById(hvm_address cr3, hvm_address id)
   ptr = &sw_bps[id];
   if(ptr->Addr == 0) return FALSE;
 
-  r = MmuWriteVirtualRegion(cr3, ptr->Addr, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
+  r = MmuWriteVirtualRegion(ptr->cr3, ptr->Addr, &(ptr->OldOpcode), sizeof(ptr->OldOpcode));
   if (r != HVM_STATUS_SUCCESS)
     return FALSE;
 
   ptr->Addr = 0;
   ptr->OldOpcode = 0;
+  ptr->cr3 = 0;
+  ptr->isCr3Dipendent = FALSE;
+  ptr->isPerm = FALSE;
 
   return TRUE;
 }
@@ -124,4 +179,17 @@ Bit32u GetFirstFree(void)
   i = 0;
   while(i < MAXSWBPS && sw_bps[i].Addr != 0) i++;
   return i;
+}
+
+void SwBreakpointGetBPList(PCMD_RESULT result)
+{
+  int i;
+
+  for(i = 0; i < MAXSWBPS; i++) {
+
+    (*result).bplist[i].Addr = sw_bps[i].Addr;
+    (*result).bplist[i].cr3 = sw_bps[i].cr3;
+    (*result).bplist[i].isPerm = sw_bps[i].isPerm;
+    (*result).bplist[i].isCr3Dipendent = sw_bps[i].isCr3Dipendent;
+  }
 }

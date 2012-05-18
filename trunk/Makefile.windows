@@ -2,11 +2,11 @@
 .PHONY: all clean hyperdbg
 
 DEFINE= -DHVM_ARCH_BITS=32 -DENABLE_HYPERDBG \
-	-DGUEST_WINDOWS -DWINDOWS_DRIVER \
-        -DVIDEO_DEFAULT_RESOLUTION_X=800 \
-        -DVIDEO_DEFAULT_RESOLUTION_Y=600 \
+	-DGUEST_WINDOWS -DWINDOWS_DRIVER  \
+	-DVIDEO_DEFAULT_RESOLUTION_X=1024 \
+        -DVIDEO_DEFAULT_RESOLUTION_Y=768 \
 	-DVIDEO_ADDRESS_MANUAL \
-	-DHYPERDBG_VERSION=$(shell date +%Y%m%d)
+	-DHYPERDBG_VERSION=$(shell date +%Y%m%d) -DGUEST_WIN_7 # COMMENT OUT -DGUEST_WIN_7 TO USE HDBG ON WIN XP
 
 LD_DRIVER_FLAGS=-s -shared -Wl,--subsystem,native 		\
 		-Wl,--image-base,0x10000			\
@@ -45,6 +45,7 @@ SRCS_HYPERDBG = hyperdbg/font_256.c \
 	        hyperdbg/hyperdbg_cmd.c \
 	        hyperdbg/hyperdbg_guest.c \
 	        hyperdbg/hyperdbg_host.c \
+		hyperdbg/hyperdbg_print.c \
 	        hyperdbg/keyboard.c \
 	        hyperdbg/pci.c \
 	        hyperdbg/scancode.c \
