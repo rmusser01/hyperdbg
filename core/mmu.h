@@ -98,8 +98,6 @@ hvm_bool   MmuIsAddressValid(hvm_address cr3, hvm_address va);
 hvm_bool   MmuIsAddressWritable(hvm_address cr3, hvm_address va);
 
 void       MmuVirtToPTE( hvm_address, hvm_address *);
-hvm_status MmuMapPhysicalSpace(hvm_address phy, Bit32u memSize, hvm_address* pva);
-hvm_status MmuUnmapPhysicalSpace(hvm_address firstPTEAddr, Bit32u memSize);
 
 hvm_address MmuGetHostPT(void);
 

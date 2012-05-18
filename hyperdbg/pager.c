@@ -29,7 +29,7 @@
 #include "keyboard.h"
 #include "debug.h"
 
-#define PAGES 10
+#define PAGES 20
 
 /* ################# */
 /* #### GLOBALS #### */
@@ -47,7 +47,7 @@ Bit32u c = LIGHT_GREEN;
 /* #### LOCAL PROTOTYPES #### */
 /* ########################## */
 
-static void PagerReset(void);
+
 static void PagerShowPage(Bit32u page);
 static void PagerEditGui(void);
 static void PagerRestoreGui(void);
@@ -59,7 +59,7 @@ static void PagerHideInfo(void);
 /* ################ */
 
 /* This will be called at the end of PagerLoop so that it cleans out on exit */
-static void PagerReset()
+void PagerReset(void)
 {
   Bit32u i, ii, iii;
 
@@ -140,18 +140,15 @@ void PagerLoop(Bit32u color)
 {
   Bit8u ch;
   hvm_bool isMouse, exitLoop = FALSE;
-
+  Bit32u limit = 0;
   c = color;
   VideoResetOutMatrix();
-
   /* If there's only one page, there's no need to start the pager */
-  if(current_page > 0 && current_line > 0) {
+  if(current_page > 0) {
     PagerEditGui();
     current_visible_page = 0;
     PagerShowPage(current_visible_page);
     PagerShowInfo(FALSE);
-
-    Log("[HyperDbg] Starting Pager Loop");
 
     while(1) {
       if (KeyboardReadKeystroke(&ch, FALSE, &isMouse) != HVM_STATUS_SUCCESS) {
@@ -159,22 +156,23 @@ void PagerLoop(Bit32u color)
 	CmSleep(150);
 	continue;
       }
-
       if (isMouse) {
 	/* Skip mouse events */
 	continue;
       }
-
       ch = KeyboardScancodeToKeycode(ch);
+
       switch(ch) {
       case 0:
 	/* Unrecognized key -- ignore it */
 	break;
       case 'n':
 	PagerHideInfo();
-	if(current_visible_page < PAGES && current_visible_page < current_page)
+	if(current_page == PAGES) limit = current_page - 1;
+	else limit = current_page;
+	if(current_visible_page < PAGES-1 && current_visible_page < limit)
 	  PagerShowPage(++current_visible_page);
-	if(current_visible_page >= current_page)
+	if(current_visible_page == limit)
 	  PagerShowInfo(TRUE);
 	break;
       case 'p':
@@ -193,7 +191,6 @@ void PagerLoop(Bit32u color)
       if(exitLoop) break;
     }
     PagerRestoreGui();
-    Log("[HyperDbg] Exiting Pager Loop");
   }
 
   PagerReset();

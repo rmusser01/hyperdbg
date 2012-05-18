@@ -201,4 +201,7 @@ void init_scancodes_map(void)
   scancodes_map[SCANCODE_BSLASH] = '/';
   scancodes_map[SCANCODE_BACKSPACE] = '\b';
   scancodes_map[SCANCODE_EQUAL]  = '=';
+
+  scancodes_map[SCANCODE_CURSORUP] = 0x3;
+  scancodes_map[SCANCODE_CURSORDOWN] = 0x4;
 }

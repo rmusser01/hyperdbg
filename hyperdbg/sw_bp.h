@@ -25,11 +25,13 @@
 #define _SW_BP_H
 
 #include "hyperdbg.h"
+#include "hyperdbg_print.h"
+#include "hyperdbg_common.h"
 
-#define MAXSWBPS 100
-
-hvm_address SwBreakpointSet(hvm_address cr3, hvm_address address);
+hvm_address SwBreakpointSet(hvm_address cr3, hvm_address address, hvm_bool isPerm, hvm_bool isCr3Dipendent);
+hvm_bool    SwBreakpointGetBPInfo(hvm_address cr3, hvm_address address, hvm_bool *isCr3Dipendent, hvm_bool *isPerm, hvm_address *ours_cr3);
 hvm_bool    SwBreakpointDelete(hvm_address cr3, hvm_address address);
-hvm_bool    SwBreakpointDeleteById(hvm_address cr3, Bit32u id); 
-
+hvm_bool    SwBreakpointDeletePerm(hvm_address cr3, hvm_address address);
+hvm_bool    SwBreakpointDeleteById(Bit32u id); 
+void        SwBreakpointGetBPList(PCMD_RESULT result);
 #endif

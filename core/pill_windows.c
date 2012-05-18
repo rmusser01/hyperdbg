@@ -185,12 +185,6 @@ NTSTATUS DDKAPI DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Registr
     goto error;
   }
  
-  /* Initialize the MMU */
-  if (!HVM_SUCCESS(MmuInit(&HostCR3))) {
-    GuestLog("Failed to initialize MMU");
-    goto error;
-  }
-   
   /* Initialize guest-specific stuff */
   if (!HVM_SUCCESS(InitGuest(DriverObject))) {
     GuestLog("Failed to initialize guest-specific stuff");
@@ -200,6 +194,12 @@ NTSTATUS DDKAPI DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Registr
   /* Initialize plugins */
   if (!HVM_SUCCESS(InitPlugin())) {
     GuestLog("Failed to initialize plugin");
+    goto error;
+  }
+
+  /* Initialize the MMU */
+  if (!HVM_SUCCESS(MmuInit(&HostCR3))) {
+    GuestLog("Failed to initialize MMU");
     goto error;
   }
    

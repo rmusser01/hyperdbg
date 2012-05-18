@@ -45,5 +45,8 @@ typedef void (*hvm_process_callback)(PPROCESS_DATA);
 /* 'cr3' here is just a valid CR3 of the guest */
 hvm_status ProcessGetNextProcess(hvm_address cr3, PPROCESS_DATA pprev, PPROCESS_DATA pnext);
 hvm_status ProcessGetNextModule (hvm_address cr3, PMODULE_DATA pprev, PMODULE_DATA pnext);
+hvm_status ProcessGetNameByPid(hvm_address cr3, hvm_address pid, char *name);
+hvm_status ProcessFindProcessPid(hvm_address cr3, hvm_address *pid);
+hvm_status ProcessFindProcessTid(hvm_address cr3, hvm_address *tid);
 
 #endif	/* _PROCESS_H */

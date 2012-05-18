@@ -29,7 +29,8 @@
 Bit16u vmm_ntohs(Bit16u v);
 Bit32u vmm_ntohl(Bit32u v);
 
-char* inet_ntoa(Bit32u a);
+void inet_ntoa(Bit32u a, char *destination_buffer);
+void inet_ntoa_v6(Bit16u *a, char *internal_buffer);
 
 typedef enum {
   SocketStateUnknown = 0,
@@ -45,6 +46,8 @@ typedef struct _SOCKET {
   Bit16u local_port;
   Bit32u pid;
   Bit16u protocol;
+  Bit16u local_ipv6[8];
+  Bit16u remote_ipv6[8];
 } SOCKET;
 
 hvm_status NetworkBuildSocketList(hvm_address cr3, SOCKET *buf, Bit32u maxsize, Bit32u *psize);
