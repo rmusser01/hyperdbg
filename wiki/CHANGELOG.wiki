@@ -10,8 +10,8 @@ We welcome _pago_ (Mattia Pagnozzi) as a committer of the HyperDbg project. Than
 Some minor bug fixes.
 
 === Support for new guests: ===
- * Windows 7 (tested on Home Basic / Home Premium): http://goo.gl/DgmxI
- * Linux Kernel 3.2 without PAE (tested on Debian): http://goo.gl/GSIjp
+ * Windows 7 32 bit (tested on Home Basic / Home Premium): http://goo.gl/DgmxI
+ * Linux Kernel 3.2 32 bit without PAE (tested on Debian): http://goo.gl/GSIjp
 
 === New Features: ===
  * 16 entries cyclic command history
