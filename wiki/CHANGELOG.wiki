@@ -4,6 +4,8 @@
 
 == 18 May 2012 ==
 
+We welcome _pago_ (Mattia Pagnozzi) as a committer of the HyperDbg project. Thanks for your contributions.
+
 === Bug Fixes: ===
 Some minor bug fixes.
 
