@@ -11,7 +11,7 @@ Some minor bug fixes.
 
 === Support for new guests: ===
  * Windows 7 32 bit (tested on Home Basic / Home Premium): http://goo.gl/DgmxI
- * Linux Kernel 3.2 32 bit without PAE (tested on Debian): http://goo.gl/GSIjp
+ * Linux Kernel 3.2 32 bit without PAE (tested on Debian, linux-image-3.2.0-2-486): http://goo.gl/GSIjp
 
 === New Features: ===
  * 16 entries cyclic command history
