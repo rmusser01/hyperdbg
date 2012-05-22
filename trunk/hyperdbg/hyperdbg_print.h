@@ -48,8 +48,6 @@
 #define ERROR_DOUBLED_BP       -101
 #define ERROR_NOSUCH_BP        -102
 
-//#define MAXSWBPS 100
-
 #ifdef GUEST_WINDOWS
 #include "winxp.h"
 #endif

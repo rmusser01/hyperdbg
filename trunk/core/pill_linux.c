@@ -147,20 +147,11 @@ int __init DriverEntry(void)
   CR4_TO_ULONG(cr4) = RegGetCr4();
 
   
-#ifdef ENABLE_PAE
-  if(!cr4.PAE) {
-    GuestLog("PAE support enabled, but the guest is NOT using it ");
-    GuestLog("Add the option /pae to boot.ini");
-    goto error;
-  }
-#else
   if(cr4.PAE) {
-    GuestLog("PAE support disabled, but the guest is using it ");
-    GuestLog("Add the options /noexecute=alwaysoff /nopae to boot.ini");
+    GuestLog("ERROR: No support for Linux PAE ATM...");
     goto error;
   }
-#endif
-  
+
   /* Register event handlers */
   if (!HVM_SUCCESS(RegisterEvents())) {
     GuestLog("Failed to register events");
