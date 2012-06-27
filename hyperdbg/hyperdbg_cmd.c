@@ -458,24 +458,24 @@ static void CmdSwBreakpoint(PHYPERDBG_CMD pcmd, PCMD_RESULT result, hvm_bool isP
       result->bpinfo.error_code = ERROR_INVALID_ADDR;
       return;
     }
+  }
 
-    if(pcmd->nargs >= 2) {
+  if(pcmd->nargs >= 2) {
 
-      /* Translate the target cr3 */
-      if(!vmm_strtoul(pcmd->args[1], &cr3)) {
-	result->bpinfo.error_code = ERROR_INVALID_MEMORY;
-	return;
-      }
-      isCr3Dipendent = TRUE;
-    }
-    else cr3 = context.GuestContext.cr3;
-
-    /* Check if the address is ok */
-    if(!MmuIsAddressValid(cr3, result->bpinfo.addr)) {
-      Log("[HyperDbg] Invalid memory address!");
+    /* Translate the target cr3 */
+    if(!vmm_strtoul(pcmd->args[1], &cr3)) {
       result->bpinfo.error_code = ERROR_INVALID_MEMORY;
       return;
     }
+    isCr3Dipendent = TRUE;
+  }
+  else cr3 = context.GuestContext.cr3;
+
+  /* Check if the address is ok */
+  if(!MmuIsAddressValid(cr3, result->bpinfo.addr)) {
+    Log("[HyperDbg] Invalid memory address!");
+    result->bpinfo.error_code = ERROR_INVALID_MEMORY;
+    return;
   }
 
   result->bpinfo.bp_index = SwBreakpointSet(cr3, result->bpinfo.addr, isPerm, isCr3Dipendent);

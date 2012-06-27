@@ -42,7 +42,7 @@ void PrintHelp()
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - dump guest processes",  HYPERDBG_CMD_CHAR_SHOWPROCESSES);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - dump guest kernel modules",  HYPERDBG_CMD_CHAR_SHOWMODULES);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c - dump guest network connections",  HYPERDBG_CMD_CHAR_SHOWSOCKETS);
-  vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$reg [y [char]] [cr3] - dump y dwords starting from addr or register reg", HYPERDBG_CMD_CHAR_DUMPMEMORY);
+  vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$reg [y] [cr3] [char] - dump y dwords starting from addr or register reg", HYPERDBG_CMD_CHAR_DUMPMEMORY);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$symbol [cr3] - set sw breakpoint @ address addr or at address of $symbol", HYPERDBG_CMD_CHAR_SW_BP);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c addr|$symbol [cr3] - set permanent sw breakpoint @ address addr or at address of $symbol", HYPERDBG_CMD_CHAR_SW_PERM_BP);
   vmm_snprintf(out_matrix[i++], OUT_SIZE_X, "%c id - delete sw breakpoint #id (always check id with BP listing)", HYPERDBG_CMD_CHAR_DELETE_SW_BP);
