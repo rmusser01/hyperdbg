@@ -59,8 +59,6 @@ int wide2ansi(Bit8u* dst, Bit8u* src, Bit32u n)
 
   for (cnt = 0; cnt < n; ++cnt) {
     dst[cnt] = src[2*cnt];
-    if (src[2*cnt + 1])
-      break;
   }
 
   return cnt;
