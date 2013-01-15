@@ -481,37 +481,44 @@ hvm_status WindowsGetNextModule(hvm_address cr3, PMODULE_DATA pprev, PMODULE_DAT
 {
   hvm_status r;
   LDR_MODULE module;
+  LDR_MODULE next_module;
   Bit16u wname[64];
 
   if (!pnext) return HVM_STATUS_UNSUCCESSFUL;
 
   if (!pprev) {
-    /* Start with the first process, i.e., System */
+    /* Start with the first module */
     pnext->pobj = (hvm_address) WindowsSymbols.PsLoadedModuleList - FIELD_OFFSET(LDR_MODULE, InLoadOrderModuleList);
   } else {
     /* Go on with the next process in the linked-list of modules */
     if (!pprev->pobj) return HVM_STATUS_UNSUCCESSFUL;
 
+    /* Copy object of prev module ... */
     r = MmuReadVirtualRegion(cr3, (hvm_address) pprev->pobj, &module, sizeof(module));
     if (r != HVM_STATUS_SUCCESS ) return HVM_STATUS_UNSUCCESSFUL;
 
+    /* ... to get ptr to the next module */
     pnext->pobj = (hvm_address) module.InLoadOrderModuleList.Flink - FIELD_OFFSET(LDR_MODULE, InLoadOrderModuleList);
 
     if (pnext->pobj == (hvm_address) WindowsSymbols.PsLoadedModuleList - FIELD_OFFSET(LDR_MODULE, InLoadOrderModuleList))
       return HVM_STATUS_END_OF_FILE;
   }
 
-  pnext->baseaddr   = (hvm_address) module.BaseAddress;
-  pnext->entrypoint = (hvm_address) module.EntryPoint;
+  /* Read next module */
+  r = MmuReadVirtualRegion(cr3, (hvm_address) pnext->pobj, &next_module, sizeof(next_module));
+  if (r != HVM_STATUS_SUCCESS ) return HVM_STATUS_UNSUCCESSFUL;
 
-  r = MmuReadVirtualRegion(cr3, (hvm_address) module.BaseDllName.Buffer, wname,
-  			   MIN(module.BaseDllName.MaximumLength, sizeof(wname)/sizeof(Bit16u)));
+  pnext->baseaddr   = (hvm_address) next_module.BaseAddress;
+  pnext->entrypoint = (hvm_address) next_module.EntryPoint;
+
+  r = MmuReadVirtualRegion(cr3, (hvm_address) next_module.BaseDllName.Buffer, wname,
+  			   MIN(next_module.BaseDllName.MaximumLength, sizeof(wname)/sizeof(Bit16u)));
 
   if (r != HVM_STATUS_SUCCESS) {
     pnext->name[0] = '\0';
   } else {
     vmm_memset(pnext->name, 0, sizeof(pnext->name));
-    wide2ansi(pnext->name, (Bit8u*) wname, module.BaseDllName.Length/2);
+    wide2ansi(pnext->name, (Bit8u*) wname, MIN(next_module.BaseDllName.MaximumLength, sizeof(wname)/sizeof(Bit16u))/2);
   }
 
   return HVM_STATUS_SUCCESS;
