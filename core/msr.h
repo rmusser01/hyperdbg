@@ -2,10 +2,11 @@
   Copyright notice
   ================
   
-  Copyright (C) 2010
+  Copyright (C) 2010 - 2013
       Lorenzo  Martignoni <martignlo@gmail.com>
       Roberto  Paleari    <roberto.paleari@gmail.com>
-      Aristide Fattori    <joystick@security.dico.unimi.it>
+      Aristide Fattori    <joystick@security.di.unimi.it>
+      Mattia   Pagnozzi   <pago@security.di.unimi.it>
   
   This program is free software: you can redistribute it and/or modify it under
   the terms of the GNU General Public License as published by the Free Software
@@ -46,6 +47,22 @@
 #define IA32_VMX_CR4_FIXED1                     0x489
 #define	IA32_FS_BASE    		   0xc0000100
 #define	IA32_GS_BASE	                   0xc0000101
+
+#define MSR_IA32_MTRRCAP			0xfe
+#define MSR_IA32_MTRR_DEF_TYPE			0x2ff
+#define MSR_IA32_MTRR_PHYSBASE(n)		(0x200 + 2*(n))
+#define MSR_IA32_MTRR_PHYSMASK(n)		(0x200 + 2*(n) + 1)
+#define MSR_IA32_MTRR_FIX64K_00000		0x250
+#define MSR_IA32_MTRR_FIX16K_80000		0x258
+#define MSR_IA32_MTRR_FIX16K_A0000		0x259
+#define MSR_IA32_MTRR_FIX4K_C0000		0x268
+#define MSR_IA32_MTRR_FIX4K_C8000		0x269
+#define MSR_IA32_MTRR_FIX4K_D0000		0x26a
+#define MSR_IA32_MTRR_FIX4K_D8000		0x26b
+#define MSR_IA32_MTRR_FIX4K_E0000		0x26c
+#define MSR_IA32_MTRR_FIX4K_E8000		0x26d
+#define MSR_IA32_MTRR_FIX4K_F0000		0x26e
+#define MSR_IA32_MTRR_FIX4K_F8000		0x26f
 
 ///////////
 //  MSR  //

@@ -2,10 +2,11 @@
   Copyright notice
   ================
   
-  Copyright (C) 2010
+  Copyright (C) 2010 - 2013
       Lorenzo  Martignoni <martignlo@gmail.com>
       Roberto  Paleari    <roberto.paleari@gmail.com>
-      Aristide Fattori    <joystick@security.dico.unimi.it>
+      Aristide Fattori    <joystick@security.di.unimi.it>
+      Mattia   Pagnozzi   <pago@security.di.unimi.it>
   
   This program is free software: you can redistribute it and/or modify it under
   the terms of the GNU General Public License as published by the Free Software
@@ -30,6 +31,10 @@
 #include "msr.h"
 #include "x86.h"
 
+#ifdef ENABLE_EPT
+#include "ept.h"
+#endif
+
 /* When this variable is TRUE, we are single stepping over an I/O
    instruction */
 static hvm_bool isIOStepping = FALSE;
@@ -46,11 +51,14 @@ void HandleCR(Bit8u crno, VtCrAccessType accesstype, hvm_bool ismemory, VtRegist
 {
   EVENT_CONDITION_CR cr;
   EVENT_PUBLISH_STATUS s;
+	EVENT_ARGUMENTS args;
 
   /* Notify to plugins */
   cr.crno    = crno;
   cr.iswrite = (accesstype == VT_CR_ACCESS_WRITE);
-  s = EventPublish(EventControlRegister, NULL, &cr, sizeof(cr));  
+	args.EventCR.gpr = gpr;
+	
+  s = EventPublish(EventControlRegister, &args, &cr, sizeof(cr));  
 
   if (s == EventPublishHandled) {
     /* Event has been handled by the plugin */
@@ -257,3 +265,36 @@ void HandleNMI(Bit32u trap, Bit32u error_code, Bit32u qualification)
     }
   }
 }
+
+#ifdef ENABLE_EPT
+void HandleEPTViolation(hvm_address guest_linear, hvm_address guest_phy, hvm_bool is_linear_valid, Bit8u attempt_type, hvm_bool in_page_walk, hvm_bool fill_an_entry)
+{
+  EVENT_CONDITION_EPT_VIOLATION event;
+  EVENT_PUBLISH_STATUS s;
+  EVENT_ARGUMENTS args;
+
+  args.EventEPTViolation.guestLinearAddress = guest_linear;
+  args.EventEPTViolation.guestPhysicalAddress = guest_phy;
+  args.EventEPTViolation.is_linear_valid = is_linear_valid;
+  args.EventEPTViolation.in_page_walk = in_page_walk;
+  args.EventEPTViolation.attemptType = attempt_type;
+
+  /* event.attemptType = attempt_type; */
+  event.read = attempt_type & 0x1 ? TRUE : FALSE;
+  event.write = attempt_type & 0x2 ? TRUE : FALSE;
+  event.exec = attempt_type & 0x4 ? TRUE : FALSE;
+  event.in_page_walk = in_page_walk;
+  event.fill_an_entry = fill_an_entry;
+
+  s = EventPublish(EventEPTViolation, &args, &event, sizeof(event));
+
+  if (s == EventPublishNone || s == EventPublishPass) {
+    /* Map the physical address with RWX permission */
+    EPTMapPhysicalAddress(guest_phy, (Bit8u)READ|WRITE|EXEC);
+
+    /* Re-execute the faulty instruction */
+    context.GuestContext.resumerip = context.GuestContext.rip;
+  }
+}
+#endif
+

@@ -2,10 +2,11 @@
   Copyright notice
   ================
   
-  Copyright (C) 2010
+  Copyright (C) 2010 - 2013
       Lorenzo  Martignoni <martignlo@gmail.com>
       Roberto  Paleari    <roberto.paleari@gmail.com>
-      Aristide Fattori    <joystick@security.dico.unimi.it>
+      Aristide Fattori    <joystick@security.di.unimi.it>
+      Mattia   Pagnozzi   <pago@security.di.unimi.it>
   
   This program is free software: you can redistribute it and/or modify it under
   the terms of the GNU General Public License as published by the Free Software
@@ -147,15 +148,9 @@ hvm_status VideoAlloc(void)
   
   /* Map video memory */
 #ifdef GUEST_LINUX
-  if (check_mem_region(video_address, framebuffer_size)) {
-    GuestLog("Video memory already in use!");
-    return HVM_STATUS_UNSUCCESSFUL;
-  }
-  if(!request_mem_region(video_address, framebuffer_size, "hdbg_video")) { /* Must find a way to hide it from /proc */
-    GuestLog("Requesting mem region for video failed!");
-    return HVM_STATUS_UNSUCCESSFUL;
-  }
+	request_mem_region(video_address, framebuffer_size, "hdbg_video");
   video_mem = (void *)ioremap_nocache(video_address, framebuffer_size);
+	GuestLog("Video mem @ %08x\n", (Bit32u) video_mem);
 #elif defined GUEST_WINDOWS
   video_mem = (Bit32u*) MmMapIoSpace(pa, framebuffer_size, MmWriteCombined);
 #endif
