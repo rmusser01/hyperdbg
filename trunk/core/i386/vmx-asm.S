@@ -22,6 +22,10 @@
 
 // MACROS
 
+.macro invept
+	.byte	0x66, 0x0F, 0x38, 0x80
+.endm
+	
 .macro vmx_call
 	.byte	0x0F, 0x01, 0xC1
 .endm
@@ -78,12 +82,26 @@ str:	.asciz	"REG: %8x\n"
 
 .text
 .globl _VmxLaunch, _VmxTurnOn, _VmxClear, _VmxPtrld, _VmxResume, _VmxTurnOff, _VmxRead, _VmxWrite, _VmxVmCall
-.globl _VmxHvmHandleExit, _VmxUpdateGuestContext, _DoStartVT, _NullIDTHandler
+.globl _VmxHvmHandleExit, _VmxUpdateGuestContext, _DoStartVT, _NullIDTHandler, _EptInvept
 	
 .globl VmxLaunch, VmxTurnOn, VmxClear, VmxPtrld, VmxResume, VmxTurnOff, VmxRead, VmxWrite, VmxVmCall
-.globl VmxHvmHandleExit, VmxUpdateGuestContext, DoStartVT, NullIDTHandler
+.globl VmxHvmHandleExit, VmxUpdateGuestContext, DoStartVT, NullIDTHandler, EptInvept
 
 #include "../asm-offset.h"
+
+EptInvept:
+_EptInvept:
+	pushl	%ebp
+	movl	%esp,%ebp
+	movl    $0x1, %eax      /* INVEPT Type */
+	pushl	0x8(%ebp)	/* eptp_high */
+	pushl   0xc(%ebp)	/* eptp_low */
+	pushl   0x10(%ebp)	/* rsvd_high */	
+	pushl   0x14(%ebp)	/* rsvd_low */
+	invept
+	MODRM_EAX_MESP
+	leave
+	ret
 
 VmxLaunch:
 _VmxLaunch:
@@ -226,20 +244,7 @@ _VmxHvmHandleExit:
 VmxUpdateGuestContext:
 _VmxUpdateGuestContext:
 	pushl	%ebx
-	lea 	(_context), %ebx
-	pushl	CONTEXT_rflags(%ebx)
-	pushl	$0x6820			/* GUEST_RFLAGS */
-	call	_VmxVmcsWrite
-	addl	$8, %esp
-	
-	/* Set next instruction to be executed */
-	lea 	(_context), %ebx
-	pushl	CONTEXT_resumerip(%ebx)
-	pushl	$0x681e 	/* _GUEST_RIP */
-	call	_VmxVmcsWrite
-	addl	$8, %esp
 
-	
 	lea 	(_context), %ebx
 	movl	CONTEXT_rax(%ebx), %eax
 	popl	%ebx

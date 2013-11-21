@@ -2,10 +2,11 @@
   Copyright notice
   ================
   
-  Copyright (C) 2010
+  Copyright (C) 2010 - 2013
       Lorenzo  Martignoni <martignlo@gmail.com>
       Roberto  Paleari    <roberto.paleari@gmail.com>
-      Aristide Fattori    <joystick@security.dico.unimi.it>
+      Aristide Fattori    <joystick@security.di.unimi.it>
+      Mattia   Pagnozzi   <pago@security.di.unimi.it>
   
   This program is free software: you can redistribute it and/or modify it under
   the terms of the GNU General Public License as published by the Free Software
@@ -535,9 +536,9 @@ void PrintInfo()
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *                                                         *                   ");
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *                     HyperDbg %d                   *                   ", HYPERDBG_VERSION);
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *            " HYPERDBG_URL "           *                   ");
-  vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *          Coded by: martignlo, roby and joystick         *                   ");
+  vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *         Coded by: martignlo, roby, joystick, pago       *                   ");
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *      {lorenzo.martignoni,roberto.paleari}@gmail.com     *                   ");
-  vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *             joystick@security.dico.unimi.it             *                   ");
+  vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *           {joystick,pago}@security.di.unimi.it          *                   ");
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    *                                                         *                   ");
   vmm_snprintf(out_matrix[start++], OUT_SIZE_X, "                    ***********************************************************                   ");
   VideoRefreshOutArea(LIGHT_GREEN);

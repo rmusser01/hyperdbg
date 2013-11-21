@@ -2,10 +2,11 @@
   Copyright notice
   ================
   
-  Copyright (C) 2010
+  Copyright (C) 2010 - 2013
       Lorenzo  Martignoni <martignlo@gmail.com>
       Roberto  Paleari    <roberto.paleari@gmail.com>
-      Aristide Fattori    <joystick@security.dico.unimi.it>
+      Aristide Fattori    <joystick@security.di.unimi.it>
+      Mattia   Pagnozzi   <pago@security.di.unimi.it>
   
   This program is free software: you can redistribute it and/or modify it under
   the terms of the GNU General Public License as published by the Free Software
@@ -43,6 +44,10 @@
 #include "debug.h"
 #include "vmmstring.h"
 
+#ifdef ENABLE_EPT
+#include "ept.h"
+#endif
+
 /* Memory types used to access the VMCS (bits 53:50 of the IA32_VMX_BASIC MSR) */
 #define VMX_MEMTYPE_UNCACHEABLE 0
 #define VMX_MEMTYPE_WRITEBACK   6
@@ -57,6 +62,12 @@ static struct {
 
   Bit32u IDTVectoringInformationField;
   Bit32u IDTVectoringErrorCode;
+
+#ifdef ENABLE_EPT
+  hvm_address     GuestLinearAddress;
+  hvm_phy_address GuestPhysicalAddress;
+#endif
+	
 } vmxcontext;
 
 /* VMX operations */
@@ -87,7 +98,7 @@ static void       VmxInternalHandleIO(void);
 static void       VmxInternalHandleNMI(void);
 static void       VmxInternalHvmInjectException(Bit32u type, Bit32u trap, Bit32u error_code);
 
-/* Assembly functions (defined in i386/vmx-asm.asm) */
+/* Assembly functions (defined in i386/vmx-asm.s) */
 void            VmxLaunch(void);
 Bit32u USESTACK VmxTurnOn(Bit32u phyvmxonhigh, Bit32u phyvmxonlow);
 void            VmxTurnOff(void);
@@ -98,7 +109,9 @@ Bit32u USESTACK VmxRead(Bit32u encoding);
 void   USESTACK VmxWrite(Bit32u encoding, Bit32u value);
 void   USESTACK VmxVmCall(Bit32u num);
 void            VmxHvmHandleExit(void);
-void            VmxUpdateGuestContext(void) asm("_VmxUpdateGuestContext");
+#ifdef ENABLE_EPT
+void   USESTACK EptInvept(Bit32u eptp_high, Bit32u eptp_low, Bit32u rsvd_high, Bit32u rsvd_low);
+#endif
 
 struct HVM_X86_OPS hvm_x86_ops = {
   /* VT-related */
@@ -201,7 +214,14 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
   Bit16u seg_selector = 0;
   Bit32u temp32, gdt_base, idt_base;
 
-  // GDT Info
+#ifdef ENABLE_EPT
+  hvm_phy_address phys_pdpt, phys_pd, phys_pt;
+  hvm_address pdpt, pd, pt;
+  Bit32u i, j, h, map;
+  Bit64u temp64;
+#endif
+
+	// GDT Info
   __asm__ __volatile__ (
 			"sgdt %0\n"
 			:"=m"(gdt_reg)
@@ -322,7 +342,8 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
   /* Primary processor-based VM-execution controls */
   temp32 = 0;
   CmSetBit32(&temp32, CPU_BASED_PRIMARY_IO); /* Use I/O bitmaps */
-  CmSetBit32(&temp32, 7); /* HLT */
+	CmSetBit32(&temp32, CPU_BASED_PRIMARY_HLT); /* HLT */
+  CmSetBit32(&temp32, CPU_BASED_USE_MSR_BITMAPS); /* Enable MSR bitmaps */
   VmxVmcsWrite(CPU_BASED_VM_EXEC_CONTROL, temp32);
 
   /* I/O bitmap */
@@ -508,6 +529,87 @@ static hvm_status VmxVmcsInitialize(hvm_address guest_stack, hvm_address guest_r
 
   Log("Setting Host RIP to %.8x", hvm_x86_ops.hvm_handle_exit);
   VmxVmcsWrite(HOST_RIP, (hvm_address) hvm_x86_ops.hvm_handle_exit);
+
+#ifdef ENABLE_EPT
+
+  EPTInit();
+
+  /* Init Virtual PT Bases */
+  vmm_memset(VIRT_PT_BASES, 0, HOST_GB*512*sizeof(hvm_address));
+  /* Allocate memory for EPT paging structures */
+
+  /* We need only one entry of EPT PML4 table */
+  Pml4 = (hvm_address)GUEST_MALLOC(4096);	/* Alloc 4K to be sure of 4K alignment :-( */
+  MmuGetPhysicalAddress(RegGetCr3(), Pml4, &Phys_Pml4);
+  vmm_memset((void *)Pml4, 0, 4096);
+
+  /* We need only HOST_GB entries of EPT PDPT */
+  pdpt = (hvm_address)GUEST_MALLOC(4096);	/* Alloc 4K to be sure of 4K alignment :-( */
+  MmuGetPhysicalAddress(RegGetCr3(), pdpt, &phys_pdpt);
+  vmm_memset((void *)pdpt, 0, 4096);
+
+  /* Fill PML4E with PDPT base address and RWX permissions */
+  *(hvm_address *)Pml4 = (GET32L(phys_pdpt) & 0xfffff000) | 0x7;
+
+  map = 0;
+
+  for(i = 0; i < HOST_GB; i++) {
+
+    /* Allocate memory for PD */
+    pd = (hvm_address)GUEST_MALLOC(4096);
+    if(!pd) {
+      return HVM_STATUS_UNSUCCESSFUL;
+    }
+    MmuGetPhysicalAddress(RegGetCr3(), pd, &phys_pd);
+    vmm_memset((void *)pd, 0, 4096);
+
+    /* Fill i-th PDPTE with i-th PD baseaddr and RWX permissions */
+    *(hvm_address *)(pdpt+i*8) = (GET32L(phys_pd) & 0xfffff000) | 0x7;
+
+    for(j = 0; j < 4096; j=j+8) {
+
+      /* Allocate memory for PT */
+      pt = (hvm_address)GUEST_MALLOC(4096);
+      if(!pt) {
+				return HVM_STATUS_UNSUCCESSFUL;
+      }
+      /* Store Virtual PT base in ad-hoc array */
+      VIRT_PT_BASES[(i*512) + (j/8)] = pt;
+      /* Get Phys Addr */
+      MmuGetPhysicalAddress(RegGetCr3(), pt, &phys_pt);
+      vmm_memset((void *)pt, 0, 4096);
+
+      /* Fill j-th PDE with PT baseaddr and RWX permissions */
+      *(hvm_address *)(pd+j) = (GET32L(phys_pt) & 0xfffff000) | 0x7;
+
+      /* 1:1 physical memory mapping */
+      for(h = 0; h < 4096; h=h+8) {
+      	/* Log("Fill PDPT[%d] PD[%d] PT[%d] with 0x%08hx", i, j/8, h/8, ((map << 12) | 0x37)); */
+				*(hvm_address *)(pt+h) = (map << 12) | ((Bit8u) EPTGetMemoryType((map << 12)) << 3) | READ | WRITE | EXEC;
+      	map++;
+      }
+    }
+  }
+
+  temp32 = VmxVmcsRead(CPU_BASED_VM_EXEC_CONTROL);
+  CmSetBit32(&temp32, CPU_BASED_PRIMARY_ACTIVATE_SEC); /* Activate secondary controls */
+  VmxVmcsWrite(CPU_BASED_VM_EXEC_CONTROL, temp32);
+
+  /* Write EPTP (Memory Type WB, Page Walk 4 ---> 3 = 0x1e) */
+  temp64 = 0;
+  temp64 = (Phys_Pml4 & 0xfffff000) | 0x1e;
+  VmxVmcsWrite(EPTP_ADDR, temp64);
+
+  temp32 = 0;
+  CmSetBit32(&temp32, 1); /* Enable EPT */
+  VmxVmcsWrite(SECONDARY_VM_EXEC_CONTROL, temp32);
+
+  vmm_memset(&EPTInveptDesc, 0, sizeof(EPTInveptDesc));
+  EPTInveptDesc.Eptp = VmxVmcsRead(EPTP_ADDR);
+
+  Log("SUCCESS: EPT enabled.");
+
+#endif
   
   return HVM_STATUS_SUCCESS;
 }
@@ -797,17 +899,20 @@ static hvm_status VmxHardwareDisable(void)
 
 static void VmxSetCr0(hvm_address cr0)
 {
-  VmxVmcsWrite(GUEST_CR0, cr0);
+	context.GuestContext.cr0 = cr0;
+  VmxVmcsWrite(GUEST_CR0, cr0);	/* This is redundant but whatever */
 }
 
 static void VmxSetCr3(hvm_address cr3)
 {
-  VmxVmcsWrite(GUEST_CR3, cr3);
+	context.GuestContext.cr3 = cr3;
+  VmxVmcsWrite(GUEST_CR3, cr3); /* This is redundant but whatever */
 }
 
 static void VmxSetCr4(hvm_address cr4)
 {
-  VmxVmcsWrite(GUEST_CR4, cr4);
+	context.GuestContext.cr4 = cr4;
+  VmxVmcsWrite(GUEST_CR4, cr4); /* This is redundant but whatever */
 }
 
 static void VmxTrapIO(hvm_bool enabled)
@@ -872,6 +977,11 @@ static void VmxReadGuestContext(void)
   vmxcontext.IDTVectoringErrorCode        = VmxRead(IDT_VECTORING_ERROR_CODE);
   vmxcontext.ExitInstructionLength        = VmxRead(VM_EXIT_INSTRUCTION_LEN);
   vmxcontext.ExitInstructionInformation   = VmxRead(VMX_INSTRUCTION_INFO);
+
+#ifdef ENABLE_EPT
+  vmxcontext.GuestLinearAddress           = VmxRead(GUEST_LINEAR_ADDRESS);
+  vmxcontext.GuestPhysicalAddress         = VmxRead(GUEST_PHYSICAL_ADDRESS);
+#endif
 
   /* Read guest state */
   context.GuestContext.rip    = VmxRead(GUEST_RIP);
@@ -999,6 +1109,7 @@ static void VmxInternalHandleCR(void)
   VtCrAccessType accesstype;
   VtRegister gpr;
 
+
   movcrControlRegister = (Bit8u) (vmxcontext.ExitQualification & 0x0000000F);
   movcrAccessType      = ((vmxcontext.ExitQualification & 0x00000030) >> 4);
   movcrOperandType     = ((vmxcontext.ExitQualification & 0x00000040) >> 6);
@@ -1022,7 +1133,7 @@ static void VmxInternalHandleCR(void)
   }
 
   /* Read general purpose register */
-  if (movcrOperandType == 1 && accesstype != VT_CR_ACCESS_CLTS && accesstype != VT_CR_ACCESS_LMSW) {
+  if (movcrOperandType == 0 && accesstype != VT_CR_ACCESS_CLTS && accesstype != VT_CR_ACCESS_LMSW) {
     switch (movcrGeneralPurposeRegister) {
     case 0:  gpr = VT_REGISTER_RAX; break;
     case 1:  gpr = VT_REGISTER_RCX; break;
@@ -1103,7 +1214,7 @@ static void VmxInternalHandleNMI(void)
 
 void VmxHvmInternalHandleExit(void)
 {
-
+  Bit32u interruptibility, activitystate, pending_debug, vectoring_error_code, vectoring_information;
   VmxReadGuestContext();
 
   /* Restore host IDT -- Not sure if this is really needed. I'm pretty sure we */
@@ -1111,7 +1222,7 @@ void VmxHvmInternalHandleExit(void)
 
   RegSetIdtr((void*) VmxRead(HOST_IDTR_BASE), 0x7ff);
   /* Enable logging only for particular VM-exit events */
-  if( vmxcontext.ExitReason == EXIT_REASON_VMCALL) {
+  if(vmxcontext.ExitReason == EXIT_REASON_VMCALL || vmxcontext.ExitReason == EXIT_REASON_EPT_MISCONFIGURATION) {
     HandlerLogging = TRUE;
   } else {
     HandlerLogging = FALSE;
@@ -1126,7 +1237,7 @@ void VmxHvmInternalHandleExit(void)
     Log("Guest RDI: %.8x", context.GuestContext.rdi);
     Log("Guest RSI: %.8x", context.GuestContext.rsi);
     Log("Guest RBP: %.8x", context.GuestContext.rbp);
-    Log("Exit Reason:        %.8x", vmxcontext.ExitReason);
+    Log("Exit Reason:        %d", vmxcontext.ExitReason);
     Log("Exit Qualification: %.8x", vmxcontext.ExitQualification);
     Log("Exit Interruption Information:   %.8x", vmxcontext.ExitInterruptionInformation);
     Log("Exit Interruption Error Code:    %.8x", vmxcontext.ExitInterruptionErrorCode);
@@ -1161,7 +1272,6 @@ void VmxHvmInternalHandleExit(void)
   case EXIT_REASON_VMXON:
     Log("Request has been denied (reason: %.8x)", vmxcontext.ExitReason);
 
-    // VmxUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -1170,7 +1280,6 @@ void VmxHvmInternalHandleExit(void)
   case EXIT_REASON_VMLAUNCH:
     HandleVMLAUNCH();
     
-    // VmxUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -1182,7 +1291,6 @@ void VmxHvmInternalHandleExit(void)
   case EXIT_REASON_VMCALL:
     HandleVMCALL();
 
-    // VmxUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -1198,7 +1306,6 @@ void VmxHvmInternalHandleExit(void)
 			  "invd\n"
 			  );
 
-    // VmxUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -1208,10 +1315,8 @@ void VmxHvmInternalHandleExit(void)
     //  RDMSR  //
     /////////////
   case EXIT_REASON_MSR_READ:
+		/* This gets triggered only for MSRs configured in the MSR bitmap. By default, it just re-execute the faulty instruction. */
     Log("Read MSR #%.8x", context.GuestContext.rcx);
-
-    // VmxUpdateGuestContext();
-
     __asm__ __volatile__ (
 			  "movl	%0,%%ecx\n"
 			  "rdmsr\n"
@@ -1228,7 +1333,6 @@ void VmxHvmInternalHandleExit(void)
     Log("Write MSR #%.8x", context.GuestContext.rcx);
 
     WriteMSR(context.GuestContext.rcx, context.GuestContext.rdx, context.GuestContext.rax);
-    // VmxUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -1242,27 +1346,22 @@ void VmxHvmInternalHandleExit(void)
       Log("CPUID detected (RAX: %.8x)", context.GuestContext.rax);
     }
     
-    // VmxUpdateGuestContext();
+		/* Change here if you want to mask some CPU flag */
+		__asm__ __volatile__(
+												 "movl	%4,%%eax\n"
+												 "movl  %5,%%ecx\n"
+												 "cpuid\n"
+												 "movl  %%eax, %0\n"
+												 "movl  %%ebx, %1\n"
+												 "movl  %%ecx, %2\n"
+												 "movl  %%edx, %3\n"
+												 :"=m"(context.GuestContext.rax),"=m"(context.GuestContext.rbx), "=m"(context.GuestContext.rcx), "=m"(context.GuestContext.rdx)
+												 :"m"(context.GuestContext.rax),"m"(context.GuestContext.rcx)
+												 :"eax","ebx","ecx","edx"
+												 );
 
-    /* XXX Do we really need this check? */
-    if(context.GuestContext.rax == 0x00000000) {
-      
-      __asm__ __volatile__(
-			   "movl		$0x00000000,%eax\n"
-			   "cpuid\n"
-			   "movl		$0x61656c43,%ebx\n"
-			   "movl		$0x2e636e6c,%ecx\n"
-			   "movl		$0x74614872,%edx\n"
-			   );
-      goto Resume;
-    }
-
-    __asm__ __volatile__(
-    			 "movl	%0,%%eax\n"
-    			 "cpuid\n"
-    			 ::"m"(context.GuestContext.rax)
-    			 );
     goto Resume;
+
     /* Unreachable */
     break;
 
@@ -1272,8 +1371,6 @@ void VmxHvmInternalHandleExit(void)
   case EXIT_REASON_CR_ACCESS:
 
     VmxInternalHandleCR();
-
-    // VmxUpdateGuestContext();
 
     goto Resume;
 
@@ -1286,7 +1383,6 @@ void VmxHvmInternalHandleExit(void)
   case EXIT_REASON_IO_INSTRUCTION:
     VmxInternalHandleIO();
     
-    // VmxUpdateGuestContext();
     goto Resume;
 
     /* Unreachable */
@@ -1295,19 +1391,40 @@ void VmxHvmInternalHandleExit(void)
   case EXIT_REASON_EXCEPTION_NMI:
     VmxInternalHandleNMI();
 
-    // VmxUpdateGuestContext();
     goto Resume;
     
     /* Unreachable */
     break;
 
+#ifdef ENABLE_EPT
+  case EXIT_REASON_EPT_VIOLATION:
+    vectoring_information = VmxRead(IDT_VECTORING_INFO_FIELD);
+    vectoring_error_code  = VmxRead(IDT_VECTORING_ERROR_CODE);
+
+    if((vectoring_information & (1 << 31)) == 0) {
+      /* If the VM exit stored 0 for bit 31 for IDT-vectoring information field
+				 (because the VM exit did not occur during delivery of an event through
+				 the IDT; see Section 27.2.3), the value saved is 1. */
+
+      context.GuestContext.rflags &= ~FLAGS_RF_MASK;
+    }
+    
+    HandleEPTViolation( vmxcontext.GuestLinearAddress,
+			GET32L(vmxcontext.GuestPhysicalAddress),
+			(vmxcontext.ExitQualification & 0x80) != 0,     /* GuestLinear is valid? */
+			 vmxcontext.ExitQualification & 0x7,            /* Attempt type */
+			(vmxcontext.ExitQualification & 0x100) == 0,    /* Violation in guest page walk? */
+			(vmxcontext.ExitQualification & 0x38) == 0      /* Fill an entry? */
+			);
+
+    goto Resume;
+
+    /* Unreachable */
+    break;
+#endif
   case EXIT_REASON_HLT:
     HandleHLT();
 
-    // FIXME: Cannot execute HLT with interrupt disabled
-    // __asm__ __volatile__  ("HLT\n");
-    
-    // VmxUpdateGuestContext();
     goto Resume;
     
     /* Unreachable */
@@ -1323,7 +1440,37 @@ void VmxHvmInternalHandleExit(void)
   HypercallSwitchOff(NULL);
   
  Resume:
-  
+  /* We need to check if TF is set*/
+  if((context.GuestContext.rflags & FLAGS_TF_MASK) != 0) {
+    /* Here we must check if interruptibility-state field indicates a blocking cause of STI, MOV SS, IRET or HLT */
+    interruptibility = VmxVmcsRead(GUEST_INTERRUPTIBILITY_INFO);
+    activitystate = VmxVmcsRead(GUEST_ACTIVITY_STATE);
+
+    /*       STI (bit 0)                       MOV SS (bit1)                    IRET(bit3)                      HLT (x)      */
+    if((interruptibility & 0x1) != 0 || (interruptibility & 0x2) != 0 || (interruptibility & 0x4) != 0 || (activitystate == 1)) {
+      /* According to: http://www.mail-archive.com/kvm@vger.kernel.org/msg08324.html we must clear both bits */
+      interruptibility &= ~0x1;
+      interruptibility &= ~0x2;
+      VmxVmcsWrite(GUEST_INTERRUPTIBILITY_INFO, interruptibility);
+    }
+  }
+  else {
+    /* We must set GUEST_PENDING_DBG_EXCEPTIONS.BS = 0 because RFLAGS.TF == 0*/
+    pending_debug = VmxVmcsRead(GUEST_PENDING_DBG_EXCEPTIONS);
+    pending_debug &= ~0x4000; /* bit 14 */
+    VmxVmcsWrite(GUEST_PENDING_DBG_EXCEPTIONS, pending_debug);
+  }
+
+  /* Mirror context.GuestContext fields into VMCS Guest Fields as update guest context doesn't do it. */
+  /* NB: we can do it here because there will be no more updates to context.GuestContext */
+  VmxVmcsWrite(GUEST_RIP, context.GuestContext.resumerip);
+  VmxVmcsWrite(GUEST_RSP, context.GuestContext.rsp);
+  VmxVmcsWrite(GUEST_CS_SELECTOR, context.GuestContext.cs);
+  VmxVmcsWrite(GUEST_CR0, context.GuestContext.cr0);
+  VmxVmcsWrite(GUEST_CR3, context.GuestContext.cr3);
+  VmxVmcsWrite(GUEST_CR4, context.GuestContext.cr4);
+  VmxVmcsWrite(GUEST_RFLAGS, context.GuestContext.rflags);
+
   return;
   // Exit reason handled. Need to execute the VMRESUME without having
   // changed the state of the GPR and ESP et cetera.

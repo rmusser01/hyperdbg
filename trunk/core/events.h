@@ -2,10 +2,11 @@
   Copyright notice
   ================
   
-  Copyright (C) 2010
+  Copyright (C) 2010 - 2013
       Lorenzo  Martignoni <martignlo@gmail.com>
       Roberto  Paleari    <roberto.paleari@gmail.com>
-      Aristide Fattori    <joystick@security.dico.unimi.it>
+      Aristide Fattori    <joystick@security.di.unimi.it>
+      Mattia   Pagnozzi   <pago@security.di.unimi.it>
   
   This program is free software: you can redistribute it and/or modify it under
   the terms of the GNU General Public License as published by the Free Software
@@ -25,7 +26,8 @@
 #define _EVENTS_H
 
 #include "types.h"
-#include <stddef.h>  // includes size_t type
+#include <stddef.h>  /* Includes size_t type */
+#include "vt.h"			 /* Includes VtRegister */
 
 typedef enum {
   EventPublishNone,              /* Event not accepted */
@@ -42,6 +44,20 @@ typedef struct {
       hvm_bool isstring;
       hvm_bool isrep;
     } EventIO;
+#ifdef ENABLE_EPT
+    struct {
+      hvm_address guestLinearAddress;
+      hvm_address guestPhysicalAddress;
+      hvm_bool    is_linear_valid;
+      hvm_bool    in_page_walk;
+      Bit8u       attemptType;                     /* rwx */      
+    } EventEPTViolation;
+#endif		
+    struct {
+      Bit8u      crno;
+      hvm_bool   iswrite;
+      VtRegister gpr;
+    } EventCR;
   };
 } EVENT_ARGUMENTS, *PEVENT_ARGUMENTS;
 
@@ -53,9 +69,24 @@ typedef enum {
   EventIO,
   EventControlRegister,
   EventHlt,
+#ifdef ENABLE_EPT
+  EventEPTViolation,
+#endif
 } HVM_EVENT_TYPE;
 
 typedef EVENT_PUBLISH_STATUS (*EVENT_CALLBACK)(PEVENT_ARGUMENTS);
+
+#ifdef ENABLE_EPT
+typedef struct _EVENT_CONDITION_EPT_VIOLATION {
+  hvm_bool read;
+  hvm_bool write;     
+  hvm_bool exec;       
+  hvm_bool is_linear_valid;
+  hvm_bool in_page_walk;
+  hvm_bool fill_an_entry;
+
+} EVENT_CONDITION_EPT_VIOLATION, *PEVENT_CONDITION_EPT_VIOLATION;
+#endif
 
 typedef struct _EVENT_CONDITION_HYPERCALL {
   Bit32u hypernum;
