@@ -335,8 +335,9 @@ typedef struct _KPROCESS {
   LIST_ENTRY ProcessListEntry;
   UINT64 CycleTime;
 } KPROCESS, *PKPROCESS;
+#pragma pack (pop)
 
-typedef struct _PEB_LDR_DATA {
+typedef struct _PEB_LDR_DATA {	/* This structure must be outside of pragma pack */
   ULONG Length;
   UCHAR Initialized;
   PVOID SsHandle;
@@ -345,7 +346,7 @@ typedef struct _PEB_LDR_DATA {
   LIST_ENTRY InInitializationOrderModuleList;
   PVOID EntryInProgress;
 } PEB_LDR_DATA, *PPEB_LDR_DATA;
-#pragma pack (pop)
+
 
 hvm_status WindowsInit(PDRIVER_OBJECT DriverObject);
 hvm_status WindowsGetKeyboardVector(unsigned char*);
