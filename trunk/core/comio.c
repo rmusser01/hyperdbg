@@ -83,7 +83,7 @@ void ComInit()
 void ComPrint(const char* fmt, ...)
 {
   va_list args;
-  char str[1024] = {0};
+  char str[768] = {0};
   unsigned int i;
 
   CmAcquireSpinLock(&ComSpinLock);

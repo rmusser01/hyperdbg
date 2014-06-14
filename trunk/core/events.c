@@ -48,6 +48,9 @@ typedef struct _EVENT {
     EVENT_CONDITION_IO io;
     EVENT_CONDITION_CR cr;
     EVENT_CONDITION_NONE none;
+#ifdef ENABLE_EPT
+    EVENT_CONDITION_EPT_VIOLATION ept_violation;
+#endif
   } condition;
 
   EVENT_CALLBACK callback;
@@ -249,6 +252,18 @@ static hvm_bool EventCheckCondition(HVM_EVENT_TYPE type, void* c1, void* c2)
     }
     break;
   }
+
+#ifdef ENABLE_EPT
+  case EventEPTViolation: {
+    PEVENT_CONDITION_EPT_VIOLATION p1, p2;
+    p1 = (PEVENT_CONDITION_EPT_VIOLATION) c1;
+    p2 = (PEVENT_CONDITION_EPT_VIOLATION) c2;
+    /* if( (p1->read == p2->read) && (p1->write == p2->write) && (p1->exec == p2->exec) && (p1->in_page_walk == p2->in_page_walk) && (p1->fill_an_entry == p2->fill_an_entry) && (p1->is_linear_valid == p2->is_linear_valid) ) { */
+    b = TRUE;
+    /* } */
+    break;
+  }
+#endif
 
   case EventHlt: {
     b = TRUE;

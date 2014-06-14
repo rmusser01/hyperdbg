@@ -36,9 +36,9 @@ hvm_status LinuxInitStructures () {
 hvm_status LinuxGetNextProcess(hvm_address cr3, PROCESS_DATA* pprev, PROCESS_DATA* pnext ) {
 
   hvm_status r;
-  hvm_phy_address phy_cr3;
   struct task_struct ts;
   struct mm_struct process_mm;
+  hvm_phy_address phy_cr3;
   
   if(!pnext) return HVM_STATUS_UNSUCCESSFUL;
 
@@ -176,6 +176,7 @@ hvm_status LinuxFindProcessTid(hvm_address cr3, hvm_address *tid)
 
 
 hvm_status LinuxGetNextModule(hvm_address cr3, MODULE_DATA* pprev, MODULE_DATA* pnext) {
+  /* Unimplemented */
   return HVM_STATUS_UNSUCCESSFUL;
 }
 
